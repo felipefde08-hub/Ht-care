@@ -162,17 +162,14 @@ function PanelPage() {
       (user.user_metadata?.full_name as string | undefined) ??
       user.email,
   );
-  const lastCheckIn = readLastCheckIn();
-  const mobileHealthData = buildMobileHealthData(stored, lastCheckIn);
-  const journeySteps = buildJourneySteps(
-    Boolean(stored?.result),
-    Boolean(currentScore),
-    challengeStats.points,
+  const currentMission = weeklyMissions.find(
+    (mission) =>
+      !challengeStats.progress.completedMissionIds.includes(
+        missionCompletionKey(mission.id, challengeStats.currentWeek),
+      ),
   );
-  const nextJourneyText =
-    challengeStats.pendingThisWeek > 0
-      ? `Complete ${challengeStats.pendingThisWeek} ${challengeStats.pendingThisWeek > 1 ? "missões" : "missão"} desta semana.`
-      : "Faça um check-in rápido para manter seu acompanhamento vivo.";
+  const missionProgressLabel = `${challengeStats.completedThisWeek}/${weeklyMissions.length}`;
+  const scoreComparison = getScoreComparison(currentScore);
 
   useEffect(() => {
     let frame = 0;
@@ -247,168 +244,89 @@ function PanelPage() {
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
-          className="sm:hidden"
+          className="mx-auto max-w-md sm:hidden"
         >
-          <div className="rounded-[1.8rem] border border-[#10201f]/8 bg-white p-4 shadow-[0_22px_80px_-60px_rgba(16,32,31,0.55)]">
-            <div className="flex items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-[#10201f]">Olá, {firstName}!</p>
-                <h1 className="mt-1 font-sans text-[1.35rem] font-semibold leading-tight">
-                  Que bom te ver por aqui.
-                </h1>
-                <p className="mt-1 text-sm leading-5 text-[#536b68]">
-                  Vamos cuidar do seu coração hoje?
-                </p>
-              </div>
-              <Carelito className="h-24 w-24 shrink-0" expression="happy" />
-            </div>
+          <p className="text-sm font-semibold text-[#536b68]">Bom dia, {firstName}</p>
 
-            <div className="mt-3 grid grid-cols-[auto_1fr] gap-3 rounded-[1.3rem] bg-[#f7faf9] p-3">
-              <CompactScoreRing value={currentScore} />
-              <div className="min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-[0.64rem] font-bold uppercase tracking-[0.16em] text-[#78908d]">
-                      Score atual
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-[#536b68]">
-                      {stored?.result?.label ?? "Sem score salvo"}
-                    </p>
-                  </div>
-                  <TrendBadge trend={trend} />
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <MiniMetric
-                    icon={<Flame className="h-4 w-4" />}
-                    label="Streak"
-                    value={
-                      challengeStats.streakWeeks ? `${challengeStats.streakWeeks} sem.` : "Começar"
-                    }
-                  />
-                  <MiniMetric
-                    icon={<Trophy className="h-4 w-4" />}
-                    label="Pontos"
-                    value={`${displayPoints}`}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-[1.8rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
-            <div className="flex items-center justify-between">
-              <h2 className="font-sans text-lg font-semibold">Sua jornada</h2>
-              <span className="rounded-full bg-[#eef6f3] px-2.5 py-1 text-[0.68rem] font-bold text-[#2f6760]">
-                {challengeStats.points} pts
-              </span>
-            </div>
-            <div className="mt-4 grid grid-cols-4 gap-2">
-              {journeySteps.map((step, index) => {
-                const Icon = step.icon;
-                return (
-                  <div key={step.label} className="relative text-center">
-                    {index < journeySteps.length - 1 && (
-                      <span className="absolute left-1/2 top-5 h-0.5 w-full bg-[#e6eeeb]" />
-                    )}
-                    <span
-                      className={`relative mx-auto grid h-10 w-10 place-items-center rounded-full border-2 text-sm font-bold ${
-                        step.status === "complete"
-                          ? "border-[#7fd7c0] bg-[#e8f5ef] text-[#2f6760]"
-                          : step.status === "current"
-                            ? "border-[#2f8fc8] bg-[#e9f4fb] text-[#2f8fc8]"
-                            : "border-[#e6eeeb] bg-[#f7faf9] text-[#9aa8a5]"
-                      }`}
-                    >
-                      {step.status === "complete" ? (
-                        <CheckCircle2 className="h-5 w-5" fill="currentColor" />
-                      ) : step.status === "locked" ? (
-                        <Lock className="h-4 w-4" />
-                      ) : (
-                        <Icon className="h-4 w-4" />
-                      )}
-                    </span>
-                    <p className="mt-2 text-[0.66rem] font-semibold leading-tight text-[#536b68]">
-                      {step.label}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-            <Link
-              to={challengeStats.pendingThisWeek > 0 ? "/missoes" : "/check-in"}
-              className="mt-4 flex min-h-14 items-center justify-between rounded-[1.25rem] bg-[linear-gradient(135deg,#2f8fc8,#49c7ae)] px-4 py-3 text-white shadow-[0_20px_70px_-44px_rgba(47,143,200,0.9)]"
-            >
-              <span className="flex items-center gap-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/18">
-                  <Trophy className="h-5 w-5" />
-                </span>
-                <span>
-                  <span className="block text-sm font-bold">Continue sua jornada!</span>
-                  <span className="block text-xs text-white/78">{nextJourneyText}</span>
-                </span>
-              </span>
-              <ArrowRight className="h-5 w-5 shrink-0" />
-            </Link>
-          </div>
-
-          <div className="mt-4 rounded-[1.8rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="font-sans text-lg font-semibold">Seus dados</h2>
-              <span className="text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[#78908d]">
-                informado por você
-              </span>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2.5">
-              {mobileHealthData.map((item) => (
-                <MobileDataCard key={item.label} {...item} />
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-[1.8rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
+          <section className="mt-3 overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-4 shadow-[0_26px_90px_-62px_rgba(16,32,31,0.62)]">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="font-sans text-lg font-semibold">Desafios</h2>
-                <p className="mt-0.5 text-xs text-[#78908d]">
-                  {challengeStats.completedThisWeek} de {weeklyMissions.length} feitos esta semana
+                <p className="text-sm font-bold text-[#536b68]">❤️ Seu coração hoje</p>
+                <div className="mt-3 flex items-end gap-2">
+                  <span className="font-sans text-6xl font-semibold leading-none">
+                    {currentScore ?? "—"}
+                  </span>
+                  <span className="pb-1 text-lg font-semibold text-[#78908d]">/100</span>
+                </div>
+                <p className="mt-2 font-sans text-xl font-semibold">
+                  {scoreQualityLabel(currentScore)}
                 </p>
               </div>
-              <Link to="/missoes" className="text-xs font-bold text-[#2f6760]">
-                Ver todos
-              </Link>
+              <CompactScoreRing value={currentScore} />
             </div>
-            <div className="mt-3 space-y-2">
-              {weeklyMissions.slice(0, 3).map((mission) => {
-                const done = challengeStats.progress.completedMissionIds.includes(
-                  missionCompletionKey(mission.id, challengeStats.currentWeek),
-                );
-                return (
-                  <div
-                    key={mission.id}
-                    className="flex items-center gap-3 rounded-[1.15rem] bg-[#f7faf9] p-3"
-                  >
-                    <span
-                      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${
-                        done ? "bg-[#e8f5ef] text-[#2f6760]" : "bg-white text-[#9a5b12]"
-                      }`}
-                    >
-                      {done ? (
-                        <CheckCircle2 className="h-4 w-4" />
-                      ) : (
-                        <ShieldCheck className="h-4 w-4" />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{mission.title}</p>
-                      <p className="text-xs text-[#78908d]">
-                        {done ? "feito" : "pendente"} · +{mission.points} pontos
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+            <p className="mt-4 rounded-[1.2rem] bg-[#f7faf9] px-4 py-3 text-sm font-semibold leading-5 text-[#536b68]">
+              {scoreComparison}
+            </p>
+            <div className="mt-3 flex items-center gap-2 text-xs font-bold">
+              <span className="rounded-full bg-[#fff7dc] px-3 py-1.5 text-[#9a5b12]">
+                🔥 {challengeStats.streakWeeks || 0}
+              </span>
+              <span className="rounded-full bg-[#e8f5ef] px-3 py-1.5 text-[#2f6760]">
+                ♥ {displayPoints} pontos
+              </span>
+              <TrendBadge trend={trend} />
             </div>
-          </div>
+          </section>
+
+          <section className="mt-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78908d]">
+                  Missão do dia
+                </p>
+                <h2 className="mt-1 font-sans text-xl font-semibold leading-tight">
+                  {currentMission?.title ?? "Faça seu check-in rápido"}
+                </h2>
+              </div>
+              <span className="rounded-full bg-[#e9f4fb] px-3 py-1.5 text-xs font-bold text-[#2f8fc8]">
+                {missionProgressLabel}
+              </span>
+            </div>
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#eef3f1]">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${weeklyProgressPercent}%` }}
+                transition={{ duration: 0.7, ease: "easeOut" }}
+                className="h-full rounded-full bg-[linear-gradient(90deg,#2f8fc8,#49c7ae)]"
+              />
+            </div>
+            <p className="mt-3 text-sm leading-5 text-[#536b68]">
+              {currentMission?.description ??
+                "Leva menos de 30 segundos para atualizar seus dados de hoje."}
+            </p>
+          </section>
+
+          <Button
+            size="xl"
+            className="mt-3 min-h-14 w-full rounded-[1.25rem] bg-[#10201f] text-base font-semibold text-white shadow-[0_20px_60px_-36px_rgba(16,32,31,0.75)]"
+            asChild
+          >
+            <Link to={challengeStats.pendingThisWeek > 0 ? "/missoes" : "/check-in"}>
+              Continuar Jornada <ArrowRight className="h-5 w-5" />
+            </Link>
+          </Button>
+
+          <section className="mt-3 flex items-center gap-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
+            <Carelito className="h-20 w-20 shrink-0" expression="confident" />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#2f8fc8]">
+                Carelito
+              </p>
+              <p className="mt-1 text-sm font-semibold leading-5 text-[#536b68]">
+                Pequenas escolhas, grandes mudanças. Vamos manter sua jornada viva hoje.
+              </p>
+            </div>
+          </section>
         </motion.div>
 
         <div className="hidden sm:block">
@@ -928,6 +846,20 @@ function riskLabel(category?: "baixo" | "moderado" | "alto") {
 function getFirstName(name?: string | null) {
   if (!name) return "vamos lá";
   return name.split("@")[0]?.split(" ")[0] || "vamos lá";
+}
+
+function scoreQualityLabel(score: number | null) {
+  if (score == null) return "Comece sua jornada";
+  if (score >= 80) return "Muito bom";
+  if (score >= 50) return "Atenção necessária";
+  return "Risco identificado";
+}
+
+function getScoreComparison(score: number | null) {
+  if (score == null) return "Complete sua avaliação para desbloquear seu primeiro score.";
+  if (score >= 80) return "Seu risco está melhor que 73% das pessoas da sua idade.";
+  if (score >= 50) return "Seu risco está em uma faixa que merece acompanhamento semanal.";
+  return "Seu resultado pede atenção. Vamos evoluir um passo por dia.";
 }
 
 function CompactScoreRing({ value }: { value: number | null }) {

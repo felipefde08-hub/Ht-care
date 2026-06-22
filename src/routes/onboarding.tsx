@@ -271,7 +271,7 @@ function OnboardingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] px-3 pb-24 pt-3 text-[#10201f] sm:bg-[#fbfcfc] sm:px-5 sm:pb-6 sm:pt-6">
+    <main className="min-h-screen bg-[#f8fbff] px-3 pb-24 pt-2 text-[#10201f] sm:bg-[#fbfcfc] sm:px-5 sm:pb-6 sm:pt-6">
       <MobileOnboardingHeader
         streakWeeks={challengeStats.streakWeeks}
         points={challengeStats.points}
@@ -287,7 +287,7 @@ function OnboardingPage() {
         </p>
       </div>
 
-      <section className="mx-auto flex max-w-6xl items-center justify-center py-2 sm:min-h-[calc(100vh-96px)] sm:py-10">
+      <section className="mx-auto flex max-w-6xl items-center justify-center py-1 sm:min-h-[calc(100vh-96px)] sm:py-10">
         <div className="grid w-full gap-5 lg:grid-cols-[1fr_320px]">
           <div>
             <div className="hidden h-1.5 overflow-hidden rounded-full bg-[#e5ecea] sm:block">
@@ -298,7 +298,7 @@ function OnboardingPage() {
               />
             </div>
 
-            <div className="rounded-[1.6rem] border border-[#dce9f2] bg-white/92 p-4 shadow-[0_28px_90px_-62px_rgba(16,32,31,0.72)] backdrop-blur sm:mt-10 sm:rounded-[2rem] sm:border-[#10201f]/8 sm:p-10">
+            <div className="rounded-[1.35rem] border border-[#dce9f2] bg-white/92 p-3 shadow-[0_28px_90px_-62px_rgba(16,32,31,0.72)] backdrop-blur sm:mt-10 sm:rounded-[2rem] sm:border-[#10201f]/8 sm:p-10">
               <div className="hidden items-center justify-between gap-4 sm:flex">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78908d]">
                   Jornada inicial
@@ -322,19 +322,19 @@ function OnboardingPage() {
                 </AnimatePresence>
               </div>
 
-              <div className="mt-5 flex items-center justify-between gap-3 sm:mt-10">
+              <div className="mt-3 flex items-center justify-between gap-3 sm:mt-10">
                 <Button
                   type="button"
                   variant="ghost"
                   disabled={step === 0}
                   onClick={() => setStep((current) => Math.max(0, current - 1))}
-                  className="min-h-11 rounded-full px-2 text-[#6b7d8f] sm:min-h-10 sm:px-4"
+                  className="min-h-10 rounded-full px-2 text-[#6b7d8f] sm:min-h-10 sm:px-4"
                 >
                   <ArrowLeft className="h-4 w-4" /> Voltar
                 </Button>
                 <Button
                   type="button"
-                  className="min-h-12 rounded-full bg-[#19b84d] px-6 font-semibold text-white shadow-[0_18px_44px_-22px_rgba(25,184,77,0.82)] hover:bg-[#16a843] sm:min-h-10 sm:bg-[#10201f] sm:px-6"
+                  className="min-h-11 rounded-full bg-[#19b84d] px-5 font-semibold text-white shadow-[0_18px_44px_-22px_rgba(25,184,77,0.82)] hover:bg-[#16a843] sm:min-h-10 sm:bg-[#10201f] sm:px-6"
                   disabled={!canContinue}
                   onClick={next}
                 >
@@ -840,34 +840,34 @@ function Question({
 }) {
   return (
     <div>
-      <div className="grid items-end gap-1 sm:flex sm:items-start sm:gap-4">
+      <div className="grid grid-cols-[4.6rem_1fr] items-end gap-2 sm:flex sm:items-start sm:gap-4">
         <Carelito
-          className="mx-auto h-28 w-28 shrink-0 sm:mx-0 sm:h-16 sm:w-16"
+          className="mx-auto h-20 w-20 shrink-0 sm:mx-0 sm:h-16 sm:w-16"
           expression="happy"
         />
-        <div className="relative min-w-0 flex-1 rounded-[1.25rem] bg-[#f3f7ff] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] before:absolute before:-left-3 before:top-12 before:hidden before:h-5 before:w-5 before:rotate-45 before:bg-[#f3f7ff] sm:rounded-[1.5rem] sm:rounded-tl-md sm:bg-[#f7faf9] sm:p-5 sm:before:block">
+        <div className="relative min-w-0 flex-1 rounded-[1.05rem] bg-[#f3f7ff] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] before:absolute before:-left-3 before:top-12 before:hidden before:h-5 before:w-5 before:rotate-45 before:bg-[#f3f7ff] sm:rounded-[1.5rem] sm:rounded-tl-md sm:bg-[#f7faf9] sm:p-5 sm:before:block">
           <p className="text-xs font-bold text-[#1a62d8] sm:text-sm sm:text-[#2f8fc8]">Carelito</p>
-          <p className="mt-1.5 text-sm leading-5 text-[#55677e] sm:mt-2 sm:text-base sm:leading-7 sm:text-[#536b68]">
+          <p className="mt-1 text-xs leading-4 text-[#55677e] sm:mt-2 sm:text-base sm:leading-7 sm:text-[#536b68]">
             Olá, {firstName}! Antes de continuarmos, preciso conhecer você melhor.
           </p>
-          <h1 className="mt-3 font-sans text-xl font-semibold leading-tight tracking-normal text-[#10203a] sm:mt-4 sm:text-5xl sm:text-[#10201f]">
+          <h1 className="mt-2 font-sans text-lg font-semibold leading-tight tracking-normal text-[#10203a] sm:mt-4 sm:text-5xl sm:text-[#10201f]">
             {title}
           </h1>
         </div>
       </div>
-      <div className="mt-4 sm:mt-9">{children}</div>
-      <div className="mt-4 rounded-[1.2rem] border border-[#d8e9ff] bg-[#eff6ff] p-3 text-[#0f63ff] shadow-[0_18px_55px_-42px_rgba(47,143,200,0.8)] sm:mt-6 sm:rounded-2xl sm:border-[#10201f]/8 sm:bg-white sm:p-4 sm:text-[#536b68] sm:shadow-soft">
+      <div className="mt-3 rounded-[1rem] border border-[#d8e9ff] bg-[#eff6ff] p-2.5 text-[#0f63ff] shadow-[0_18px_55px_-42px_rgba(47,143,200,0.8)] sm:mt-6 sm:rounded-2xl sm:border-[#10201f]/8 sm:bg-white sm:p-4 sm:text-[#536b68] sm:shadow-soft">
         <p className="flex items-center gap-2 text-xs font-semibold text-[#0f63ff] sm:text-sm sm:text-[#10201f]">
           <span className="grid h-5 w-5 place-items-center rounded-full border border-current text-[0.65rem] sm:h-6 sm:w-6 sm:text-xs">
             i
           </span>
           Por que isso importa?
         </p>
-        <p className="mt-1.5 text-xs leading-5 sm:mt-2 sm:text-sm sm:leading-6">
+        <p className="mt-1 text-[0.72rem] leading-4 sm:mt-2 sm:text-sm sm:leading-6">
           {subtitle} Com isso vamos calcular seu risco cardiovascular e criar um plano personalizado
           para você.
         </p>
       </div>
+      <div className="mt-3 sm:mt-9">{children}</div>
     </div>
   );
 }
@@ -904,7 +904,7 @@ function ResultPreviewCard() {
 }
 
 function ChoiceGrid({ children }: { children: React.ReactNode }) {
-  return <div className="grid gap-3 sm:grid-cols-2">{children}</div>;
+  return <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">{children}</div>;
 }
 
 function Choice({
@@ -922,8 +922,8 @@ function Choice({
       onClick={onClick}
       className={
         selected
-          ? "rounded-2xl border border-[#10201f] bg-[#10201f] p-5 text-left font-semibold text-white shadow-soft transition"
-          : "rounded-2xl border border-[#dce9f2] bg-white p-5 text-left font-semibold text-[#10201f] shadow-soft transition hover:border-[#10201f]/30 hover:bg-[#f7faf9] sm:border-[#10201f]/10"
+          ? "rounded-[1.05rem] border border-[#10201f] bg-[#10201f] p-3 text-left text-sm font-semibold text-white shadow-soft transition sm:rounded-2xl sm:p-5 sm:text-base"
+          : "rounded-[1.05rem] border border-[#dce9f2] bg-white p-3 text-left text-sm font-semibold text-[#10201f] shadow-soft transition hover:border-[#10201f]/30 hover:bg-[#f7faf9] sm:rounded-2xl sm:border-[#10201f]/10 sm:p-5 sm:text-base"
       }
     >
       {children}
@@ -933,27 +933,27 @@ function Choice({
 
 function MobileOnboardingHeader({ streakWeeks, points }: { streakWeeks: number; points: number }) {
   return (
-    <header className="mx-auto mb-4 flex max-w-md items-center justify-between sm:hidden">
+    <header className="mx-auto mb-2 flex max-w-md items-center justify-between sm:hidden">
       <Logo />
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <div className="text-center">
-          <p className="text-base font-black leading-none">🔥 {streakWeeks}</p>
-          <p className="mt-1 text-[0.68rem] font-medium text-[#5d6d82]">Sequência</p>
+          <p className="text-sm font-black leading-none">🔥 {streakWeeks}</p>
+          <p className="mt-0.5 text-[0.62rem] font-medium text-[#5d6d82]">Sequência</p>
         </div>
         <div className="text-center">
-          <p className="text-base font-black leading-none text-[#10203a]">
-            <Gem className="mr-1 inline h-4 w-4 fill-[#ffc928] text-[#ffc928]" />
+          <p className="text-sm font-black leading-none text-[#10203a]">
+            <Gem className="mr-1 inline h-3.5 w-3.5 fill-[#ffc928] text-[#ffc928]" />
             {points}
           </p>
-          <p className="mt-1 text-[0.68rem] font-medium text-[#5d6d82]">Pontos</p>
+          <p className="mt-0.5 text-[0.62rem] font-medium text-[#5d6d82]">Pontos</p>
         </div>
         <button
           type="button"
           aria-label="Notificações"
-          className="relative grid h-10 w-10 place-items-center rounded-full bg-white shadow-[0_14px_38px_-26px_rgba(16,32,31,0.7)]"
+          className="relative grid h-9 w-9 place-items-center rounded-full bg-white shadow-[0_14px_38px_-26px_rgba(16,32,31,0.7)]"
         >
-          <Bell className="h-6 w-6 text-[#10203a]" strokeWidth={2.5} />
-          <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-[#f04438] text-[0.68rem] font-black text-white">
+          <Bell className="h-5 w-5 text-[#10203a]" strokeWidth={2.5} />
+          <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-[#f04438] text-[0.62rem] font-black text-white">
             1
           </span>
         </button>
@@ -964,7 +964,7 @@ function MobileOnboardingHeader({ streakWeeks, points }: { streakWeeks: number; 
 
 function MobileStageProgress({ stageIndex, progress }: { stageIndex: number; progress: number }) {
   return (
-    <div className="mx-auto mb-4 max-w-md sm:hidden">
+    <div className="mx-auto mb-2 max-w-md sm:hidden">
       <div className="grid grid-cols-5 gap-2">
         {onboardingStages.map((item, index) => {
           const active = index === stageIndex;
@@ -972,14 +972,14 @@ function MobileStageProgress({ stageIndex, progress }: { stageIndex: number; pro
           return (
             <div key={item.name} className="text-center">
               <div
-                className={`mx-auto grid h-9 w-9 place-items-center rounded-full text-sm font-black shadow-sm ${
+                className={`mx-auto grid h-8 w-8 place-items-center rounded-full text-xs font-black shadow-sm ${
                   active || done ? "bg-[#18b84d] text-white" : "bg-[#edf2f7] text-[#40546c]"
                 }`}
               >
                 {index + 1}
               </div>
               <p
-                className={`mt-1.5 text-xs font-bold ${active ? "text-[#18b84d]" : "text-[#50627a]"}`}
+                className={`mt-1 text-[0.66rem] font-bold ${active ? "text-[#18b84d]" : "text-[#50627a]"}`}
               >
                 {item.name}
               </p>
@@ -987,14 +987,14 @@ function MobileStageProgress({ stageIndex, progress }: { stageIndex: number; pro
           );
         })}
       </div>
-      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#e8eef4]">
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e8eef4]">
         <motion.div
           className="h-full rounded-full bg-[#18b84d]"
           animate={{ width: `${progress}%` }}
           transition={{ duration: 0.45, ease: "easeOut" }}
         />
       </div>
-      <p className="mt-3 text-center text-sm font-bold text-[#10203a]">
+      <p className="mt-2 text-center text-xs font-bold text-[#10203a]">
         <span className="text-[#18b84d]">Etapa {stageIndex + 1}</span> de {onboardingStages.length}
       </p>
     </div>
@@ -1144,7 +1144,7 @@ function NumberField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="mt-2 h-14 text-lg"
+        className="mt-1.5 h-11 text-base sm:mt-2 sm:h-14 sm:text-lg"
       />
     </div>
   );
