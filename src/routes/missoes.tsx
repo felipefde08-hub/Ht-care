@@ -608,7 +608,7 @@ function getJourneyFeedback(stats: ReturnType<typeof getChallengeStats>, steps: 
   if (stats.pendingThisWeek > 0) {
     return {
       title: "Você está no caminho certo.",
-      text: `Faltam ${stats.pendingThisWeek} missão${stats.pendingThisWeek > 1 ? "ões" : ""} para fechar a semana.`,
+      text: `Faltam ${stats.pendingThisWeek} ${stats.pendingThisWeek > 1 ? "missões" : "missão"} para fechar a semana.`,
     };
   }
   const current = steps.find((step) => step.status === "current");

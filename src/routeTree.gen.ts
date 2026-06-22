@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as RelatorioRouteImport } from './routes/relatorio'
 import { Route as PrivacidadeRouteImport } from './routes/privacidade'
+import { Route as PlanosRouteImport } from './routes/planos'
 import { Route as PlanoAcaoRouteImport } from './routes/plano-acao'
 import { Route as PerfilRouteImport } from './routes/perfil'
 import { Route as ParaProfissionaisRouteImport } from './routes/para-profissionais'
@@ -50,6 +51,11 @@ const RelatorioRoute = RelatorioRouteImport.update({
 const PrivacidadeRoute = PrivacidadeRouteImport.update({
   id: '/privacidade',
   path: '/privacidade',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlanosRoute = PlanosRouteImport.update({
+  id: '/planos',
+  path: '/planos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlanoAcaoRoute = PlanoAcaoRouteImport.update({
@@ -194,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/para-profissionais': typeof ParaProfissionaisRoute
   '/perfil': typeof PerfilRouteWithChildren
   '/plano-acao': typeof PlanoAcaoRoute
+  '/planos': typeof PlanosRoute
   '/privacidade': typeof PrivacidadeRoute
   '/relatorio': typeof RelatorioRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -222,6 +229,7 @@ export interface FileRoutesByTo {
   '/para-profissionais': typeof ParaProfissionaisRoute
   '/perfil': typeof PerfilRouteWithChildren
   '/plano-acao': typeof PlanoAcaoRoute
+  '/planos': typeof PlanosRoute
   '/privacidade': typeof PrivacidadeRoute
   '/relatorio': typeof RelatorioRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -252,6 +260,7 @@ export interface FileRoutesById {
   '/para-profissionais': typeof ParaProfissionaisRoute
   '/perfil': typeof PerfilRouteWithChildren
   '/plano-acao': typeof PlanoAcaoRoute
+  '/planos': typeof PlanosRoute
   '/privacidade': typeof PrivacidadeRoute
   '/relatorio': typeof RelatorioRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
@@ -282,6 +291,7 @@ export interface FileRouteTypes {
     | '/para-profissionais'
     | '/perfil'
     | '/plano-acao'
+    | '/planos'
     | '/privacidade'
     | '/relatorio'
     | '/sitemap.xml'
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/para-profissionais'
     | '/perfil'
     | '/plano-acao'
+    | '/planos'
     | '/privacidade'
     | '/relatorio'
     | '/sitemap.xml'
@@ -339,6 +350,7 @@ export interface FileRouteTypes {
     | '/para-profissionais'
     | '/perfil'
     | '/plano-acao'
+    | '/planos'
     | '/privacidade'
     | '/relatorio'
     | '/sitemap.xml'
@@ -369,6 +381,7 @@ export interface RootRouteChildren {
   ParaProfissionaisRoute: typeof ParaProfissionaisRoute
   PerfilRoute: typeof PerfilRouteWithChildren
   PlanoAcaoRoute: typeof PlanoAcaoRoute
+  PlanosRoute: typeof PlanosRoute
   PrivacidadeRoute: typeof PrivacidadeRoute
   RelatorioRoute: typeof RelatorioRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
@@ -395,6 +408,13 @@ declare module '@tanstack/react-router' {
       path: '/privacidade'
       fullPath: '/privacidade'
       preLoaderRoute: typeof PrivacidadeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/planos': {
+      id: '/planos'
+      path: '/planos'
+      fullPath: '/planos'
+      preLoaderRoute: typeof PlanosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/plano-acao': {
@@ -618,6 +638,7 @@ const rootRouteChildren: RootRouteChildren = {
   ParaProfissionaisRoute: ParaProfissionaisRoute,
   PerfilRoute: PerfilRouteWithChildren,
   PlanoAcaoRoute: PlanoAcaoRoute,
+  PlanosRoute: PlanosRoute,
   PrivacidadeRoute: PrivacidadeRoute,
   RelatorioRoute: RelatorioRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,

@@ -164,7 +164,7 @@ function PanelPage() {
   );
   const nextJourneyText =
     challengeStats.pendingThisWeek > 0
-      ? `Complete ${challengeStats.pendingThisWeek} missão${challengeStats.pendingThisWeek > 1 ? "ões" : ""} desta semana.`
+      ? `Complete ${challengeStats.pendingThisWeek} ${challengeStats.pendingThisWeek > 1 ? "missões" : "missão"} desta semana.`
       : "Faça um check-in rápido para manter seu acompanhamento vivo.";
 
   useEffect(() => {

@@ -409,6 +409,9 @@ function ProfilePage() {
                 <span className="rounded-full bg-[#e8f5ef] px-3 py-1 text-xs font-bold text-[#2f6760]">
                   Plano Gratuito
                 </span>
+                <Link to="/planos" className="text-xs font-bold text-[#2f8fc8]">
+                  Ver planos
+                </Link>
               </div>
               <p className="mt-1 text-xs leading-4 text-[#536b68]">
                 Cuidar da sua saúde hoje é investir no seu amanhã.
