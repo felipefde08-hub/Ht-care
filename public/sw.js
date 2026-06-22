@@ -1,4 +1,4 @@
-const CACHE_NAME = "htcare-pwa-v2";
+const CACHE_NAME = "htcare-pwa-v1";
 const APP_SHELL = ["/", "/manifest.json", "/icons/icon-192x192.png", "/icons/icon-512x512.png"];
 const SUPABASE_HOST = "supabase.co";
 

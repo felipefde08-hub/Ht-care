@@ -959,8 +959,6 @@ function buildDailyMissionList(
   missions: ReturnType<typeof getWeeklyMissions>,
   stats: ReturnType<typeof getChallengeStats>,
 ) {
-  const hasOnboarding =
-    typeof window !== "undefined" && Boolean(window.localStorage.getItem("htcare:onboarding"));
   const selected = missions.slice(0, 4).map((mission) => ({
     label: mission.title,
     done: stats.progress.completedMissionIds.includes(
@@ -972,7 +970,7 @@ function buildDailyMissionList(
 
   return [
     ...selected,
-    { label: "Completar perfil", done: hasOnboarding },
+    { label: "Completar perfil", done: Boolean(window.localStorage.getItem("htcare:onboarding")) },
     { label: "Registrar pressão", done: false },
     { label: "Dormir 8 horas", done: false },
   ].slice(0, 4);
