@@ -8,6 +8,7 @@ import {
   Bell,
   CheckCircle2,
   Clock3,
+  Download,
   Flame,
   Gauge,
   HeartPulse,
@@ -17,6 +18,7 @@ import {
   Scale,
   ShieldCheck,
   Trophy,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
@@ -75,6 +77,11 @@ interface LastCheckIn {
     diastolic?: string;
     weight?: string;
   };
+}
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 }
 
 function PanelPage() {
@@ -215,6 +222,8 @@ function PanelPage() {
           </Button>
         </nav>
       </div>
+
+      <PwaInstallBanner />
 
       <section className="mx-auto mt-6 max-w-6xl sm:mt-14">
         <motion.p
@@ -841,6 +850,72 @@ function buildJourneySteps(hasQuestionnaire: boolean, hasScore: boolean, points:
     status: "complete" | "current" | "locked";
     icon: LucideIcon;
   }>;
+}
+
+function PwaInstallBanner() {
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (window.localStorage.getItem("htcare:pwa-install-dismissed") === "true") return;
+    if (window.matchMedia("(display-mode: standalone)").matches) return;
+
+    const onBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+      setVisible(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+  }, []);
+
+  async function install() {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    if (choice.outcome === "accepted") {
+      window.localStorage.setItem("htcare:pwa-install-dismissed", "true");
+      setVisible(false);
+      setInstallPrompt(null);
+    }
+  }
+
+  function dismiss() {
+    window.localStorage.setItem("htcare:pwa-install-dismissed", "true");
+    setVisible(false);
+  }
+
+  if (!visible || !installPrompt) return null;
+
+  return (
+    <motion.aside
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: "easeOut" }}
+      className="mx-auto mt-4 flex max-w-md items-center gap-3 rounded-[1.35rem] border border-[#10201f]/8 bg-white p-3 shadow-soft sm:hidden"
+    >
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#e8f5ef] text-[#2f6760]">
+        <Download className="h-5 w-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold leading-5 text-[#10201f]">
+          Instale o HTCare na sua tela inicial para acesso rápido.
+        </p>
+        <button type="button" onClick={install} className="mt-1 text-sm font-bold text-[#2f8fc8]">
+          Instalar
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={dismiss}
+        aria-label="Agora não"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#f7faf9] text-[#78908d]"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </motion.aside>
+  );
 }
 
 function riskLabel(category?: "baixo" | "moderado" | "alto") {
