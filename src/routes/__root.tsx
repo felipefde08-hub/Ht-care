@@ -125,6 +125,69 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <div
+          id="htcare-boot-fallback"
+          style={{
+            minHeight: "100vh",
+            display: "grid",
+            placeItems: "center",
+            padding: "24px",
+            background: "#fbfcfc",
+            color: "#10201f",
+            fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          }}
+        >
+          <div
+            style={{
+              width: "min(100%, 420px)",
+              border: "1px solid rgba(16,32,31,0.08)",
+              borderRadius: "28px",
+              background: "#fff",
+              padding: "28px",
+              textAlign: "center",
+              boxShadow: "0 28px 80px -60px rgba(16,32,31,0.7)",
+            }}
+          >
+            <div
+              style={{
+                width: "72px",
+                height: "72px",
+                margin: "0 auto 18px",
+                borderRadius: "24px",
+                display: "grid",
+                placeItems: "center",
+                background: "linear-gradient(135deg,#2f8fc8,#49c7ae)",
+                color: "#fff",
+                fontSize: "34px",
+                fontWeight: 800,
+              }}
+            >
+              +
+            </div>
+            <h1 style={{ margin: 0, fontSize: "24px", lineHeight: 1.15 }}>Carregando HTCare</h1>
+            <p style={{ margin: "12px 0 0", color: "#536b68", lineHeight: 1.55 }}>
+              Se esta tela não sair em alguns segundos, atualize a página.
+            </p>
+            <a
+              href="/"
+              style={{
+                marginTop: "20px",
+                minHeight: "44px",
+                borderRadius: "999px",
+                padding: "0 20px",
+                background: "#10201f",
+                color: "#fff",
+                fontWeight: 700,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                textDecoration: "none",
+              }}
+            >
+              Atualizar
+            </a>
+          </div>
+        </div>
         {children}
         <Scripts />
       </body>
@@ -136,6 +199,10 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    document.getElementById("htcare-boot-fallback")?.remove();
+  }, []);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
