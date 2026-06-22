@@ -7,7 +7,6 @@ import {
   House,
   Map,
   Pill,
-  Plus,
   Trophy,
   UserRound,
   X,
@@ -17,7 +16,7 @@ import { useState } from "react";
 const items = [
   { label: "Início", to: "/painel", icon: House },
   { label: "Jornada", to: "/missoes", icon: Map },
-  { label: "Abrir", to: "", icon: Plus, featured: true },
+  { label: "Check-in", to: "/check-in", icon: HeartPulse, featured: true },
   { label: "Histórico", to: "/historico", icon: ChartNoAxesColumnIncreasing },
   { label: "Perfil", to: "/perfil", icon: UserRound },
 ];
@@ -133,7 +132,7 @@ export function MobileAppNav() {
                 <button
                   key={item.label}
                   type="button"
-                  onClick={() => setOpen(true)}
+                  onClick={() => void navigate({ to: item.to })}
                   className="relative -mt-5 flex min-h-16 flex-col items-center justify-center gap-1 rounded-[1.35rem] bg-[linear-gradient(135deg,#2f8fc8,#49c7ae)] text-[0.66rem] font-bold text-white shadow-[0_18px_45px_-22px_rgba(47,143,200,0.9)] transition active:scale-95"
                 >
                   <span className="absolute inset-0 animate-pulse rounded-[1.35rem] bg-[#49c7ae]/35 blur-md" />
