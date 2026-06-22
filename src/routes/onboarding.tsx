@@ -855,6 +855,7 @@ function Question({
           </h1>
         </div>
       </div>
+      <div className="mt-6 sm:mt-9">{children}</div>
       <div className="mt-6 rounded-2xl border border-[#d8e9ff] bg-[#eff6ff] p-4 text-[#0f63ff] shadow-[0_18px_55px_-42px_rgba(47,143,200,0.8)] sm:border-[#10201f]/8 sm:bg-white sm:text-[#536b68] sm:shadow-soft">
         <p className="flex items-center gap-2 text-sm font-semibold text-[#0f63ff] sm:text-[#10201f]">
           <span className="grid h-6 w-6 place-items-center rounded-full border border-current text-xs">
@@ -867,7 +868,6 @@ function Question({
           para você.
         </p>
       </div>
-      <div className="mt-6 sm:mt-9">{children}</div>
     </div>
   );
 }
