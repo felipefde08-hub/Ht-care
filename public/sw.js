@@ -1,4 +1,4 @@
-const CACHE_NAME = "htcare-pwa-v1";
+const CACHE_NAME = "htcare-pwa-v3";
 const APP_SHELL = ["/", "/manifest.json", "/icons/icon-192x192.png", "/icons/icon-512x512.png"];
 const SUPABASE_HOST = "supabase.co";
 
@@ -98,7 +98,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (["script", "style", "image", "font", "manifest"].includes(request.destination)) {
+  if (["script", "style"].includes(request.destination)) {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+
+  if (["image", "font", "manifest"].includes(request.destination)) {
     event.respondWith(cacheFirst(request));
     return;
   }
