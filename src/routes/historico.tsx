@@ -249,7 +249,7 @@ function HistoryPage() {
               Histórico
             </p>
             <h1 className="mt-2 font-sans text-3xl font-semibold leading-tight">
-              Seu progresso, sem complicação.
+              Acompanhe sua evolução e celebre cada conquista!
             </h1>
           </div>
           <motion.div
@@ -261,7 +261,7 @@ function HistoryPage() {
           </motion.div>
         </motion.div>
 
-        <div className="-mx-4 mt-5 hidden gap-2 overflow-x-auto px-4 pb-2">
+        <div className="-mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-2">
           {historyTabs.map((tab) => (
             <button
               key={tab.id}

@@ -432,14 +432,9 @@ function ProfilePage() {
           </div>
         </motion.div>
 
-        <div className="mt-3 space-y-2.5">
-          <ProfileAccordion
-            icon={<UserRound className="h-5 w-5" />}
-            title="Meus dados"
-            detail={`${formatPersonalSummary(data)} · ${formatHealthSummary(data)}`}
-            tone="bg-[#e9f4fb] text-[#2f8fc8]"
-          >
-            <CompactPreferenceItem
+        <MobileProfileCard title="Meus dados" className="mt-3">
+          <div className="grid grid-cols-2 gap-2.5">
+            <MobileGridCard
               icon={<UserRound className="h-5 w-5" />}
               title="Informações pessoais"
               detail={formatPersonalSummary(data)}
@@ -447,7 +442,7 @@ function ProfilePage() {
               to="/perfil/$section"
               params={{ section: "informacoes-pessoais" }}
             />
-            <CompactPreferenceItem
+            <MobileGridCard
               icon={<HeartPulse className="h-5 w-5" />}
               title="Dados de saúde"
               detail={formatHealthSummary(data)}
@@ -455,7 +450,7 @@ function ProfilePage() {
               to="/perfil/$section"
               params={{ section: "dados-saude" }}
             />
-            <CompactPreferenceItem
+            <MobileGridCard
               icon={<Stethoscope className="h-5 w-5" />}
               title="Histórico médico"
               detail={formatMedicalSummary(data)}
@@ -463,46 +458,28 @@ function ProfilePage() {
               to="/perfil/$section"
               params={{ section: "historico-medico" }}
             />
-          </ProfileAccordion>
-
-          <ProfileAccordion
-            icon={<Pill className="h-5 w-5" />}
-            title="Medicamentos"
-            detail={formatMedicationSummary(data)}
-            tone="bg-[#f1ecff] text-[#6f55c8]"
-          >
-            <CompactPreferenceItem
+            <MobileGridCard
               icon={<Pill className="h-5 w-5" />}
-              title="Gerenciar medicamentos"
-              detail="Adicionar, editar ou remover usos"
+              title="Medicamentos"
+              detail={formatMedicationSummary(data)}
               tone="bg-[#f1ecff] text-[#6f55c8]"
               to="/perfil/$section"
               params={{ section: "medicamentos" }}
             />
-          </ProfileAccordion>
-
-          <ProfileAccordion
-            icon={<FileText className="h-5 w-5" />}
-            title="Exames"
-            detail="Nenhum exame registrado ainda"
-            tone="bg-[#eef3f1] text-[#536b68]"
-          >
-            <CompactPreferenceItem
+            <MobileGridCard
               icon={<FileText className="h-5 w-5" />}
-              title="Exames e resultados"
-              detail="Em breve: laboratórios parceiros"
+              title="Exames"
+              detail="Em breve: laboratórios parceiros."
               tone="bg-[#eef3f1] text-[#536b68]"
               to="/perfil/$section"
               params={{ section: "exames-resultados" }}
+              className="col-span-2"
             />
-          </ProfileAccordion>
+          </div>
+        </MobileProfileCard>
 
-          <ProfileAccordion
-            icon={<Settings className="h-5 w-5" />}
-            title="Configurações"
-            detail="Lembretes, privacidade, idioma e ajuda"
-            tone="bg-[#e8f5ef] text-[#2f6760]"
-          >
+        <MobileProfileCard title="Preferências" className="mt-3">
+          <div className="divide-y divide-[#10201f]/6 rounded-[1.25rem] bg-[#f7faf9] px-2">
             <CompactPreferenceItem
               icon={<Bell className="h-5 w-5" />}
               title="Lembretes"
@@ -514,7 +491,7 @@ function ProfilePage() {
             <CompactPreferenceItem
               icon={<Lock className="h-5 w-5" />}
               title="Privacidade"
-              detail="Conta protegida"
+              detail="Conta protegida pelo Supabase Auth"
               tone="bg-[#e8f5ef] text-[#2f6760]"
               to="/perfil/$section"
               params={{ section: "privacidade-seguranca" }}
@@ -535,16 +512,19 @@ function ProfilePage() {
               to="/perfil/$section"
               params={{ section: "aparencia" }}
             />
-            <CompactPreferenceItem
-              icon={<Globe2 className="h-5 w-5" />}
-              title="Central de ajuda"
-              detail="FAQ e contato"
-              tone="bg-[#e9f4fb] text-[#2f8fc8]"
-              to="/perfil/$section"
-              params={{ section: "central-ajuda" }}
-            />
-          </ProfileAccordion>
-        </div>
+          </div>
+        </MobileProfileCard>
+
+        <MobileProfileCard title="Suporte" className="mt-3">
+          <CompactPreferenceItem
+            icon={<Globe2 className="h-5 w-5" />}
+            title="Central de ajuda"
+            detail="Dúvidas, privacidade e próximos passos"
+            tone="bg-[#e9f4fb] text-[#2f8fc8]"
+            to="/perfil/$section"
+            params={{ section: "central-ajuda" }}
+          />
+        </MobileProfileCard>
 
         <button
           type="button"
@@ -1024,38 +1004,6 @@ function MobileProfileCard({
       <h2 className="font-sans text-base font-semibold">{title}</h2>
       <div className="mt-2.5">{children}</div>
     </motion.div>
-  );
-}
-
-function ProfileAccordion({
-  icon,
-  title,
-  detail,
-  tone,
-  children,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  detail: string;
-  tone: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <details className="group rounded-[1.55rem] border border-[#10201f]/8 bg-white p-3.5 shadow-soft">
-      <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3">
-        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${tone}`}>
-          {icon}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block font-sans text-base font-semibold text-[#10201f]">{title}</span>
-          <span className="mt-0.5 block truncate text-xs text-[#78908d]">{detail}</span>
-        </span>
-        <ChevronRight className="h-5 w-5 shrink-0 text-[#9aa8a5] transition group-open:rotate-90" />
-      </summary>
-      <div className="mt-3 divide-y divide-[#10201f]/6 rounded-[1.25rem] bg-[#f7faf9] px-2">
-        {children}
-      </div>
-    </details>
   );
 }
 

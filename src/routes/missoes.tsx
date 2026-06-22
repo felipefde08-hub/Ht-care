@@ -113,7 +113,7 @@ function MissionsPage() {
             Sua jornada
           </p>
           <h1 className="mt-2 font-sans text-3xl font-semibold leading-tight">
-            Complete etapas e cuide melhor do seu coração.
+            Complete missões e cuide melhor do seu coração.
           </h1>
         </motion.div>
 
@@ -550,8 +550,7 @@ function buildJourneyMap(
   const exerciseComplete = totalCompletedMissions >= 6;
   const foodComplete = totalCompletedMissions >= 9;
   const sleepComplete = totalCompletedMissions >= 12;
-  const pressureComplete = totalCompletedMissions >= 15;
-  const achievementsComplete = stats.streakWeeks >= 4 && stats.points >= 300;
+  const protectedComplete = stats.streakWeeks >= 4 && stats.points >= 300;
 
   return [
     {
@@ -591,14 +590,8 @@ function buildJourneyMap(
       to: "/missoes",
     },
     {
-      title: "Controle de pressão",
-      status: pressureComplete ? "complete" : sleepComplete ? "current" : "locked",
-      icon: HeartPulse,
-      to: "/check-in",
-    },
-    {
-      title: "Conquistas",
-      status: achievementsComplete ? "complete" : pressureComplete ? "current" : "locked",
+      title: "Coração protegido",
+      status: protectedComplete ? "complete" : sleepComplete ? "current" : "locked",
       icon: Trophy,
       to: "/check-in",
     },

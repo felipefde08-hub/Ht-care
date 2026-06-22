@@ -249,98 +249,6 @@ function PanelPage() {
           transition={{ duration: 0.45, ease: "easeOut" }}
           className="sm:hidden"
         >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-[#536b68]">Bom dia, {firstName}</p>
-              <h1 className="mt-1 font-sans text-[1.75rem] font-semibold leading-tight">
-                Vamos cuidar do seu coração hoje.
-              </h1>
-            </div>
-            <Carelito className="h-20 w-20 shrink-0" expression="happy" />
-          </div>
-
-          <div className="mt-4 overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-5 shadow-[0_28px_100px_-72px_rgba(16,32,31,0.66)]">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-bold text-[#536b68]">Seu coração hoje</p>
-                <p className="mt-2 font-sans text-6xl font-semibold leading-none text-[#10201f]">
-                  {currentScore ?? "—"}
-                  <span className="text-2xl text-[#78908d]">/100</span>
-                </p>
-                <p className="mt-2 text-lg font-bold text-[#2f6760]">
-                  {scoreMoodLabel(currentScore)}
-                </p>
-              </div>
-              <CompactScoreRing value={currentScore} />
-            </div>
-            <p className="mt-4 rounded-[1.25rem] bg-[#f7faf9] p-3 text-sm font-semibold leading-5 text-[#536b68]">
-              {currentScore == null
-                ? "Complete sua avaliação para descobrir seu ponto de partida."
-                : `Seu risco está melhor que ${scorePercentile(currentScore)}% das pessoas da sua idade.`}
-            </p>
-          </div>
-
-          <div className="mt-4 rounded-[1.8rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#78908d]">
-                  Missão do dia
-                </p>
-                <h2 className="mt-1 font-sans text-xl font-semibold">
-                  {challengeStats.completedThisWeek} de {weeklyMissions.length} concluídas
-                </h2>
-              </div>
-              <span className="rounded-full bg-[#e8f5ef] px-3 py-1 text-xs font-bold text-[#2f6760]">
-                🔥 {challengeStats.streakWeeks}
-              </span>
-            </div>
-            <div className="mt-4 space-y-2">
-              {buildDailyMissionList(weeklyMissions, challengeStats).map((mission) => (
-                <div key={mission.label} className="flex items-center gap-3 text-sm font-semibold">
-                  <span
-                    className={`grid h-7 w-7 place-items-center rounded-full ${
-                      mission.done ? "bg-[#2f6760] text-white" : "bg-[#eef3f1] text-[#78908d]"
-                    }`}
-                  >
-                    {mission.done ? <CheckCircle2 className="h-4 w-4" /> : null}
-                  </span>
-                  <span className={mission.done ? "text-[#78908d] line-through" : ""}>
-                    {mission.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#eef3f1]">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${weeklyProgressPercent}%` }}
-                transition={{ duration: 0.75, ease: "easeOut" }}
-                className="h-full rounded-full bg-[linear-gradient(90deg,#2f8fc8,#49c7ae)]"
-              />
-            </div>
-          </div>
-
-          <Link
-            to="/missoes"
-            className="mt-4 flex min-h-16 items-center justify-center rounded-full bg-[#10201f] px-6 text-base font-bold text-white shadow-[0_22px_70px_-38px_rgba(16,32,31,0.75)] transition active:scale-[0.98]"
-          >
-            Continuar Jornada <ArrowRight className="ml-2 h-5 w-5" />
-          </Link>
-
-          <div className="mt-4 flex items-center gap-3 rounded-[1.6rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
-            <Carelito className="h-16 w-16 shrink-0" expression="confident" />
-            <p className="text-sm font-semibold leading-5 text-[#536b68]">
-              Pequenas escolhas hoje criam um coração mais protegido amanhã.
-            </p>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: "easeOut" }}
-          className="hidden sm:hidden"
-        >
           <div className="rounded-[1.8rem] border border-[#10201f]/8 bg-white p-4 shadow-[0_22px_80px_-60px_rgba(16,32,31,0.55)]">
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
@@ -942,38 +850,6 @@ function buildJourneySteps(hasQuestionnaire: boolean, hasScore: boolean, points:
     status: "complete" | "current" | "locked";
     icon: LucideIcon;
   }>;
-}
-
-function scoreMoodLabel(score: number | null) {
-  if (score == null) return "Comece sua jornada";
-  if (score >= 80) return "Muito Bom";
-  if (score >= 50) return "Atenção necessária";
-  return "Risco identificado";
-}
-
-function scorePercentile(score: number) {
-  return Math.max(18, Math.min(91, Math.round(28 + score * 0.55)));
-}
-
-function buildDailyMissionList(
-  missions: ReturnType<typeof getWeeklyMissions>,
-  stats: ReturnType<typeof getChallengeStats>,
-) {
-  const selected = missions.slice(0, 4).map((mission) => ({
-    label: mission.title,
-    done: stats.progress.completedMissionIds.includes(
-      missionCompletionKey(mission.id, stats.currentWeek),
-    ),
-  }));
-
-  if (selected.length >= 4) return selected;
-
-  return [
-    ...selected,
-    { label: "Completar perfil", done: Boolean(window.localStorage.getItem("htcare:onboarding")) },
-    { label: "Registrar pressão", done: false },
-    { label: "Dormir 8 horas", done: false },
-  ].slice(0, 4);
 }
 
 function PwaInstallBanner() {
