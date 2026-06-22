@@ -1,6 +1,18 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, CheckCircle2, Trophy } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  Bell,
+  CheckCircle2,
+  ClipboardList,
+  Gem,
+  HeartPulse,
+  ShieldCheck,
+  Trophy,
+  TrendingUp,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,7 +22,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { HealthReport } from "@/components/HealthReport";
+import { MobileAppNav } from "@/components/MobileAppNav";
 import { calculateInitialRiskScore } from "@/lib/risk-score";
+import { getChallengeStats } from "@/lib/challenge";
 import { recordUserActivity } from "@/lib/user-activity";
 
 export const Route = createFileRoute("/onboarding")({
@@ -122,6 +136,7 @@ function OnboardingPage() {
   const totalSteps = 20;
   const stage = getOnboardingStage(step);
   const progress = ((stage.index + 1) / onboardingStages.length) * 100;
+  const challengeStats = useMemo(() => getChallengeStats(), []);
   const bmi = useMemo(() => calculateBmi(data.weight, data.height), [data.height, data.weight]);
   const canContinue = isStepValid(step, data);
   const firstName = getFirstName(
@@ -256,8 +271,14 @@ function OnboardingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#fbfcfc] px-5 py-6 text-[#10201f]">
-      <div className="mx-auto flex max-w-6xl items-center justify-between">
+    <main className="min-h-screen bg-[#f8fbff] px-4 pb-28 pt-5 text-[#10201f] sm:bg-[#fbfcfc] sm:px-5 sm:pb-6 sm:pt-6">
+      <MobileOnboardingHeader
+        streakWeeks={challengeStats.streakWeeks}
+        points={challengeStats.points}
+      />
+      <MobileStageProgress stageIndex={stage.index} progress={progress} />
+
+      <div className="mx-auto hidden max-w-6xl items-center justify-between sm:flex">
         <Link to="/">
           <Logo />
         </Link>
@@ -266,10 +287,10 @@ function OnboardingPage() {
         </p>
       </div>
 
-      <section className="mx-auto flex min-h-[calc(100vh-96px)] max-w-6xl items-center justify-center py-10">
+      <section className="mx-auto flex max-w-6xl items-center justify-center py-4 sm:min-h-[calc(100vh-96px)] sm:py-10">
         <div className="grid w-full gap-5 lg:grid-cols-[1fr_320px]">
           <div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-[#e5ecea]">
+            <div className="hidden h-1.5 overflow-hidden rounded-full bg-[#e5ecea] sm:block">
               <motion.div
                 className="h-full rounded-full bg-[linear-gradient(90deg,#2f8fc8,#49c7ae)]"
                 animate={{ width: `${progress}%` }}
@@ -277,8 +298,8 @@ function OnboardingPage() {
               />
             </div>
 
-            <div className="mt-10 rounded-[2rem] border border-[#10201f]/8 bg-white/86 p-6 shadow-[0_32px_100px_-72px_rgba(16,32,31,0.7)] backdrop-blur sm:p-10">
-              <div className="flex items-center justify-between gap-4">
+            <div className="rounded-[2rem] border border-[#dce9f2] bg-white/92 p-5 shadow-[0_28px_90px_-62px_rgba(16,32,31,0.72)] backdrop-blur sm:mt-10 sm:border-[#10201f]/8 sm:p-10">
+              <div className="hidden items-center justify-between gap-4 sm:flex">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78908d]">
                   Jornada inicial
                 </p>
@@ -287,7 +308,7 @@ function OnboardingPage() {
                   +50 XP nesta etapa
                 </span>
               </div>
-              <div className="mt-6 min-h-[360px] overflow-hidden">
+              <div className="min-h-[430px] overflow-hidden sm:mt-6 sm:min-h-[360px]">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={step}
@@ -301,18 +322,19 @@ function OnboardingPage() {
                 </AnimatePresence>
               </div>
 
-              <div className="mt-10 flex items-center justify-between gap-3">
+              <div className="mt-8 flex items-center justify-between gap-3 sm:mt-10">
                 <Button
                   type="button"
                   variant="ghost"
                   disabled={step === 0}
                   onClick={() => setStep((current) => Math.max(0, current - 1))}
+                  className="min-h-12 rounded-full px-2 text-[#6b7d8f] sm:px-4"
                 >
                   <ArrowLeft className="h-4 w-4" /> Voltar
                 </Button>
                 <Button
                   type="button"
-                  className="rounded-full bg-[#10201f] px-6 font-semibold"
+                  className="min-h-14 rounded-full bg-[#19b84d] px-7 font-semibold text-white shadow-[0_18px_44px_-22px_rgba(25,184,77,0.82)] hover:bg-[#16a843] sm:min-h-10 sm:bg-[#10201f] sm:px-6"
                   disabled={!canContinue}
                   onClick={next}
                 >
@@ -325,10 +347,12 @@ function OnboardingPage() {
                 </Button>
               </div>
             </div>
+            <MobileOutcomeCards />
           </div>
           <ResultPreviewCard />
         </div>
       </section>
+      <MobileAppNav />
     </main>
   );
 }
@@ -816,33 +840,41 @@ function Question({
 }) {
   return (
     <div>
-      <div className="flex items-start gap-4">
-        <Carelito className="h-16 w-16 shrink-0" expression="happy" />
-        <div className="min-w-0 flex-1 rounded-[1.5rem] rounded-tl-md bg-[#f7faf9] p-5">
-          <p className="text-sm font-bold text-[#2f8fc8]">Carelito</p>
-          <p className="mt-2 text-base leading-7 text-[#536b68]">
+      <div className="grid items-end gap-2 sm:flex sm:items-start sm:gap-4">
+        <Carelito
+          className="mx-auto h-40 w-40 shrink-0 sm:mx-0 sm:h-16 sm:w-16"
+          expression="happy"
+        />
+        <div className="relative min-w-0 flex-1 rounded-[1.5rem] bg-[#f3f7ff] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] before:absolute before:-left-3 before:top-12 before:hidden before:h-5 before:w-5 before:rotate-45 before:bg-[#f3f7ff] sm:rounded-tl-md sm:bg-[#f7faf9] sm:before:block">
+          <p className="text-sm font-bold text-[#1a62d8] sm:text-[#2f8fc8]">Carelito</p>
+          <p className="mt-2 text-[1.05rem] leading-7 text-[#55677e] sm:text-base sm:text-[#536b68]">
             Olá, {firstName}! Antes de continuarmos, preciso conhecer você melhor.
           </p>
-          <h1 className="mt-4 font-sans text-3xl font-semibold leading-tight tracking-normal text-[#10201f] sm:text-5xl">
+          <h1 className="mt-4 font-sans text-2xl font-semibold leading-tight tracking-normal text-[#10203a] sm:text-5xl sm:text-[#10201f]">
             {title}
           </h1>
         </div>
       </div>
-      <div className="mt-6 rounded-2xl border border-[#10201f]/8 bg-white p-4 shadow-soft">
-        <p className="text-sm font-semibold text-[#10201f]">Por que isso importa?</p>
-        <p className="mt-1 text-sm leading-6 text-[#536b68]">
+      <div className="mt-6 rounded-2xl border border-[#d8e9ff] bg-[#eff6ff] p-4 text-[#0f63ff] shadow-[0_18px_55px_-42px_rgba(47,143,200,0.8)] sm:border-[#10201f]/8 sm:bg-white sm:text-[#536b68] sm:shadow-soft">
+        <p className="flex items-center gap-2 text-sm font-semibold text-[#0f63ff] sm:text-[#10201f]">
+          <span className="grid h-6 w-6 place-items-center rounded-full border border-current text-xs">
+            i
+          </span>
+          Por que isso importa?
+        </p>
+        <p className="mt-2 text-sm leading-6">
           {subtitle} Com isso vamos calcular seu risco cardiovascular e criar um plano personalizado
           para você.
         </p>
       </div>
-      <div className="mt-9">{children}</div>
+      <div className="mt-6 sm:mt-9">{children}</div>
     </div>
   );
 }
 
 function ResultPreviewCard() {
   return (
-    <aside className="rounded-[2rem] border border-[#10201f]/8 bg-white p-5 shadow-[0_32px_100px_-72px_rgba(16,32,31,0.7)] lg:sticky lg:top-6 lg:self-start">
+    <aside className="hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-5 shadow-[0_32px_100px_-72px_rgba(16,32,31,0.7)] lg:sticky lg:top-6 lg:block lg:self-start">
       <div className="flex items-center gap-3">
         <Carelito className="h-14 w-14" expression="confident" />
         <div>
@@ -891,11 +923,164 @@ function Choice({
       className={
         selected
           ? "rounded-2xl border border-[#10201f] bg-[#10201f] p-5 text-left font-semibold text-white shadow-soft transition"
-          : "rounded-2xl border border-[#10201f]/10 bg-white p-5 text-left font-semibold text-[#10201f] shadow-soft transition hover:border-[#10201f]/30 hover:bg-[#f7faf9]"
+          : "rounded-2xl border border-[#dce9f2] bg-white p-5 text-left font-semibold text-[#10201f] shadow-soft transition hover:border-[#10201f]/30 hover:bg-[#f7faf9] sm:border-[#10201f]/10"
       }
     >
       {children}
     </button>
+  );
+}
+
+function MobileOnboardingHeader({ streakWeeks, points }: { streakWeeks: number; points: number }) {
+  return (
+    <header className="mx-auto mb-7 flex max-w-md items-center justify-between sm:hidden">
+      <Logo />
+      <div className="flex items-center gap-4">
+        <div className="text-center">
+          <p className="text-xl font-black leading-none">🔥 {streakWeeks}</p>
+          <p className="mt-1 text-[0.68rem] font-medium text-[#5d6d82]">Sequência</p>
+        </div>
+        <div className="text-center">
+          <p className="text-xl font-black leading-none text-[#10203a]">
+            <Gem className="mr-1 inline h-5 w-5 fill-[#ffc928] text-[#ffc928]" />
+            {points}
+          </p>
+          <p className="mt-1 text-[0.68rem] font-medium text-[#5d6d82]">Pontos</p>
+        </div>
+        <button
+          type="button"
+          aria-label="Notificações"
+          className="relative grid h-11 w-11 place-items-center rounded-full bg-white shadow-[0_14px_38px_-26px_rgba(16,32,31,0.7)]"
+        >
+          <Bell className="h-6 w-6 text-[#10203a]" strokeWidth={2.5} />
+          <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-[#f04438] text-[0.68rem] font-black text-white">
+            1
+          </span>
+        </button>
+      </div>
+    </header>
+  );
+}
+
+function MobileStageProgress({ stageIndex, progress }: { stageIndex: number; progress: number }) {
+  return (
+    <div className="mx-auto mb-6 max-w-md sm:hidden">
+      <div className="grid grid-cols-5 gap-3">
+        {onboardingStages.map((item, index) => {
+          const active = index === stageIndex;
+          const done = index < stageIndex;
+          return (
+            <div key={item.name} className="text-center">
+              <div
+                className={`mx-auto grid h-12 w-12 place-items-center rounded-full text-lg font-black shadow-sm ${
+                  active || done ? "bg-[#18b84d] text-white" : "bg-[#edf2f7] text-[#40546c]"
+                }`}
+              >
+                {index + 1}
+              </div>
+              <p
+                className={`mt-2 text-sm font-bold ${active ? "text-[#18b84d]" : "text-[#50627a]"}`}
+              >
+                {item.name}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-6 h-2 overflow-hidden rounded-full bg-[#e8eef4]">
+        <motion.div
+          className="h-full rounded-full bg-[#18b84d]"
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.45, ease: "easeOut" }}
+        />
+      </div>
+      <p className="mt-5 text-center text-lg font-bold text-[#10203a]">
+        <span className="text-[#18b84d]">Etapa {stageIndex + 1}</span> de {onboardingStages.length}
+      </p>
+    </div>
+  );
+}
+
+function MobileOutcomeCards() {
+  const previewItems = [
+    {
+      title: "Score cardiovascular",
+      detail: "Seu risco atual de forma clara",
+      icon: HeartPulse,
+      color: "bg-[#19b84d] text-white",
+    },
+    {
+      title: "Principais riscos",
+      detail: "O que merece sua atenção",
+      icon: AlertTriangle,
+      color: "bg-[#4778f5] text-white",
+    },
+    {
+      title: "Plano personalizado",
+      detail: "Ações práticas para melhorar",
+      icon: ClipboardList,
+      color: "bg-[#7557df] text-white",
+    },
+    {
+      title: "Jornada de evolução",
+      detail: "Acompanhe seu progresso",
+      icon: TrendingUp,
+      color: "bg-[#2bbca8] text-white",
+    },
+  ];
+
+  return (
+    <div className="mt-5 space-y-4 sm:hidden">
+      <div className="grid grid-cols-2 gap-3">
+        <section className="rounded-[1.5rem] border border-[#dce9f2] bg-white p-4 shadow-[0_18px_60px_-44px_rgba(16,32,31,0.75)]">
+          <h2 className="font-sans text-base font-black text-[#10203a]">
+            Seu resultado final incluirá:
+          </h2>
+          <div className="mt-4 space-y-3">
+            {previewItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.title} className="flex gap-3">
+                  <span
+                    className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${item.color}`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-black leading-tight text-[#10203a]">{item.title}</p>
+                    <p className="mt-0.5 text-xs leading-4 text-[#586980]">{item.detail}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+        <section className="relative overflow-hidden rounded-[1.5rem] border border-[#d9efe3] bg-[#f0fbf4] p-4 text-center shadow-[0_18px_60px_-44px_rgba(16,32,31,0.75)]">
+          <div className="mx-auto grid h-11 w-11 place-items-center rounded-full bg-white/70">
+            <Gem className="h-6 w-6 fill-[#19b84d] text-[#19b84d]" />
+          </div>
+          <p className="mt-4 text-sm font-semibold text-[#10203a]">Você ganhará</p>
+          <p className="mt-1 font-sans text-4xl font-black text-[#19b84d]">50 XP</p>
+          <p className="mt-2 text-sm font-semibold leading-5 text-[#10203a]">
+            ao concluir esta etapa!
+          </p>
+          <div className="mx-auto mt-5 grid h-20 w-24 place-items-center rounded-[1.35rem] bg-[linear-gradient(135deg,#2f8fc8,#19b84d)] shadow-[0_18px_42px_-22px_rgba(25,184,77,0.72)]">
+            <Trophy className="h-10 w-10 fill-[#ffd36a] text-[#ffd36a]" />
+          </div>
+        </section>
+      </div>
+      <section className="flex items-center justify-between rounded-[1.45rem] border border-[#dce9f2] bg-[#eef9f8] p-5 shadow-[0_18px_60px_-48px_rgba(16,32,31,0.75)]">
+        <div className="flex items-center gap-4">
+          <span className="grid h-11 w-11 place-items-center rounded-full bg-[#19b84d] text-white">
+            <ShieldCheck className="h-6 w-6" />
+          </span>
+          <p className="max-w-[220px] text-sm font-semibold leading-5 text-[#10203a]">
+            Seus dados estão 100% protegidos com segurança e privacidade.
+          </p>
+        </div>
+        <ArrowRight className="h-5 w-5 text-[#52657a]" />
+      </section>
+    </div>
   );
 }
 
