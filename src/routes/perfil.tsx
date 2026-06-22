@@ -369,27 +369,27 @@ function ProfilePage() {
         </nav>
       </div>
 
-      <section className="mx-auto mt-5 max-w-md sm:hidden">
+      <section className="mx-auto mt-4 max-w-md sm:hidden">
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
-          className="rounded-[2rem] border border-[#10201f]/8 bg-white p-5 shadow-[0_24px_90px_-66px_rgba(16,32,31,0.62)]"
+          className="rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-[0_24px_90px_-66px_rgba(16,32,31,0.62)]"
         >
-          <div className="flex items-start gap-4">
+          <div className="flex items-center gap-3">
             <div className="relative">
               {avatarUrl ? (
                 <img
                   src={avatarUrl}
                   alt=""
-                  className="h-24 w-24 rounded-[2rem] object-cover shadow-inner"
+                  className="h-16 w-16 rounded-[1.25rem] object-cover shadow-inner"
                 />
               ) : (
-                <div className="grid h-24 w-24 place-items-center rounded-[2rem] bg-[linear-gradient(135deg,#e8f5ef,#dceeff)] font-sans text-3xl font-semibold text-[#10201f] shadow-inner">
+                <div className="grid h-16 w-16 place-items-center rounded-[1.25rem] bg-[linear-gradient(135deg,#e8f5ef,#dceeff)] font-sans text-xl font-semibold text-[#10201f] shadow-inner">
                   {initials}
                 </div>
               )}
-              <label className="absolute -bottom-1 -right-1 grid h-9 w-9 place-items-center rounded-full border-4 border-white bg-[#10201f] text-white shadow-soft">
+              <label className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full border-4 border-white bg-[#10201f] text-white shadow-soft">
                 <input
                   type="file"
                   accept="image/*"
@@ -398,58 +398,40 @@ function ProfilePage() {
                   disabled={uploadingAvatar}
                   onChange={(event) => void uploadAvatar(event.target.files?.[0] ?? null)}
                 />
-                <Camera className="h-4 w-4" />
+                <Camera className="h-3.5 w-3.5" />
               </label>
             </div>
             <div className="min-w-0 flex-1">
-              <p className="font-sans text-2xl font-semibold leading-tight">Olá, {firstName}!</p>
-              <p className="mt-2 text-sm leading-5 text-[#536b68]">
-                Cuidar da sua saúde hoje é investir no seu amanhã.
-              </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2">
+                <p className="min-w-0 truncate font-sans text-xl font-semibold leading-tight">
+                  Olá, {firstName}!
+                </p>
                 <span className="rounded-full bg-[#e8f5ef] px-3 py-1 text-xs font-bold text-[#2f6760]">
                   Plano Gratuito
                 </span>
-                <button type="button" className="text-xs font-bold text-[#2f8fc8] opacity-70">
-                  Ver planos · em breve
-                </button>
+              </div>
+              <p className="mt-1 text-xs leading-4 text-[#536b68]">
+                Cuidar da sua saúde hoje é investir no seu amanhã.
+              </p>
+              <div className="mt-3 flex items-center gap-2 text-xs font-bold text-[#10201f]">
+                <span className="rounded-full bg-[#e9f4fb] px-2.5 py-1 text-[#2f8fc8]">
+                  {healthIndex == null ? "—" : `${Math.round(healthIndex)}%`} ·{" "}
+                  {scoreQualityLabel(healthIndex)}
+                </span>
+                <span className="rounded-full bg-[#fff7dc] px-2.5 py-1">
+                  🔥 {challengeStats.streakWeeks}
+                </span>
+                <span className="rounded-full bg-[#f1ecff] px-2.5 py-1 text-[#6f55c8]">
+                  ♥ {challengeStats.points}
+                </span>
               </div>
             </div>
           </div>
         </motion.div>
 
-        <MobileProfileCard title="Seu progresso" className="mt-4">
-          <div className="grid grid-cols-4 gap-2">
-            <ProgressMetric
-              label="Índice"
-              value={healthIndex == null ? "—" : `${Math.round(healthIndex)}%`}
-              detail={scoreQualityLabel(healthIndex)}
-              tone="blue"
-            />
-            <ProgressMetric
-              label="Dias ativos"
-              value={`${activeDaysThisMonth}`}
-              detail="este mês"
-              tone="green"
-            />
-            <ProgressMetric
-              label="Conquistas"
-              value={`${achievements}`}
-              detail={`${challengeStats.points} pts`}
-              tone="gold"
-            />
-            <ProgressMetric
-              label="Sequência"
-              value={`${challengeStats.streakWeeks}`}
-              detail="semanas"
-              tone="dark"
-            />
-          </div>
-        </MobileProfileCard>
-
-        <MobileProfileCard title="Meus dados" className="mt-4">
-          <div className="space-y-2">
-            <MobileListItem
+        <MobileProfileCard title="Meus dados" className="mt-3">
+          <div className="grid grid-cols-2 gap-2.5">
+            <MobileGridCard
               icon={<UserRound className="h-5 w-5" />}
               title="Informações pessoais"
               detail={formatPersonalSummary(data)}
@@ -457,7 +439,7 @@ function ProfilePage() {
               to="/perfil/$section"
               params={{ section: "informacoes-pessoais" }}
             />
-            <MobileListItem
+            <MobileGridCard
               icon={<HeartPulse className="h-5 w-5" />}
               title="Dados de saúde"
               detail={formatHealthSummary(data)}
@@ -465,7 +447,7 @@ function ProfilePage() {
               to="/perfil/$section"
               params={{ section: "dados-saude" }}
             />
-            <MobileListItem
+            <MobileGridCard
               icon={<Stethoscope className="h-5 w-5" />}
               title="Histórico médico"
               detail={formatMedicalSummary(data)}
@@ -473,7 +455,7 @@ function ProfilePage() {
               to="/perfil/$section"
               params={{ section: "historico-medico" }}
             />
-            <MobileListItem
+            <MobileGridCard
               icon={<Pill className="h-5 w-5" />}
               title="Medicamentos"
               detail={formatMedicationSummary(data)}
@@ -481,36 +463,37 @@ function ProfilePage() {
               to="/perfil/$section"
               params={{ section: "medicamentos" }}
             />
-            <MobileListItem
+            <MobileGridCard
               icon={<FileText className="h-5 w-5" />}
-              title="Exames e resultados"
-              detail="Nenhum exame registrado ainda. Em breve você poderá conectar resultados de laboratórios parceiros."
+              title="Exames"
+              detail="Em breve: laboratórios parceiros."
               tone="bg-[#eef3f1] text-[#536b68]"
               to="/perfil/$section"
               params={{ section: "exames-resultados" }}
+              className="col-span-2"
             />
           </div>
         </MobileProfileCard>
 
-        <MobileProfileCard title="Preferências" className="mt-4">
-          <div className="space-y-2">
-            <MobileListItem
+        <MobileProfileCard title="Preferências" className="mt-3">
+          <div className="divide-y divide-[#10201f]/6 rounded-[1.25rem] bg-[#f7faf9] px-2">
+            <CompactPreferenceItem
               icon={<Bell className="h-5 w-5" />}
-              title="Lembretes e notificações"
+              title="Lembretes"
               detail={reminders.weeklyEmail ? "E-mail semanal ativo" : "E-mail semanal inativo"}
               tone="bg-[#e9f4fb] text-[#2f8fc8]"
               to="/perfil/$section"
               params={{ section: "notificacoes" }}
             />
-            <MobileListItem
+            <CompactPreferenceItem
               icon={<Lock className="h-5 w-5" />}
-              title="Privacidade e segurança"
+              title="Privacidade"
               detail="Conta protegida pelo Supabase Auth"
               tone="bg-[#e8f5ef] text-[#2f6760]"
               to="/perfil/$section"
               params={{ section: "privacidade-seguranca" }}
             />
-            <MobileListItem
+            <CompactPreferenceItem
               icon={<Languages className="h-5 w-5" />}
               title="Idioma"
               detail="Português"
@@ -518,7 +501,7 @@ function ProfilePage() {
               to="/perfil/$section"
               params={{ section: "idioma" }}
             />
-            <MobileListItem
+            <CompactPreferenceItem
               icon={<Moon className="h-5 w-5" />}
               title="Aparência"
               detail="Claro"
@@ -529,8 +512,8 @@ function ProfilePage() {
           </div>
         </MobileProfileCard>
 
-        <MobileProfileCard title="Suporte e informações" className="mt-4">
-          <MobileListItem
+        <MobileProfileCard title="Suporte" className="mt-3">
+          <CompactPreferenceItem
             icon={<Globe2 className="h-5 w-5" />}
             title="Central de ajuda"
             detail="Dúvidas, privacidade e próximos passos"
@@ -538,15 +521,16 @@ function ProfilePage() {
             to="/perfil/$section"
             params={{ section: "central-ajuda" }}
           />
-          <button
-            type="button"
-            onClick={logout}
-            className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[#10201f]/10 bg-white font-semibold text-[#10201f]"
-          >
-            <LogOut className="h-4 w-4" />
-            Sair da conta
-          </button>
         </MobileProfileCard>
+
+        <button
+          type="button"
+          onClick={logout}
+          className="mx-auto mt-4 flex min-h-10 w-full max-w-[220px] items-center justify-center gap-2 rounded-full border border-[#10201f]/10 bg-white text-sm font-semibold text-[#536b68] shadow-soft"
+        >
+          <LogOut className="h-4 w-4" />
+          Sair da conta
+        </button>
       </section>
 
       <section className="mx-auto mt-14 hidden max-w-6xl sm:block">
@@ -1012,11 +996,79 @@ function MobileProfileCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.42, ease: "easeOut" }}
-      className={`rounded-[1.8rem] border border-[#10201f]/8 bg-white p-4 shadow-soft ${className}`}
+      className={`rounded-[1.55rem] border border-[#10201f]/8 bg-white p-3.5 shadow-soft ${className}`}
     >
-      <h2 className="font-sans text-lg font-semibold">{title}</h2>
-      <div className="mt-3">{children}</div>
+      <h2 className="font-sans text-base font-semibold">{title}</h2>
+      <div className="mt-2.5">{children}</div>
     </motion.div>
+  );
+}
+
+function MobileGridCard({
+  icon,
+  title,
+  detail,
+  tone,
+  to,
+  params,
+  className = "",
+}: {
+  icon: React.ReactNode;
+  title: string;
+  detail: string;
+  tone: string;
+  to: "/perfil/$section";
+  params: { section: string };
+  className?: string;
+}) {
+  return (
+    <Link
+      to={to}
+      params={params}
+      className={`group min-h-[116px] rounded-[1.25rem] bg-[#f7faf9] p-3 text-left transition active:scale-[0.98] ${className}`}
+    >
+      <span className={`grid h-10 w-10 place-items-center rounded-full ${tone}`}>{icon}</span>
+      <span className="mt-3 flex items-start justify-between gap-2">
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold leading-tight text-[#10201f]">{title}</span>
+          <span className="mt-1 line-clamp-2 block text-xs leading-4 text-[#78908d]">{detail}</span>
+        </span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-[#9aa8a5] transition group-active:translate-x-0.5" />
+      </span>
+    </Link>
+  );
+}
+
+function CompactPreferenceItem({
+  icon,
+  title,
+  detail,
+  tone,
+  to,
+  params,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  detail: string;
+  tone: string;
+  to: "/perfil/$section";
+  params: { section: string };
+}) {
+  return (
+    <Link
+      to={to}
+      params={params}
+      className="flex min-h-14 items-center gap-3 py-2.5 text-left transition active:scale-[0.99]"
+    >
+      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${tone}`}>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold leading-tight text-[#10201f]">{title}</span>
+        <span className="mt-0.5 block truncate text-xs text-[#78908d]">{detail}</span>
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-[#9aa8a5]" />
+    </Link>
   );
 }
 
