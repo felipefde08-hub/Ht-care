@@ -10,6 +10,7 @@ import {
   Scale,
   ShieldCheck,
   Sparkles,
+  Trophy,
   Wine,
   type LucideIcon,
 } from "lucide-react";
@@ -20,7 +21,7 @@ export interface ChallengeMission {
   id: string;
   title: string;
   text: string;
-  category: "movement" | "sleep" | "food" | "clinical" | "habits" | "calm";
+  category: "hydration" | "movement" | "sleep" | "food" | "clinical" | "habits" | "calm" | "epic";
   points: number;
   icon: LucideIcon;
 }
@@ -36,251 +37,383 @@ const DEFAULT_PROGRESS: ChallengeProgress = {
   completions: [],
 };
 
-const defaultMissions: ChallengeMission[] = [
+type MissionCategory = ChallengeMission["category"];
+
+const missionTextByCategory: Record<MissionCategory, string> = {
+  hydration: "Complete essa ação hoje e marque como feita para somar Pontos do Coração.",
+  movement: "Faça no seu ritmo, com segurança, e registre quando concluir.",
+  sleep: "Escolha uma noite desta semana para praticar essa meta de descanso.",
+  food: "Use uma refeição ou momento do dia para fazer uma escolha melhor.",
+  clinical: "Atualize essa informação para manter seu acompanhamento vivo.",
+  habits: "Pratique uma troca simples que ajuda seu coração ao longo do tempo.",
+  calm: "Reserve um momento curto para reduzir tensão e cuidar do corpo.",
+  epic: "Conquista de consistência: desbloqueie conforme avança na jornada.",
+};
+
+function createMissions(
+  prefix: string,
+  titles: string[],
+  category: MissionCategory,
+  icon: LucideIcon,
+) {
+  return titles.map((title, index): ChallengeMission => {
+    const number = String(index + 1).padStart(2, "0");
+    return {
+      id: `${prefix}-${number}`,
+      title,
+      text: missionTextByCategory[category],
+      category,
+      points: HEART_POINTS.mission,
+      icon,
+    };
+  });
+}
+
+const hydrationMissions = createMissions(
+  "hydration",
+  [
+    "Beber 2L de água hoje",
+    "Beber um copo ao acordar",
+    "Trocar um refrigerante por água",
+    "Levar uma garrafa para o trabalho",
+    "Beber água antes das refeições",
+    "Completar 8 copos no dia",
+    "Ficar uma manhã inteira hidratado",
+    "Não esquecer nenhuma meta de água",
+    "Beber 500ml antes do almoço",
+    "Beber 500ml antes do jantar",
+    "Completar 2,5L de água",
+    "Passar um dia sem refrigerante",
+    "Tomar água durante atividade física",
+    "Beber água ao invés de suco industrializado",
+    "Completar 3 dias seguidos hidratado",
+    "Completar 5 dias seguidos hidratado",
+    "Beber água em todos os intervalos do dia",
+    "Trocar bebida açucarada por água",
+    "Manter a hidratação por 7 dias",
+    "Desafio mestre da hidratação",
+  ],
+  "hydration",
+  Droplets,
+);
+
+const movementMissions = createMissions(
+  "movement",
+  [
+    "Caminhar 2.000 passos",
+    "Caminhar 4.000 passos",
+    "Caminhar 6.000 passos",
+    "Caminhar 8.000 passos",
+    "Caminhar 10.000 passos",
+    "Fazer alongamento por 5 minutos",
+    "Subir escadas hoje",
+    "Fazer uma caminhada após o almoço",
+    "Caminhar 15 minutos seguidos",
+    "Caminhar 30 minutos seguidos",
+    "Fazer 20 agachamentos",
+    "Fazer 10 minutos de exercício",
+    "Fazer 20 minutos de exercício",
+    "Fazer atividade física por 3 dias seguidos",
+    "Fazer atividade física por 5 dias seguidos",
+    "Completar uma semana ativa",
+    "Fazer exercício antes das 10h",
+    "Fazer uma caminhada em família",
+    "Dar uma volta no quarteirão",
+    "Completar seu primeiro desafio fitness",
+  ],
+  "movement",
+  Dumbbell,
+);
+
+const sleepMissions = createMissions(
+  "sleep",
+  [
+    "Dormir 7 horas",
+    "Dormir 8 horas",
+    "Dormir antes das 23h",
+    "Evitar celular 30 min antes de dormir",
+    "Dormir no mesmo horário",
+    "Acordar sem soneca",
+    "Ter uma noite completa de sono",
+    "Dormir 7h por 3 dias seguidos",
+    "Dormir 8h por 3 dias seguidos",
+    "Dormir 8h por 5 dias seguidos",
+    "Reduzir cafeína à noite",
+    "Fazer uma rotina de sono",
+    "Desligar telas cedo",
+    "Ler antes de dormir",
+    "Evitar refeições pesadas à noite",
+    "Dormir antes da meia-noite",
+    "Melhorar seu horário de descanso",
+    "Fazer uma semana saudável de sono",
+    "Atingir meta de descanso",
+    "Mestre do sono",
+  ],
+  "sleep",
+  Moon,
+);
+
+const foodMissions = createMissions(
+  "food",
+  [
+    "Comer uma fruta hoje",
+    "Comer duas frutas hoje",
+    "Comer uma salada",
+    "Evitar fast food hoje",
+    "Fazer uma refeição equilibrada",
+    "Comer verduras no almoço",
+    "Comer verduras no jantar",
+    "Reduzir açúcar por um dia",
+    "Reduzir frituras por um dia",
+    "Fazer café da manhã saudável",
+    "Comer proteína em todas as refeições",
+    "Comer frutas por 3 dias seguidos",
+    "Comer frutas por 5 dias seguidos",
+    "Evitar refrigerante hoje",
+    "Fazer um lanche saudável",
+    "Comer menos ultraprocessados",
+    "Não pular refeições",
+    "Comer devagar",
+    "Controlar porções",
+    "Fazer uma semana saudável",
+    "Comer legumes hoje",
+    "Experimentar um alimento saudável novo",
+    "Reduzir doces por um dia",
+    "Comer peixe na semana",
+    "Fazer um prato colorido",
+    "Trocar fritura por grelhado",
+    "Comer mais fibras",
+    "Completar 7 dias equilibrados",
+    "Manter alimentação saudável por 10 dias",
+    "Mestre da alimentação",
+  ],
+  "food",
+  Apple,
+);
+
+const clinicalMissions = createMissions(
+  "clinical",
+  [
+    "Registrar sua pressão",
+    "Registrar seu peso",
+    "Atualizar altura",
+    "Completar o questionário inicial",
+    "Atualizar seu score",
+    "Revisar seus fatores de risco",
+    "Ler uma dica de saúde",
+    "Registrar frequência cardíaca",
+    "Registrar pressão por 3 dias",
+    "Registrar pressão por 5 dias",
+    "Registrar peso semanalmente",
+    "Ver sua evolução",
+    "Melhorar seu score",
+    "Completar check-in diário",
+    "Registrar sintomas",
+    "Fazer avaliação mensal",
+    "Consultar histórico",
+    "Atualizar metas",
+    "Revisar hábitos",
+    "Protetor do coração",
+  ],
+  "clinical",
+  HeartPulse,
+);
+
+const calmMissions = createMissions(
+  "calm",
+  [
+    "Respirar profundamente por 2 min",
+    "Fazer pausa de 5 min",
+    "Meditar por 5 min",
+    "Fazer uma caminhada relaxante",
+    "Escutar música calma",
+    "Escrever algo positivo",
+    "Praticar gratidão",
+    "Reduzir estresse hoje",
+    "Fazer uma pausa das redes sociais",
+    "Ler por 10 minutos",
+    "Fazer algo que gosta",
+    "Conversar com alguém querido",
+    "Sorrir mais hoje",
+    "Fazer um elogio",
+    "Relaxar antes de dormir",
+    "Respirar por 5 minutos",
+    "Fazer uma atividade ao ar livre",
+    "Registrar seu humor",
+    "Completar semana positiva",
+    "Mestre do equilíbrio",
+  ],
+  "calm",
+  Sparkles,
+);
+
+const epicMissions = createMissions(
+  "epic",
+  [
+    "Completar 3 missões",
+    "Completar 5 missões",
+    "Completar 10 missões",
+    "Completar 20 missões",
+    "Completar 50 missões",
+    "Completar 100 missões",
+    "Atingir 1.000 XP",
+    "Atingir 2.500 XP",
+    "Atingir 5.000 XP",
+    "Manter sequência por 3 dias",
+    "Manter sequência por 7 dias",
+    "Manter sequência por 14 dias",
+    "Manter sequência por 30 dias",
+    "Concluir primeira jornada",
+    "Concluir nível 5",
+    "Concluir nível 10",
+    "Concluir plano de ação",
+    "Melhorar score cardiovascular",
+    "Tornar-se Guardião do Coração",
+    "Tornar-se Mestre HTCARE",
+  ],
+  "epic",
+  Trophy,
+);
+
+const targetedMissions: ChallengeMission[] = [
   {
-    id: "walk-20-min",
-    title: "Caminhe 20 minutos",
-    text: "Faça uma caminhada leve em qualquer horário do dia.",
-    category: "movement",
+    id: "smoke-free-day",
+    title: "Um dia sem cigarro",
+    text: "Escolha um dia da semana para reduzir ou evitar cigarro e observe como se sente.",
+    category: "habits",
     points: HEART_POINTS.mission,
-    icon: Dumbbell,
+    icon: CigaretteOff,
   },
   {
-    id: "measure-pressure",
-    title: "Meça sua pressão",
-    text: "Registre uma medida de pressão em repouso ainda esta semana.",
-    category: "clinical",
-    points: HEART_POINTS.mission,
-    icon: HeartPulse,
-  },
-  {
-    id: "sleep-window",
-    title: "Proteja seu sono",
-    text: "Escolha uma noite para dormir 7 a 8 horas sem telas nos últimos 30 minutos.",
-    category: "sleep",
-    points: HEART_POINTS.mission,
-    icon: Moon,
-  },
-  {
-    id: "water-two-glasses",
-    title: "2 copos de água a mais",
-    text: "Inclua dois copos de água extras ao longo do dia.",
-    category: "food",
-    points: HEART_POINTS.mission,
-    icon: Droplets,
-  },
-  {
-    id: "calm-checkpoint",
-    title: "Pausa de calma",
-    text: "Reserve 3 minutos para respirar devagar e perceber seu corpo.",
+    id: "trigger-list",
+    title: "Mapeie seus gatilhos",
+    text: "Anote três momentos em que a vontade de fumar aparece com mais força.",
     category: "calm",
     points: HEART_POINTS.mission,
     icon: Sparkles,
   },
+  {
+    id: "delay-first-cigarette",
+    title: "Adie o primeiro cigarro",
+    text: "Tente atrasar o primeiro cigarro do dia em 30 minutos.",
+    category: "habits",
+    points: HEART_POINTS.mission,
+    icon: CigaretteOff,
+  },
+  {
+    id: "alcohol-free-day",
+    title: "Um dia sem álcool",
+    text: "Escolha um dia da semana para ficar sem bebida alcoólica.",
+    category: "habits",
+    points: HEART_POINTS.mission,
+    icon: Wine,
+  },
+  {
+    id: "pressure-rest-note",
+    title: "Anote pressão em repouso",
+    text: "Meça a pressão sentado, após 5 minutos de descanso, e guarde o valor.",
+    category: "clinical",
+    points: HEART_POINTS.mission,
+    icon: ShieldCheck,
+  },
+  {
+    id: "weigh-once",
+    title: "Atualize seu peso",
+    text: "Pese-se uma vez nesta semana e use apenas como dado de acompanhamento.",
+    category: "clinical",
+    points: HEART_POINTS.mission,
+    icon: Scale,
+  },
+  {
+    id: "sleep-routine",
+    title: "Ritual de sono",
+    text: "Prepare uma rotina curta de 20 minutos antes de dormir, sem telas.",
+    category: "sleep",
+    points: HEART_POINTS.mission,
+    icon: Bed,
+  },
+  {
+    id: "move-after-meal",
+    title: "10 minutos após uma refeição",
+    text: "Faça uma caminhada curta depois de uma refeição principal.",
+    category: "movement",
+    points: HEART_POINTS.mission,
+    icon: Activity,
+  },
+];
+
+const defaultMissions: ChallengeMission[] = [
+  ...hydrationMissions,
+  ...movementMissions,
+  ...sleepMissions,
+  ...foodMissions,
+  ...clinicalMissions.slice(0, 14),
+  ...calmMissions,
+  ...targetedMissions,
 ];
 
 const missionBank: Array<{ match: string[]; missions: ChallengeMission[] }> = [
   {
     match: ["tabagismo", "fumante"],
     missions: [
-      {
-        id: "smoke-free-day",
-        title: "Um dia sem cigarro",
-        text: "Escolha um dia da semana para reduzir ou evitar cigarro e observe como se sente.",
-        category: "habits",
-        points: HEART_POINTS.mission,
-        icon: CigaretteOff,
-      },
-      {
-        id: "trigger-list",
-        title: "Mapeie seus gatilhos",
-        text: "Anote três momentos em que a vontade de fumar aparece com mais força.",
-        category: "calm",
-        points: HEART_POINTS.mission,
-        icon: Sparkles,
-      },
-      {
-        id: "delay-first-cigarette",
-        title: "Adie o primeiro cigarro",
-        text: "Tente atrasar o primeiro cigarro do dia em 30 minutos.",
-        category: "habits",
-        points: HEART_POINTS.mission,
-        icon: CigaretteOff,
-      },
+      ...targetedMissions.slice(0, 3),
+      ...calmMissions.slice(0, 8),
+      ...hydrationMissions.slice(1, 6),
     ],
   },
   {
     match: ["pressão", "hipertensão"],
     missions: [
-      {
-        id: "pressure-two-measures",
-        title: "Meça a pressão 2 vezes",
-        text: "Faça duas medidas em dias diferentes e guarde os números para acompanhar.",
-        category: "clinical",
-        points: HEART_POINTS.mission,
-        icon: HeartPulse,
-      },
-      {
-        id: "salt-swap",
-        title: "Troque um alimento salgado",
-        text: "Substitua um ultraprocessado por uma opção mais simples em uma refeição.",
-        category: "food",
-        points: HEART_POINTS.mission,
-        icon: Apple,
-      },
-      {
-        id: "pressure-rest-note",
-        title: "Anote pressão em repouso",
-        text: "Meça a pressão sentado, após 5 minutos de descanso, e guarde o valor.",
-        category: "clinical",
-        points: HEART_POINTS.mission,
-        icon: ShieldCheck,
-      },
+      ...clinicalMissions,
+      ...hydrationMissions.slice(0, 12),
+      ...movementMissions.slice(5, 13),
+      ...calmMissions.slice(0, 4),
+      targetedMissions[4],
     ],
   },
   {
     match: ["imc", "obesidade", "sobrepeso"],
     missions: [
-      {
-        id: "move-after-meal",
-        title: "10 minutos após uma refeição",
-        text: "Faça uma caminhada curta depois de uma refeição principal.",
-        category: "movement",
-        points: HEART_POINTS.mission,
-        icon: Activity,
-      },
-      {
-        id: "weigh-once",
-        title: "Atualize seu peso",
-        text: "Pese-se uma vez nesta semana e use apenas como dado de acompanhamento.",
-        category: "clinical",
-        points: HEART_POINTS.mission,
-        icon: Scale,
-      },
-      {
-        id: "plate-half-plants",
-        title: "Metade do prato colorido",
-        text: "Em uma refeição, monte metade do prato com verduras, legumes ou salada.",
-        category: "food",
-        points: HEART_POINTS.mission,
-        icon: Apple,
-      },
+      ...movementMissions,
+      ...foodMissions,
+      ...hydrationMissions.slice(0, 12),
+      targetedMissions[5],
+      targetedMissions[7],
     ],
   },
   {
     match: ["diabetes", "glicemia"],
     missions: [
-      {
-        id: "water-before-sweet",
-        title: "Água antes do doce",
-        text: "Beba água e espere 10 minutos antes de consumir algo muito doce.",
-        category: "food",
-        points: HEART_POINTS.mission,
-        icon: Droplets,
-      },
-      {
-        id: "glucose-check",
-        title: "Registre sua glicemia",
-        text: "Se você mede glicemia, registre uma medida no próximo check-in.",
-        category: "clinical",
-        points: HEART_POINTS.mission,
-        icon: ShieldCheck,
-      },
-      {
-        id: "protein-breakfast",
-        title: "Café da manhã com proteína",
-        text: "Inclua uma fonte de proteína no café da manhã em pelo menos um dia.",
-        category: "food",
-        points: HEART_POINTS.mission,
-        icon: Apple,
-      },
+      ...foodMissions,
+      ...hydrationMissions,
+      ...clinicalMissions.slice(4, 16),
+      ...movementMissions.slice(7, 14),
     ],
   },
   {
     match: ["sedentarismo", "atividade física", "atividade"],
-    missions: [
-      {
-        id: "three-move-breaks",
-        title: "3 pausas de movimento",
-        text: "Faça três pausas de 5 minutos para se movimentar durante o dia.",
-        category: "movement",
-        points: HEART_POINTS.mission,
-        icon: Dumbbell,
-      },
-      {
-        id: "stairs-or-walk",
-        title: "Escolha o caminho ativo",
-        text: "Use escada ou caminhe um pouco mais em um deslocamento simples.",
-        category: "movement",
-        points: HEART_POINTS.mission,
-        icon: Activity,
-      },
-      {
-        id: "schedule-movement",
-        title: "Agende movimento",
-        text: "Bloqueie 20 minutos na agenda para caminhar ou se movimentar.",
-        category: "movement",
-        points: HEART_POINTS.mission,
-        icon: Dumbbell,
-      },
-    ],
+    missions: [...movementMissions, targetedMissions[7]],
   },
   {
     match: ["sono", "estresse", "apneia"],
-    missions: [
-      {
-        id: "sleep-routine",
-        title: "Ritual de sono",
-        text: "Prepare uma rotina curta de 20 minutos antes de dormir, sem telas.",
-        category: "sleep",
-        points: HEART_POINTS.mission,
-        icon: Bed,
-      },
-      {
-        id: "breathing-two-min",
-        title: "Respire por 2 minutos",
-        text: "Faça uma pausa de respiração lenta em um momento de estresse.",
-        category: "calm",
-        points: HEART_POINTS.mission,
-        icon: Sparkles,
-      },
-      {
-        id: "caffeine-cutoff",
-        title: "Corte cafeína mais cedo",
-        text: "Evite cafeína depois das 16h em um dia desta semana.",
-        category: "sleep",
-        points: HEART_POINTS.mission,
-        icon: Moon,
-      },
-      {
-        id: "worry-list",
-        title: "Lista de preocupações",
-        text: "Antes de dormir, escreva três pendências para tirar da cabeça.",
-        category: "calm",
-        points: HEART_POINTS.mission,
-        icon: Sparkles,
-      },
-    ],
+    missions: [...sleepMissions, ...calmMissions, targetedMissions[6]],
   },
   {
     match: ["álcool", "alcool", "consumo diário", "consumo frequente"],
     missions: [
-      {
-        id: "alcohol-free-day",
-        title: "Um dia sem álcool",
-        text: "Escolha um dia da semana para ficar sem bebida alcoólica.",
-        category: "habits",
-        points: HEART_POINTS.mission,
-        icon: Wine,
-      },
-      {
-        id: "water-between-drinks",
-        title: "Água entre bebidas",
-        text: "Se beber socialmente, alterne uma bebida com um copo de água.",
-        category: "food",
-        points: HEART_POINTS.mission,
-        icon: Droplets,
-      },
+      targetedMissions[3],
+      ...hydrationMissions.slice(0, 14),
+      ...calmMissions.slice(0, 8),
+      ...foodMissions.slice(0, 10),
+    ],
+  },
+  {
+    match: ["histórico", "familiar", "diagnóstico cardíaco", "infarto", "arritmia"],
+    missions: [
+      ...clinicalMissions,
+      ...movementMissions.slice(0, 12),
+      ...hydrationMissions.slice(0, 10),
+      ...calmMissions.slice(0, 6),
     ],
   },
 ];
@@ -379,11 +512,13 @@ export function getChallengeStats(missions: ChallengeMission[] = []) {
 }
 
 export function missionTone(category: ChallengeMission["category"]) {
+  if (category === "hydration") return "from-[#dff7ff] to-[#58c7e8] text-[#073846]";
   if (category === "movement") return "from-[#fff1c7] to-[#ffb25f] text-[#4b2a00]";
   if (category === "sleep") return "from-[#dceeff] to-[#8db8ff] text-[#102446]";
   if (category === "food") return "from-[#e4ffd9] to-[#94df6d] text-[#17380d]";
   if (category === "clinical") return "from-[#dffaf4] to-[#69d8bf] text-[#103a33]";
   if (category === "habits") return "from-[#ffe3da] to-[#ff997d] text-[#4d190d]";
+  if (category === "epic") return "from-[#fff0cf] to-[#ffc857] text-[#4b3200]";
   return "from-[#f0e7ff] to-[#c4a0ff] text-[#281449]";
 }
 

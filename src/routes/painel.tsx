@@ -301,7 +301,7 @@ function PanelPage() {
               />
             </div>
             <p className="mt-3 text-sm leading-5 text-[#536b68]">
-              {currentMission?.description ??
+              {currentMission?.text ??
                 "Leva menos de 30 segundos para atualizar seus dados de hoje."}
             </p>
           </section>
