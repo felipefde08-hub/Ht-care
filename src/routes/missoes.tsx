@@ -452,6 +452,7 @@ interface JourneyStep {
   xp: number;
   badge: string;
   reward: string;
+  lockedText?: string;
   target?: "missions";
   to?: "/onboarding" | "/relatorio" | "/missoes" | "/check-in";
 }
@@ -525,12 +526,14 @@ function JourneyStepCard({ step, index }: { step: JourneyStep; index: number }) 
             ? `Concluído · ${step.badge}`
             : step.status === "current"
               ? `Agora · ${step.reward}`
-              : `Bloqueado · ${step.reward}`}
+              : `Bloqueado · ${step.lockedText ?? step.reward}`}
         </p>
       </div>
       {step.status !== "locked" && <ArrowRight className="h-5 w-5 shrink-0 text-[#9aa8a5]" />}
     </motion.div>
   );
+
+  if (step.status === "locked") return content;
 
   if (step.target === "missions") {
     return (
@@ -540,7 +543,7 @@ function JourneyStepCard({ step, index }: { step: JourneyStep; index: number }) 
     );
   }
 
-  if (step.status === "locked" || !step.to) return content;
+  if (!step.to) return content;
   return (
     <Link to={step.to} className="block">
       {content}
@@ -640,6 +643,7 @@ function buildJourneyMap(
       xp: 200,
       badge: "Corpo em movimento",
       reward: "complete 6 missões",
+      lockedText: "desbloqueia ao concluir Plano de ação",
       target: "missions",
     },
     {
@@ -649,6 +653,7 @@ function buildJourneyMap(
       xp: 200,
       badge: "Prato colorido",
       reward: "complete 9 missões",
+      lockedText: "desbloqueia ao concluir Exercício físico",
       target: "missions",
     },
     {
@@ -658,6 +663,7 @@ function buildJourneyMap(
       xp: 200,
       badge: "Sono protegido",
       reward: "complete 12 missões",
+      lockedText: "desbloqueia ao concluir Alimentação",
       target: "missions",
     },
     {
@@ -667,6 +673,7 @@ function buildJourneyMap(
       xp: 500,
       badge: "Guardião do Coração",
       reward: "4 semanas de sequência",
+      lockedText: "desbloqueia ao concluir Sono e descanso",
       to: "/check-in",
     },
   ];
