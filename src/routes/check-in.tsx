@@ -1,6 +1,6 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { CheckCircle2, Sparkles } from "lucide-react";
+import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -179,20 +179,11 @@ function CheckInPage() {
                   animate={{ y: 0, scale: 1 }}
                   className="text-center"
                 >
-                  <Carelito className="mx-auto h-32 w-32" expression="excited" />
-                  <h2 className="mt-3 font-sans text-3xl font-semibold">Check-in feito!</h2>
-                  <p className="mt-2 font-bold text-[#2f6760]">+50 XP voando para sua jornada</p>
-                  <div className="mt-5 flex justify-center gap-2">
-                    {[...Array(9)].map((_, index) => (
-                      <motion.span
-                        key={index}
-                        initial={{ y: 0, opacity: 0, scale: 0.7 }}
-                        animate={{ y: [-4, -34, -10], opacity: [0, 1, 0], scale: [0.7, 1, 0.8] }}
-                        transition={{ duration: 0.85, delay: index * 0.04 }}
-                        className="h-2.5 w-2.5 rounded-full bg-[#49c7ae]"
-                      />
-                    ))}
-                  </div>
+                  <Carelito className="mx-auto h-28 w-28" expression="confident" />
+                  <h2 className="mt-3 font-sans text-3xl font-semibold">Registrado.</h2>
+                  <p className="mx-auto mt-2 max-w-xs font-semibold leading-6 text-[#536b68]">
+                    Seu histórico foi atualizado e o score será acompanhado com esses dados.
+                  </p>
                 </motion.div>
               </motion.div>
             )}
@@ -320,11 +311,12 @@ function CheckInPage() {
 
             <div className="rounded-[1.4rem] bg-[#f7faf9] p-4">
               <div className="flex items-center gap-2 text-sm font-bold text-[#2f6760]">
-                <Sparkles className="h-4 w-4" />
-                +50 XP ao concluir
+                <ShieldCheck className="h-4 w-4" />
+                Atualização clínica rápida
               </div>
               <p className="mt-1 text-sm leading-5 text-[#536b68]">
-                O Carelito usa esse check-in para atualizar sua evolução sem complicar sua rotina.
+                O Carelito usa esse check-in para manter seu relatório vivo, sem complicar sua
+                rotina.
               </p>
             </div>
           </div>

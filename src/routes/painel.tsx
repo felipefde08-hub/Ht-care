@@ -6,34 +6,26 @@ import {
   ArrowRight,
   ArrowUp,
   Bell,
-  CheckCircle2,
   Clock3,
   Download,
-  Flame,
-  Gauge,
   HeartPulse,
-  Lock,
   Minus,
   Moon,
   Scale,
   ShieldCheck,
-  Trophy,
   X,
-  type LucideIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CarelitoChat } from "@/components/CarelitoChat";
 import { Carelito } from "@/components/HeartMascot";
 import { Logo } from "@/components/Logo";
 import { MobileAppNav } from "@/components/MobileAppNav";
 import { Button } from "@/components/ui/button";
-import {
-  challengeMilestones,
-  getChallengeStats,
-  getWeeklyMissions,
-  missionCompletionKey,
-} from "@/lib/challenge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { getChallengeStats, getWeeklyMissions } from "@/lib/challenge";
 import { recordUserActivity } from "@/lib/user-activity";
 
 export const Route = createFileRoute("/painel")({
@@ -84,11 +76,18 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 }
 
+interface DynamicSupabaseTable {
+  insert: (values: Record<string, unknown>) => Promise<{ error: unknown }>;
+}
+
+interface DynamicSupabaseClient {
+  from: (table: string) => DynamicSupabaseTable;
+}
+
 function PanelPage() {
   const { user } = Route.useRouteContext();
   const [stored, setStored] = useState<StoredResult | null>(null);
   const [history, setHistory] = useState<ScorePoint[]>([]);
-  const [displayPoints, setDisplayPoints] = useState(0);
 
   useEffect(() => {
     async function loadData() {
@@ -150,46 +149,14 @@ function PanelPage() {
     [latest?.factors, stored?.result?.factors],
   );
   const challengeStats = getChallengeStats(weeklyMissions);
-  const weeklyProgressPercent = weeklyMissions.length
-    ? (challengeStats.completedThisWeek / weeklyMissions.length) * 100
-    : 0;
-  const journeyProgressPercent = challengeStats.points
-    ? ((challengeStats.points % 100) / 100) * 100
-    : 0;
-  const visibleMilestones = buildVisibleMilestones(challengeStats.points);
   const firstName = getFirstName(
     (user.user_metadata?.name as string | undefined) ??
       (user.user_metadata?.full_name as string | undefined) ??
       user.email,
   );
-  const currentMission = weeklyMissions.find(
-    (mission) =>
-      !challengeStats.progress.completedMissionIds.includes(
-        missionCompletionKey(mission.id, challengeStats.currentWeek),
-      ),
-  );
-  const missionProgressLabel = `${challengeStats.completedThisWeek}/${weeklyMissions.length}`;
   const scoreComparison = getScoreComparison(currentScore);
-  const heartLevel = getHeartLevel(challengeStats.points);
-  const dailyCarelitoMessage = getDailyCarelitoMessage(firstName, currentScore);
-
-  useEffect(() => {
-    let frame = 0;
-    const totalFrames = 42;
-    const diff = challengeStats.points;
-    if (!diff) {
-      setDisplayPoints(0);
-      return;
-    }
-    const tick = () => {
-      frame += 1;
-      const progress = 1 - Math.pow(1 - frame / totalFrames, 3);
-      setDisplayPoints(Math.round(diff * progress));
-      if (frame < totalFrames) window.requestAnimationFrame(tick);
-    };
-    const id = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(id);
-  }, [challengeStats.points]);
+  const dailyCarelitoMessage = getClinicalCarelitoMessage(currentScore, trend);
+  const mobileHealthData = buildMobileHealthData(stored, readLastCheckIn());
 
   return (
     <main className="min-h-screen bg-[#fbfcfc] px-4 pb-28 pt-4 text-[#10201f] sm:px-5 sm:py-6">
@@ -248,26 +215,23 @@ function PanelPage() {
           transition={{ duration: 0.45, ease: "easeOut" }}
           className="mx-auto max-w-md sm:hidden"
         >
-          <p className="text-[1.7rem] font-semibold leading-tight">❤️ Bom dia, {firstName}</p>
+          <p className="text-[1.7rem] font-semibold leading-tight">Bom dia, {firstName}</p>
           <p className="mt-1 text-sm font-semibold leading-5 text-[#536b68]">
-            Seu coração está estável hoje. Vamos melhorar mais 1%?
+            Seu relatório cardiovascular vivo está atualizado.
           </p>
 
           <section className="mt-4 overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-4 shadow-[0_26px_90px_-62px_rgba(16,32,31,0.62)]">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-bold text-[#536b68]">Seu coração hoje</p>
-                <div className="mt-3 flex items-end gap-2">
-                  <span className="font-sans text-6xl font-semibold leading-none">
-                    {currentScore ?? "—"}
-                  </span>
-                  <span className="pb-1 text-lg font-semibold text-[#78908d]">/100</span>
-                </div>
-                <p className="mt-2 font-sans text-xl font-semibold">
-                  {scoreQualityLabel(currentScore)}
-                </p>
+            <div className="text-center">
+              <p className="text-sm font-bold text-[#536b68]">Score cardiovascular atual</p>
+              <div className="mt-3 flex items-end justify-center gap-2">
+                <span className="font-sans text-6xl font-semibold leading-none">
+                  {currentScore ?? "—"}
+                </span>
+                <span className="pb-1 text-lg font-semibold text-[#78908d]">/100</span>
               </div>
-              <CompactScoreRing value={currentScore} />
+              <p className="mt-2 font-sans text-xl font-semibold">
+                {scoreQualityLabel(currentScore)}
+              </p>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <div className="rounded-[1.2rem] bg-[#f7faf9] px-3 py-3">
@@ -290,94 +254,47 @@ function PanelPage() {
             <p className="mt-3 rounded-[1.2rem] bg-[#f7faf9] px-4 py-3 text-sm font-semibold leading-5 text-[#536b68]">
               {scoreComparison}
             </p>
-            <div className="mt-3 flex items-center gap-2 text-xs font-bold">
-              <span className="rounded-full bg-[#fff7dc] px-3 py-1.5 text-[#9a5b12]">
-                🔥 {challengeStats.streakWeeks || 0}
-              </span>
-              <span className="rounded-full bg-[#e8f5ef] px-3 py-1.5 text-[#2f6760]">
-                ♥ {displayPoints} pontos
-              </span>
-              <TrendBadge trend={trend} />
-            </div>
+            {sortedHistory.length >= 2 && <MiniScoreTrend history={sortedHistory} />}
           </section>
 
           <section className="mt-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78908d]">
-                  Missão do dia
+                  Próxima ação recomendada
                 </p>
                 <h2 className="mt-1 font-sans text-xl font-semibold leading-tight">
-                  {currentMission?.title ?? "Faça seu check-in rápido"}
+                  {nextStep.title}
                 </h2>
               </div>
-              <span className="rounded-full bg-[#e9f4fb] px-3 py-1.5 text-xs font-bold text-[#2f8fc8]">
-                {missionProgressLabel}
-              </span>
+              <TrendBadge trend={trend} />
             </div>
-            <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#eef3f1]">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${weeklyProgressPercent}%` }}
-                transition={{ duration: 0.7, ease: "easeOut" }}
-                className="h-full rounded-full bg-[linear-gradient(90deg,#2f8fc8,#49c7ae)]"
-              />
-            </div>
-            <p className="mt-3 text-sm leading-5 text-[#536b68]">
-              {currentMission?.text ??
-                "Leva menos de 30 segundos para atualizar seus dados de hoje."}
-            </p>
-            <p className="mt-3 inline-flex rounded-full bg-[#fff7dc] px-3 py-1.5 text-xs font-black text-[#9a5b12]">
-              +{currentMission?.points ?? 50} XP ao concluir
-            </p>
+            <p className="mt-3 text-sm leading-5 text-[#536b68]">{nextStep.text}</p>
           </section>
 
           <Button
             size="xl"
-            className="mt-3 min-h-14 w-full rounded-[1.25rem] bg-[linear-gradient(135deg,#2f8fc8,#49c7ae)] text-base font-black uppercase tracking-[0.04em] text-white shadow-[0_20px_60px_-36px_rgba(47,143,200,0.9)]"
+            className="mt-3 min-h-14 w-full rounded-[1.25rem] bg-[#10201f] text-base font-semibold text-white shadow-[0_20px_60px_-36px_rgba(16,32,31,0.75)]"
             asChild
           >
-            <Link to={challengeStats.pendingThisWeek > 0 ? "/missoes" : "/check-in"}>
-              Começar missão <ArrowRight className="h-5 w-5" />
+            <Link to="/check-in">
+              Registrar agora <ArrowRight className="h-5 w-5" />
             </Link>
           </Button>
 
-          <section className="mt-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78908d]">
-                  Próximo nível
-                </p>
-                <h2 className="mt-1 font-sans text-2xl font-semibold">Nível {heartLevel.level}</h2>
-                <p className="mt-1 text-xs font-semibold text-[#536b68]">
-                  {heartLevel.currentXp} / 1000 XP · {heartLevel.title}
-                </p>
-              </div>
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#10201f] text-white">
-                <Trophy className="h-6 w-6" />
-              </span>
-            </div>
-            <div className="mt-4 h-5 overflow-hidden rounded-full bg-[#eef3f1]">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${heartLevel.progress}%` }}
-                transition={{ duration: 0.9, ease: "easeOut" }}
-                className="h-full rounded-full bg-[linear-gradient(90deg,#2f8fc8,#49c7ae,#ffd36a)]"
-              />
-            </div>
+          <section className="mt-3 grid grid-cols-4 gap-2">
+            {mobileHealthData.map((item) => (
+              <CompactClinicalShortcut key={item.label} {...item} />
+            ))}
           </section>
 
+          <LabInterestCard userId={user.id} defaultName={firstName} />
+
           <section className="mt-3 flex items-center gap-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
-            <motion.div
-              animate={{ rotate: [-2, 2, -2], y: [0, -2, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              className="h-20 w-20 shrink-0"
-            >
-              <Carelito className="h-full w-full" expression="confident" />
-            </motion.div>
+            <Carelito className="h-20 w-20 shrink-0" expression="thoughtful" />
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#2f8fc8]">
-                Carelito
+                Insight do Carelito
               </p>
               <p className="mt-1 text-sm font-semibold leading-5 text-[#536b68]">
                 {dailyCarelitoMessage}
@@ -393,50 +310,28 @@ function PanelPage() {
             transition={{ duration: 0.5, ease: "easeOut", delay: 0.08 }}
             className="mt-10 hidden gap-4 sm:grid lg:grid-cols-[1fr_0.8fr]"
           >
-            <div className="overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-[linear-gradient(135deg,#fff7dc,#ffe0a3_42%,#ffb86b)] p-6 shadow-[0_28px_100px_-76px_rgba(154,91,18,0.7)]">
+            <div className="overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-6 shadow-soft">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-4">
-                  <span className="grid h-14 w-14 place-items-center rounded-2xl bg-white/75 shadow-soft">
-                    <Flame className="h-7 w-7 text-[#d85b1f]" />
+                  <span className="grid h-14 w-14 place-items-center rounded-2xl bg-[#e8f5ef] shadow-soft">
+                    <HeartPulse className="h-7 w-7 text-[#2f6760]" />
                   </span>
                   <div>
-                    <p className="text-sm font-semibold text-[#704312]">
-                      {streakCopy(challengeStats.streakWeeks)}
+                    <p className="text-sm font-semibold text-[#10201f]">
+                      Relatório vivo de saúde cardiovascular
                     </p>
-                    <p className="mt-1 text-sm text-[#704312]/72">
-                      Complete pelo menos uma missão por semana para manter sua sequência.
+                    <p className="mt-1 text-sm text-[#536b68]">
+                      Acompanhe score, pressão, peso e glicemia ao longo do tempo.
                     </p>
                   </div>
                 </div>
                 <Button className="rounded-full bg-[#10201f] font-semibold text-white" asChild>
-                  <Link to="/missoes">
-                    Minhas Missões
-                    <span className="ml-1 rounded-full bg-white/18 px-2 py-0.5 text-xs">
-                      {challengeStats.pendingThisWeek} pendentes
-                    </span>
-                  </Link>
+                  <Link to="/relatorio">Ver relatório</Link>
                 </Button>
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-[#10201f]/8 bg-white p-6 shadow-soft">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-[#536b68]">Pontos do Coração</p>
-                  <motion.p
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, ease: "easeOut", delay: 0.18 }}
-                    className="mt-1 font-sans text-5xl font-semibold"
-                  >
-                    {displayPoints}
-                  </motion.p>
-                </div>
-                <span className="grid h-14 w-14 place-items-center rounded-2xl bg-[#fff3d1] text-[#9a5b12]">
-                  <Trophy className="h-7 w-7" />
-                </span>
-              </div>
-            </div>
+            <LabInterestCard userId={user.id} defaultName={firstName} compact />
           </motion.div>
 
           <motion.div
@@ -447,22 +342,24 @@ function PanelPage() {
           >
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-medium text-[#536b68]">Resumo semanal</p>
+                <p className="text-sm font-medium text-[#536b68]">Acompanhamento semanal</p>
                 <h2 className="mt-1 font-sans text-xl font-semibold sm:text-3xl">
-                  Essa semana: {challengeStats.completedThisWeek} de {weeklyMissions.length} missões
-                  completas
+                  {challengeStats.completedThisWeek} de {weeklyMissions.length} ações leves
+                  registradas
                 </h2>
               </div>
               <Button variant="outline" className="rounded-full" asChild>
-                <Link to="/missoes">Ver missões da semana</Link>
+                <Link to="/missoes">Ver Jornada</Link>
               </Button>
             </div>
             <div className="mt-6 h-4 overflow-hidden rounded-full bg-[#eef3f1]">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${weeklyProgressPercent}%` }}
+                animate={{
+                  width: `${weeklyMissions.length ? (challengeStats.completedThisWeek / weeklyMissions.length) * 100 : 0}%`,
+                }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
-                className="h-full rounded-full bg-gradient-to-r from-[#7fd7c0] via-[#ffd36a] to-[#ff9f43]"
+                className="h-full rounded-full bg-gradient-to-r from-[#2f8fc8] to-[#49c7ae]"
               />
             </div>
           </motion.div>
@@ -475,46 +372,19 @@ function PanelPage() {
           >
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-sm font-medium text-[#536b68]">Jornada visual</p>
+                <p className="text-sm font-medium text-[#536b68]">Indicadores informados</p>
                 <h2 className="mt-1 font-sans text-xl font-semibold sm:text-3xl">
-                  Trilha do coração
+                  Dados que alimentam seu relatório
                 </h2>
               </div>
-              <p className="text-sm font-semibold text-[#9a5b12]">
-                {challengeStats.points} / {challengeStats.nextMilestone} pontos
-              </p>
+              <Button variant="outline" className="rounded-full" asChild>
+                <Link to="/check-in">Atualizar indicadores</Link>
+              </Button>
             </div>
-            <div className="mt-7">
-              <div className="relative h-5 rounded-full bg-[#eef3f1]">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${journeyProgressPercent}%` }}
-                  transition={{ duration: 0.9, ease: "easeOut" }}
-                  className="h-full rounded-full bg-gradient-to-r from-[#7fd7c0] via-[#ffd36a] to-[#ff9f43]"
-                />
-                {[0, 25, 50, 75, 100].map((mark) => (
-                  <span
-                    key={mark}
-                    className="absolute top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border-4 border-white bg-[#10201f] shadow-soft"
-                    style={{ left: `calc(${mark}% - 16px)` }}
-                  />
-                ))}
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-                {visibleMilestones.map((milestone) => (
-                  <div
-                    key={milestone.points}
-                    className={`rounded-2xl p-3 text-xs leading-5 ${
-                      challengeStats.points >= milestone.points
-                        ? "bg-[#fff3d1] font-semibold text-[#9a5b12]"
-                        : "bg-[#f7faf9] text-[#78908d]"
-                    }`}
-                  >
-                    <p>{milestone.points} pontos</p>
-                    <p className="mt-1">{milestone.title}</p>
-                  </div>
-                ))}
-              </div>
+            <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {mobileHealthData.map((item) => (
+                <MobileDataCard key={item.label} {...item} />
+              ))}
             </div>
           </motion.div>
 
@@ -662,6 +532,195 @@ function MobileDataCard({ icon, label, value, detail, tone, action }: MobileData
   );
 }
 
+function CompactClinicalShortcut({ icon, label, value, tone }: MobileDataCardProps) {
+  const toneClasses = {
+    good: "bg-[#e8f5ef] text-[#2f6760]",
+    attention: "bg-[#fff7dc] text-[#9a5b12]",
+    risk: "bg-[#ffece7] text-[#c14525]",
+    neutral: "bg-[#eef3f1] text-[#536b68]",
+  };
+  return (
+    <Link
+      to="/check-in"
+      className="min-h-20 rounded-[1.15rem] border border-[#10201f]/6 bg-white p-2.5 shadow-soft"
+    >
+      <div className={`grid h-8 w-8 place-items-center rounded-full ${toneClasses[tone]}`}>
+        {icon}
+      </div>
+      <p className="mt-2 text-[0.62rem] font-bold uppercase tracking-[0.1em] text-[#78908d]">
+        {label}
+      </p>
+      <p className="mt-1 truncate font-sans text-sm font-semibold">{value}</p>
+    </Link>
+  );
+}
+
+function MiniScoreTrend({ history }: { history: ScorePoint[] }) {
+  const lastFour = history.slice(-4);
+  const min = Math.min(...lastFour.map((item) => item.score));
+  const max = Math.max(...lastFour.map((item) => item.score));
+  const range = Math.max(1, max - min);
+  return (
+    <div className="mt-3 rounded-[1.2rem] bg-[#f7faf9] px-4 py-3">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#78908d]">
+          Evolução recente
+        </p>
+        <Link to="/historico" className="text-xs font-bold text-[#2f8fc8]">
+          Ver histórico
+        </Link>
+      </div>
+      <div className="flex h-16 items-end gap-2">
+        {lastFour.map((point) => (
+          <div key={point.createdAt} className="flex flex-1 flex-col items-center gap-1">
+            <div
+              className="w-full rounded-t-lg bg-[#2f8fc8]"
+              style={{ height: `${28 + ((point.score - min) / range) * 36}px` }}
+            />
+            <span className="text-[0.65rem] font-semibold text-[#78908d]">{point.score}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function LabInterestCard({
+  userId,
+  defaultName,
+  compact = false,
+}: {
+  userId: string;
+  defaultName: string;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: defaultName, phone: "", city: "" });
+
+  async function submit() {
+    if (!form.name.trim() || !form.phone.trim() || !form.city.trim()) {
+      toast.error("Preencha nome, telefone e cidade.");
+      return;
+    }
+    setSaving(true);
+    const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+    const { error } = await dynamicSupabase.from("lab_exam_interests").insert({
+      user_id: userId,
+      nome: form.name.trim(),
+      telefone: form.phone.trim(),
+      cidade: form.city.trim(),
+      source: "home",
+    });
+    setSaving(false);
+    if (error) {
+      toast.error("Não foi possível registrar o interesse. Verifique a tabela no Supabase.");
+      console.error(error);
+      return;
+    }
+    toast.success("Interesse registrado. Entraremos em contato.");
+    setOpen(false);
+    setForm({ name: defaultName, phone: "", city: "" });
+  }
+
+  return (
+    <section
+      className={`mt-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white shadow-soft ${
+        compact ? "p-5" : "p-4"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#e9f4fb] text-[#2f8fc8]">
+          <ShieldCheck className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78908d]">
+            Aprofunde sua avaliação
+          </p>
+          <h2 className="mt-1 font-sans text-xl font-semibold leading-tight">
+            Marcar exame com laboratório parceiro
+          </h2>
+          <p className="mt-2 text-sm leading-5 text-[#536b68]">
+            Com um exame de sangue, conseguimos analisar biomarcadores reais como ApoB, resistência
+            à insulina e inflamação para uma visão mais precisa do seu risco.
+          </p>
+        </div>
+      </div>
+      {!open ? (
+        <Button
+          className="mt-4 w-full rounded-full bg-[#10201f] font-semibold text-white"
+          onClick={() => setOpen(true)}
+        >
+          Marcar exame com laboratório parceiro
+        </Button>
+      ) : (
+        <div className="mt-4 space-y-3 rounded-[1.25rem] bg-[#f7faf9] p-3">
+          <FormField
+            label="Nome"
+            value={form.name}
+            onChange={(name) => setForm((current) => ({ ...current, name }))}
+            placeholder="Seu nome"
+          />
+          <FormField
+            label="Telefone"
+            value={form.phone}
+            onChange={(phone) => setForm((current) => ({ ...current, phone }))}
+            placeholder="(11) 99999-9999"
+          />
+          <FormField
+            label="Cidade"
+            value={form.city}
+            onChange={(city) => setForm((current) => ({ ...current, city }))}
+            placeholder="São Paulo"
+          />
+          <div className="flex gap-2">
+            <Button
+              className="min-h-12 flex-1 rounded-full bg-[#10201f] font-semibold text-white"
+              disabled={saving}
+              onClick={() => void submit()}
+            >
+              {saving ? "Salvando..." : "Enviar interesse"}
+            </Button>
+            <Button
+              variant="outline"
+              className="min-h-12 rounded-full"
+              onClick={() => setOpen(false)}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FormField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div>
+      <Label className="text-xs font-bold uppercase tracking-[0.12em] text-[#78908d]">
+        {label}
+      </Label>
+      <Input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="mt-2 h-12 rounded-2xl bg-white"
+      />
+    </div>
+  );
+}
+
 function readLastCheckIn(): LastCheckIn | null {
   if (typeof window === "undefined") return null;
   try {
@@ -797,36 +856,6 @@ function sleepTone(value?: StoredResult["sleepHours"]): MobileDataCardProps["ton
   return "neutral";
 }
 
-function buildJourneySteps(hasQuestionnaire: boolean, hasScore: boolean, points: number) {
-  const hasPlan = points > 0;
-  return [
-    {
-      label: "Questionário",
-      status: hasQuestionnaire ? "complete" : "current",
-      icon: ShieldCheck,
-    },
-    {
-      label: "Seu Risco",
-      status: hasScore ? "complete" : hasQuestionnaire ? "current" : "locked",
-      icon: Gauge,
-    },
-    {
-      label: "Plano",
-      status: hasPlan ? "complete" : hasScore ? "current" : "locked",
-      icon: Trophy,
-    },
-    {
-      label: "Acompanhar",
-      status: hasPlan ? "current" : "locked",
-      icon: Activity,
-    },
-  ] as Array<{
-    label: string;
-    status: "complete" | "current" | "locked";
-    icon: LucideIcon;
-  }>;
-}
-
 function PwaInstallBanner() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
@@ -916,82 +945,22 @@ function getScoreComparison(score: number | null) {
   if (score == null) return "Complete sua avaliação para desbloquear seu primeiro score.";
   if (score >= 80) return "Seu risco está melhor que 73% das pessoas da sua idade.";
   if (score >= 50) return "Seu risco está em uma faixa que merece acompanhamento semanal.";
-  return "Seu resultado pede atenção. Vamos evoluir um passo por dia.";
+  return "Seu resultado pede atenção e acompanhamento mais próximo dos seus indicadores.";
 }
 
-function getHeartLevel(points: number) {
-  const level = Math.floor(points / 1000) + 1;
-  const currentXp = points % 1000;
-  const titles = [
-    "Primeiros passos",
-    "Cuidando de mim",
-    "Rotina ativa",
-    "Guardião do Coração",
-    "Especialista HTCARE",
-  ];
-  return {
-    level,
-    currentXp,
-    progress: (currentXp / 1000) * 100,
-    title: titles[Math.min(level - 1, titles.length - 1)] ?? "Especialista HTCARE",
-  };
-}
-
-function getDailyCarelitoMessage(name: string, score: number | null) {
-  if (score == null) return `${name}, vamos desbloquear seu primeiro score hoje.`;
-  if (score >= 80) return "Você está indo muito bem. Hoje é dia de manter a sequência viva.";
-  if (score >= 50) return "Atenção necessária não é derrota. É só o mapa do próximo passo.";
-  return "Um passo pequeno hoje já conta. Eu estou com você nessa jornada.";
-}
-
-function CompactScoreRing({ value }: { value: number | null }) {
-  const score = value ?? 0;
-  return (
-    <div
-      className="grid h-24 w-24 shrink-0 place-items-center rounded-full bg-[conic-gradient(#2f6760_var(--score),#e5ecea_var(--score)_100%)] p-2 [--score:0%]"
-      style={{ "--score": `${score}%` } as CSSProperties}
-    >
-      <div className="grid h-full w-full place-items-center rounded-full bg-white text-center shadow-inner">
-        <div>
-          <p className="font-sans text-3xl font-semibold leading-none">{value ?? "—"}</p>
-          <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#78908d]">
-            score
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MiniMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-[#f7faf9] p-2">
-      <div className="flex items-center gap-1.5 text-[#9a5b12]">{icon}</div>
-      <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#78908d]">
-        {label}
-      </p>
-      <p className="font-sans text-lg font-semibold leading-tight">{value}</p>
-    </div>
-  );
-}
-
-function streakCopy(weeks: number) {
-  if (weeks <= 0) return "Comece sua primeira semana cuidando do seu coração";
-  if (weeks === 1) return "1 semana seguida cuidando do seu coração";
-  return `${weeks} semanas seguidas cuidando do seu coração`;
-}
-
-function buildVisibleMilestones(points: number) {
-  const currentBase = Math.floor(points / 100) * 100;
-  const start = points < 100 ? 0 : currentBase;
-  return [0, 100, 200, 300].map((mark) => {
-    const absolute = start + mark;
-    const known = challengeMilestones.find((milestone) => milestone.points === absolute);
-    return {
-      points: absolute,
-      title: known?.title ?? (absolute === 0 ? "Começo da jornada" : "Novo marco da trilha"),
-    };
-  });
+function getClinicalCarelitoMessage(score: number | null, trend: ReturnType<typeof getTrend>) {
+  if (score == null) return "Complete a avaliação inicial para gerar seu primeiro relatório.";
+  if (trend.label.startsWith("Subiu")) {
+    return `Seu score melhorou desde a última avaliação (${trend.label.toLowerCase()}). Continue acompanhando pressão e peso.`;
+  }
+  if (trend.label.startsWith("Desceu")) {
+    return `Seu score reduziu desde a última avaliação (${trend.label.toLowerCase()}). Vale atualizar pressão e considerar exame complementar.`;
+  }
+  if (score >= 80)
+    return "Seus últimos dados sugerem baixo risco no momento. Mantenha o acompanhamento.";
+  if (score >= 50)
+    return "Seu risco está em faixa de atenção. Registrar pressão ajuda a interpretar melhor a tendência.";
+  return "Seu score indica risco elevado. Recomendamos procurar avaliação médica e aprofundar com exames.";
 }
 
 function getTrend(current: number | null, previous: number | null) {
