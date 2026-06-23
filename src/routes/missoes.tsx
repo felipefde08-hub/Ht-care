@@ -187,6 +187,40 @@ function MissionsPage() {
             <p className="mt-1 text-sm leading-5 text-[#536b68]">{feedback.text}</p>
           </div>
         </motion.div>
+
+        <section id="missoes-da-semana" className="scroll-mt-6 pt-6">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2f8fc8]">
+                Plano de ação
+              </p>
+              <h2 className="mt-1 font-sans text-2xl font-semibold leading-tight">
+                Missões da semana
+              </h2>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#536b68] shadow-soft">
+              {stats.completedThisWeek}/{missions.length}
+            </span>
+          </div>
+
+          <div className="-mx-4 mt-4 flex snap-x gap-4 overflow-x-auto px-4 pb-4">
+            {missions.map((mission, index) => {
+              const done = stats.progress.completedMissionIds.includes(
+                missionCompletionKey(mission.id),
+              );
+              return (
+                <MissionCard
+                  key={mission.id}
+                  mission={mission}
+                  index={index}
+                  done={done}
+                  celebrating={celebrating === mission.id}
+                  onDone={() => markDone(mission)}
+                />
+              );
+            })}
+          </div>
+        </section>
       </section>
 
       <section className="mx-auto mt-6 hidden max-w-6xl sm:mt-14 sm:block">
@@ -418,6 +452,7 @@ interface JourneyStep {
   xp: number;
   badge: string;
   reward: string;
+  target?: "missions";
   to?: "/onboarding" | "/relatorio" | "/missoes" | "/check-in";
 }
 
@@ -496,6 +531,14 @@ function JourneyStepCard({ step, index }: { step: JourneyStep; index: number }) 
       {step.status !== "locked" && <ArrowRight className="h-5 w-5 shrink-0 text-[#9aa8a5]" />}
     </motion.div>
   );
+
+  if (step.target === "missions") {
+    return (
+      <a href="#missoes-da-semana" className="block">
+        {content}
+      </a>
+    );
+  }
 
   if (step.status === "locked" || !step.to) return content;
   return (
@@ -588,7 +631,7 @@ function buildJourneyMap(
       xp: 150,
       badge: "Plano ativo",
       reward: "complete 3 missões",
-      to: "/missoes",
+      target: "missions",
     },
     {
       title: "Exercício físico",
@@ -597,7 +640,7 @@ function buildJourneyMap(
       xp: 200,
       badge: "Corpo em movimento",
       reward: "complete 6 missões",
-      to: "/missoes",
+      target: "missions",
     },
     {
       title: "Alimentação",
@@ -606,7 +649,7 @@ function buildJourneyMap(
       xp: 200,
       badge: "Prato colorido",
       reward: "complete 9 missões",
-      to: "/missoes",
+      target: "missions",
     },
     {
       title: "Sono e descanso",
@@ -615,7 +658,7 @@ function buildJourneyMap(
       xp: 200,
       badge: "Sono protegido",
       reward: "complete 12 missões",
-      to: "/missoes",
+      target: "missions",
     },
     {
       title: "Coração protegido",
