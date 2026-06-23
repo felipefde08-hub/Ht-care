@@ -596,11 +596,11 @@ function LabInterestCard({
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: defaultName, phone: "", city: "" });
+  const [form, setForm] = useState({ name: defaultName, phone: "", city: "", healthPlan: "" });
 
   async function submit() {
-    if (!form.name.trim() || !form.phone.trim() || !form.city.trim()) {
-      toast.error("Preencha nome, telefone e cidade.");
+    if (!form.name.trim() || !form.phone.trim() || !form.city.trim() || !form.healthPlan.trim()) {
+      toast.error("Preencha nome, telefone, cidade e plano de saúde.");
       return;
     }
     setSaving(true);
@@ -610,6 +610,7 @@ function LabInterestCard({
       nome: form.name.trim(),
       telefone: form.phone.trim(),
       cidade: form.city.trim(),
+      plano_saude: form.healthPlan.trim(),
       source: "home",
     });
     setSaving(false);
@@ -620,7 +621,7 @@ function LabInterestCard({
     }
     toast.success("Interesse registrado. Entraremos em contato.");
     setOpen(false);
-    setForm({ name: defaultName, phone: "", city: "" });
+    setForm({ name: defaultName, phone: "", city: "", healthPlan: "" });
   }
 
   return (
@@ -672,6 +673,12 @@ function LabInterestCard({
             value={form.city}
             onChange={(city) => setForm((current) => ({ ...current, city }))}
             placeholder="São Paulo"
+          />
+          <FormField
+            label="Plano de saúde"
+            value={form.healthPlan}
+            onChange={(healthPlan) => setForm((current) => ({ ...current, healthPlan }))}
+            placeholder="Ex: Unimed, Bradesco, SulAmérica ou Particular"
           />
           <div className="flex gap-2">
             <Button
