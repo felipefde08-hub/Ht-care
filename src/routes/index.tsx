@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AnimatePresence, motion, useScroll, useTransform } from "motion/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   HeartPulse,
@@ -13,8 +13,10 @@ import {
 } from "lucide-react";
 import htcareLogo from "@/assets/brand/htcare-logo.png";
 import heroReportBg from "@/assets/brand/htcare-hero-report-bg.png";
+import { Carelito } from "@/components/HeartMascot";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -157,6 +159,7 @@ const revealItem = {
 
 function Landing() {
   const [openFaq, setOpenFaq] = useState(faqs[0]?.question ?? "");
+  const [showVisitorWelcome, setShowVisitorWelcome] = useState(false);
   const heroRef = useRef(null);
   const { scrollYProgress: heroProgress } = useScroll({
     target: heroRef,
@@ -178,8 +181,26 @@ function Landing() {
   const { scrollYProgress: pageProgress } = useScroll();
   const progressWidth = useTransform(pageProgress, [0, 1], ["0%", "100%"]);
 
+  useEffect(() => {
+    const seen = window.localStorage.getItem("htcare:visitor-welcome-seen") === "true";
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    if (seen || !isMobile) return;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) setShowVisitorWelcome(true);
+    });
+  }, []);
+
+  function dismissVisitorWelcome() {
+    window.localStorage.setItem("htcare:visitor-welcome-seen", "true");
+    setShowVisitorWelcome(false);
+  }
+
   return (
     <div className="min-h-screen bg-[#fbfcfc] text-[#10201f]">
+      <AnimatePresence>
+        {showVisitorWelcome && <MobileVisitorWelcome onDismiss={dismissVisitorWelcome} />}
+      </AnimatePresence>
       <motion.div
         className="fixed left-0 top-0 z-[60] h-0.5 bg-[#10201f]"
         style={{ width: progressWidth }}
@@ -621,6 +642,94 @@ function Landing() {
       </main>
       <SiteFooter />
     </div>
+  );
+}
+
+function MobileVisitorWelcome({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <motion.section
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.28, ease: "easeOut" }}
+      className="fixed inset-0 z-[90] overflow-y-auto bg-[#f8fbff] px-5 py-5 text-[#10201f] md:hidden"
+    >
+      <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-md flex-col">
+        <header className="flex items-center justify-between">
+          <img src={htcareLogo} alt="HTCare" className="h-11 w-auto object-contain" />
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="min-h-10 rounded-full bg-white px-4 text-sm font-bold text-[#536b68] shadow-soft"
+          >
+            Conhecer site
+          </button>
+        </header>
+
+        <div className="flex flex-1 flex-col justify-center py-8">
+          <motion.div
+            initial={{ opacity: 0, y: 18, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.45, ease: "easeOut" }}
+            className="rounded-[2.2rem] border border-[#10201f]/8 bg-white p-5 shadow-[0_28px_110px_-70px_rgba(16,32,31,0.78)]"
+          >
+            <div className="flex items-center gap-4">
+              <Carelito className="h-28 w-28 shrink-0" expression="happy" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2f8fc8]">
+                  Bem-vindo
+                </p>
+                <h1 className="mt-2 font-sans text-3xl font-semibold leading-[1.02]">
+                  Sua jornada do coração começa aqui.
+                </h1>
+              </div>
+            </div>
+
+            <p className="mt-5 text-base font-medium leading-7 text-[#536b68]">
+              Em poucos minutos, você entende seu risco cardiovascular, desbloqueia seu score e
+              começa a evoluir com pequenas missões.
+            </p>
+
+            <div className="mt-5 grid gap-2.5">
+              {[
+                "Score cardiovascular claro",
+                "Plano de ação com missões",
+                "Acompanhamento semanal",
+              ].map((item) => (
+                <div key={item} className="flex items-center gap-3 rounded-2xl bg-[#f7faf9] p-3">
+                  <span className="grid h-8 w-8 place-items-center rounded-full bg-[#e8f5ef] text-[#2f6760]">
+                    <ShieldCheck className="h-4 w-4" />
+                  </span>
+                  <span className="text-sm font-bold">{item}</span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+
+          <div className="mt-5 grid gap-3">
+            <Button
+              size="xl"
+              className="min-h-14 rounded-[1.35rem] bg-[#10201f] text-base font-semibold text-white"
+              asChild
+              onClick={onDismiss}
+            >
+              <Link to="/auth" search={{ mode: "signup" } as never}>
+                Começar gratuitamente <ArrowRight className="h-5 w-5" />
+              </Link>
+            </Button>
+            <Button
+              size="xl"
+              variant="outline"
+              className="min-h-14 rounded-[1.35rem] bg-white text-base font-semibold"
+              asChild
+              onClick={onDismiss}
+            >
+              <Link to="/auth">Já tenho conta</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </motion.section>
   );
 }
 

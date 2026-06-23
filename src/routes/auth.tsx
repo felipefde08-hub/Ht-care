@@ -3,8 +3,9 @@ import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Activity, LineChart, ShieldCheck } from "lucide-react";
+import { Activity, CheckCircle2, HeartPulse, LineChart, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Carelito } from "@/components/HeartMascot";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,8 +161,10 @@ function AuthPage() {
     }
   }
 
+  const isSignup = mode === "signup";
+
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
+    <div className="min-h-screen bg-[#f8fbff] lg:grid lg:bg-background lg:grid-cols-2">
       <motion.div
         initial={{ opacity: 0, x: -16 }}
         animate={{ opacity: 1, x: 0 }}
@@ -195,31 +198,35 @@ function AuthPage() {
         </p>
       </motion.div>
 
-      <div className="flex items-center justify-center bg-background px-4 py-10">
+      <div className="flex items-center justify-center px-3 pb-8 pt-3 lg:bg-background lg:px-4 lg:py-10">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
           className="w-full max-w-lg"
         >
-          <div className="mb-8 lg:hidden">
-            <Logo />
+          <MobileAuthIntro mode={mode} setMode={setMode} />
+
+          <div className="hidden lg:block">
+            <h1 className="font-display text-2xl font-extrabold text-foreground">
+              {mode === "login" ? "Entrar na HTCare" : "Criar conta gratuita"}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {mode === "login"
+                ? "Acesse sua conta para continuar acompanhando sua evolução."
+                : "Crie sua conta para salvar seu relatório e acompanhar sua evolução."}
+            </p>
           </div>
-          <h1 className="font-display text-2xl font-extrabold text-foreground">
-            {mode === "login" ? "Entrar na HTCare" : "Criar conta gratuita"}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "login"
-              ? "Acesse sua conta para continuar acompanhando sua evolução."
-              : "Crie sua conta para salvar seu relatório e acompanhar sua evolução."}
-          </p>
           {authMessage && (
             <div className="mt-5 rounded-2xl border border-[#10201f]/10 bg-[#f7faf9] px-4 py-3 text-sm font-medium leading-6 text-[#536b68]">
               {authMessage}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+          <form
+            onSubmit={handleSubmit}
+            className="mt-4 space-y-3 rounded-[1.8rem] border border-[#10201f]/8 bg-white p-4 shadow-[0_24px_90px_-66px_rgba(16,32,31,0.68)] lg:mt-7 lg:space-y-4 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
+          >
             {mode === "signup" && (
               <>
                 <div className="space-y-1.5">
@@ -295,12 +302,22 @@ function AuthPage() {
                 placeholder="••••••••"
               />
             </div>
-            <Button type="submit" variant="hero" className="w-full" disabled={loading}>
-              {loading ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta"}
+            <Button
+              type="submit"
+              variant="hero"
+              className="min-h-12 w-full rounded-[1.15rem] font-bold lg:rounded-md"
+              disabled={loading}
+            >
+              {loading ? "Aguarde..." : isSignup ? "Começar minha jornada" : "Entrar no app"}
             </Button>
+            {isSignup && (
+              <p className="text-center text-xs font-medium leading-5 text-[#78908d]">
+                Depois disso você responde o questionário e desbloqueia seu primeiro score.
+              </p>
+            )}
           </form>
 
-          <div className="my-6 flex items-center gap-3">
+          <div className="my-5 flex items-center gap-3 lg:my-6">
             <div className="h-px flex-1 bg-border" />
             <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
               ou
@@ -311,7 +328,7 @@ function AuthPage() {
           <Button
             type="button"
             variant="outline"
-            className="w-full gap-3"
+            className="min-h-12 w-full gap-3 rounded-[1.15rem] bg-white font-semibold lg:rounded-md"
             onClick={signInWithGoogle}
             disabled={googleLoading}
           >
@@ -321,7 +338,7 @@ function AuthPage() {
             {googleLoading ? "Redirecionando..." : "Continuar com Google"}
           </Button>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
+          <p className="mt-5 text-center text-sm text-muted-foreground lg:mt-6">
             {mode === "login" ? "Ainda não tem conta?" : "Já possui conta?"}{" "}
             <button
               className="font-semibold text-primary hover:underline"
@@ -335,6 +352,89 @@ function AuthPage() {
           </p>
         </motion.div>
       </div>
+    </div>
+  );
+}
+
+function MobileAuthIntro({
+  mode,
+  setMode,
+}: {
+  mode: "login" | "signup";
+  setMode: (mode: "login" | "signup") => void;
+}) {
+  const isSignup = mode === "signup";
+
+  return (
+    <div className="lg:hidden">
+      <header className="flex items-center justify-between">
+        <Logo />
+        <div className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#536b68] shadow-soft">
+          Plano gratuito
+        </div>
+      </header>
+
+      <section className="mt-4 rounded-[2rem] border border-[#10201f]/8 bg-white p-4 shadow-[0_26px_90px_-62px_rgba(16,32,31,0.66)]">
+        <div className="flex items-center gap-4">
+          <Carelito className="h-24 w-24 shrink-0" expression={isSignup ? "happy" : "confident"} />
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2f8fc8]">
+              {isSignup ? "Entrada na jornada" : "Bem-vindo de volta"}
+            </p>
+            <h1 className="mt-2 font-sans text-2xl font-semibold leading-tight">
+              {isSignup ? "Vamos cuidar do seu coração." : "Continue sua evolução."}
+            </h1>
+          </div>
+        </div>
+        <p className="mt-4 text-sm font-medium leading-6 text-[#536b68]">
+          {isSignup
+            ? "Crie sua conta, desbloqueie seu score e receba missões simples para acompanhar seu risco."
+            : "Entre para ver seu score, missões, histórico e próximos passos."}
+        </p>
+
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          {[
+            ["Conta", CheckCircle2],
+            ["Score", HeartPulse],
+            ["Jornada", Activity],
+          ].map(([label, Icon], index) => {
+            const StepIcon = Icon as typeof CheckCircle2;
+            return (
+              <div key={String(label)} className="rounded-2xl bg-[#f7faf9] p-2.5 text-center">
+                <span
+                  className={`mx-auto grid h-8 w-8 place-items-center rounded-full ${
+                    index === 0 ? "bg-[#e8f5ef] text-[#2f6760]" : "bg-[#e9f4fb] text-[#2f8fc8]"
+                  }`}
+                >
+                  <StepIcon className="h-4 w-4" />
+                </span>
+                <p className="mt-1.5 text-xs font-bold text-[#536b68]">{String(label)}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 rounded-[1.2rem] bg-[#f7faf9] p-1">
+          <button
+            type="button"
+            onClick={() => setMode("signup")}
+            className={`min-h-10 rounded-[1rem] text-sm font-bold transition ${
+              isSignup ? "bg-white text-[#10201f] shadow-soft" : "text-[#78908d]"
+            }`}
+          >
+            Criar conta
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("login")}
+            className={`min-h-10 rounded-[1rem] text-sm font-bold transition ${
+              !isSignup ? "bg-white text-[#10201f] shadow-soft" : "text-[#78908d]"
+            }`}
+          >
+            Entrar
+          </button>
+        </div>
+      </section>
     </div>
   );
 }
