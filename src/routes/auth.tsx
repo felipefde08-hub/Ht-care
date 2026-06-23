@@ -353,6 +353,9 @@ function getAuthErrorMessage(error: unknown, fallback = "Erro ao autenticar") {
   const message = rawMessage || fallback;
   const normalized = message.toLowerCase();
 
+  if (message.trim() === "{}" || status === 500) {
+    return "Erro interno no Supabase ao criar a conta. Verifique o trigger de criação de perfil no banco.";
+  }
   if (
     normalized.includes("invalid login") ||
     normalized.includes("invalid credentials") ||
