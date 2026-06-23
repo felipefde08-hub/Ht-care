@@ -44,6 +44,7 @@ function AuthPage() {
   );
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     cpf: "",
@@ -67,6 +68,7 @@ function AuthPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    setAuthMessage(null);
     try {
       if (mode === "signup") {
         const parsed = signupSchema.safeParse(form);
@@ -74,11 +76,11 @@ function AuthPage() {
           toast.error(parsed.error.issues[0].message);
           return;
         }
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email: parsed.data.email,
           password: parsed.data.password,
           options: {
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: `${window.location.origin}/onboarding`,
             data: {
               name: parsed.data.name,
               full_name: parsed.data.name,
@@ -91,6 +93,23 @@ function AuthPage() {
           },
         });
         if (error) throw error;
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          const message = "Este e-mail já está cadastrado. Faça login para continuar.";
+          setAuthMessage(message);
+          toast.error(message);
+          setMode("login");
+          update("password", "");
+          return;
+        }
+        if (!data.session) {
+          const message =
+            "Conta criada. Confirme seu e-mail para ativar o acesso e depois faça login.";
+          setAuthMessage(message);
+          toast.success(message);
+          setMode("login");
+          update("password", "");
+          return;
+        }
         toast.success("Conta criada com sucesso.");
         navigate({ to: "/onboarding", replace: true });
       } else {
@@ -99,23 +118,24 @@ function AuthPage() {
           toast.error(parsed.error.issues[0].message);
           return;
         }
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: parsed.data.email,
           password: parsed.data.password,
         });
         if (error) throw error;
+        if (!data.session) {
+          const message = "Não foi possível iniciar a sessão. Confirme seu e-mail e tente de novo.";
+          setAuthMessage(message);
+          toast.error(message);
+          return;
+        }
         toast.success("Bem-vindo de volta.");
         navigate({ to: "/onboarding", replace: true });
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro ao autenticar";
-      toast.error(
-        msg.includes("Invalid login")
-          ? "E-mail ou senha incorretos"
-          : msg.includes("already")
-            ? "Este e-mail já está cadastrado"
-            : msg,
-      );
+      const message = getAuthErrorMessage(err);
+      setAuthMessage(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -123,6 +143,7 @@ function AuthPage() {
 
   async function signInWithGoogle() {
     setGoogleLoading(true);
+    setAuthMessage(null);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -132,7 +153,9 @@ function AuthPage() {
       });
       if (error) throw error;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao entrar com Google");
+      const message = getAuthErrorMessage(err, "Erro ao entrar com Google");
+      setAuthMessage(message);
+      toast.error(message);
       setGoogleLoading(false);
     }
   }
@@ -190,6 +213,11 @@ function AuthPage() {
               ? "Acesse sua conta para continuar acompanhando sua evolução."
               : "Crie sua conta para salvar seu relatório e acompanhar sua evolução."}
           </p>
+          {authMessage && (
+            <div className="mt-5 rounded-2xl border border-[#10201f]/10 bg-[#f7faf9] px-4 py-3 text-sm font-medium leading-6 text-[#536b68]">
+              {authMessage}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="mt-7 space-y-4">
             {mode === "signup" && (
@@ -297,7 +325,10 @@ function AuthPage() {
             {mode === "login" ? "Ainda não tem conta?" : "Já possui conta?"}{" "}
             <button
               className="font-semibold text-primary hover:underline"
-              onClick={() => setMode(mode === "login" ? "signup" : "login")}
+              onClick={() => {
+                setAuthMessage(null);
+                setMode(mode === "login" ? "signup" : "login");
+              }}
             >
               {mode === "login" ? "Criar conta gratuita" : "Fazer login"}
             </button>
@@ -306,4 +337,49 @@ function AuthPage() {
       </div>
     </div>
   );
+}
+
+function getAuthErrorMessage(error: unknown, fallback = "Erro ao autenticar") {
+  const rawMessage =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : isRecord(error) && typeof error.message === "string"
+          ? error.message
+          : "";
+  const code = isRecord(error) && typeof error.code === "string" ? error.code : "";
+  const status = isRecord(error) && typeof error.status === "number" ? error.status : null;
+  const message = rawMessage || fallback;
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("invalid login") ||
+    normalized.includes("invalid credentials") ||
+    normalized.includes("email not confirmed")
+  ) {
+    return normalized.includes("email not confirmed")
+      ? "Confirme seu e-mail antes de entrar."
+      : "E-mail ou senha incorretos.";
+  }
+  if (
+    normalized.includes("already registered") ||
+    normalized.includes("already exists") ||
+    normalized.includes("user already")
+  ) {
+    return "Este e-mail já está cadastrado. Faça login para continuar.";
+  }
+  if (normalized.includes("password")) return "A senha precisa ter pelo menos 8 caracteres.";
+  if (normalized.includes("rate limit") || status === 429) {
+    return "Muitas tentativas seguidas. Aguarde um pouco e tente novamente.";
+  }
+  if (normalized.includes("database error")) {
+    return "Não foi possível criar sua conta agora. Verifique as tabelas do Supabase e tente novamente.";
+  }
+  if (code) return `${message} (${code})`;
+  return message;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
