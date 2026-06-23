@@ -415,6 +415,9 @@ interface JourneyStep {
   title: string;
   status: JourneyStatus;
   icon: LucideIcon;
+  xp: number;
+  badge: string;
+  reward: string;
   to?: "/onboarding" | "/relatorio" | "/missoes" | "/check-in";
 }
 
@@ -466,7 +469,14 @@ function JourneyStepCard({ step, index }: { step: JourneyStep; index: number }) 
         )}
       </div>
       <div className="relative z-10 min-w-0 flex-1">
-        <p className="font-sans text-lg font-semibold leading-tight">{step.title}</p>
+        <div className="flex items-center gap-2">
+          <p className="font-sans text-lg font-semibold leading-tight">{step.title}</p>
+          {step.status !== "locked" && (
+            <span className="rounded-full bg-white px-2 py-0.5 text-[0.62rem] font-black text-[#9a5b12] shadow-sm">
+              +{step.xp} XP
+            </span>
+          )}
+        </div>
         <p
           className={`mt-1 text-xs font-bold ${
             step.status === "complete"
@@ -477,10 +487,10 @@ function JourneyStepCard({ step, index }: { step: JourneyStep; index: number }) 
           }`}
         >
           {step.status === "complete"
-            ? "Concluído"
+            ? `Concluído · ${step.badge}`
             : step.status === "current"
-              ? "Em progresso"
-              : "Bloqueado"}
+              ? `Agora · ${step.reward}`
+              : `Bloqueado · ${step.reward}`}
         </p>
       </div>
       {step.status !== "locked" && <ArrowRight className="h-5 w-5 shrink-0 text-[#9aa8a5]" />}
@@ -557,42 +567,63 @@ function buildJourneyMap(
       title: "Questionário",
       status: onboarding.hasQuestionnaire ? "complete" : "current",
       icon: ShieldCheck,
+      xp: 100,
+      badge: "Primeiro passo",
+      reward: "desbloqueia seu score",
       to: "/onboarding",
     },
     {
       title: "Seu risco",
       status: onboarding.hasScore ? "complete" : onboarding.hasQuestionnaire ? "current" : "locked",
       icon: HeartPulse,
+      xp: 100,
+      badge: "Score liberado",
+      reward: "entenda seu coração",
       to: "/relatorio",
     },
     {
       title: "Plano de ação",
       status: planComplete ? "complete" : onboarding.hasScore ? "current" : "locked",
       icon: Target,
+      xp: 150,
+      badge: "Plano ativo",
+      reward: "complete 3 missões",
       to: "/missoes",
     },
     {
       title: "Exercício físico",
       status: exerciseComplete ? "complete" : planComplete ? "current" : "locked",
       icon: Dumbbell,
+      xp: 200,
+      badge: "Corpo em movimento",
+      reward: "complete 6 missões",
       to: "/missoes",
     },
     {
       title: "Alimentação",
       status: foodComplete ? "complete" : exerciseComplete ? "current" : "locked",
       icon: Apple,
+      xp: 200,
+      badge: "Prato colorido",
+      reward: "complete 9 missões",
       to: "/missoes",
     },
     {
       title: "Sono e descanso",
       status: sleepComplete ? "complete" : foodComplete ? "current" : "locked",
       icon: Moon,
+      xp: 200,
+      badge: "Sono protegido",
+      reward: "complete 12 missões",
       to: "/missoes",
     },
     {
       title: "Coração protegido",
       status: protectedComplete ? "complete" : sleepComplete ? "current" : "locked",
       icon: Trophy,
+      xp: 500,
+      badge: "Guardião do Coração",
+      reward: "4 semanas de sequência",
       to: "/check-in",
     },
   ];

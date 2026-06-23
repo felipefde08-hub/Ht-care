@@ -170,6 +170,8 @@ function PanelPage() {
   );
   const missionProgressLabel = `${challengeStats.completedThisWeek}/${weeklyMissions.length}`;
   const scoreComparison = getScoreComparison(currentScore);
+  const heartLevel = getHeartLevel(challengeStats.points);
+  const dailyCarelitoMessage = getDailyCarelitoMessage(firstName, currentScore);
 
   useEffect(() => {
     let frame = 0;
@@ -246,12 +248,15 @@ function PanelPage() {
           transition={{ duration: 0.45, ease: "easeOut" }}
           className="mx-auto max-w-md sm:hidden"
         >
-          <p className="text-sm font-semibold text-[#536b68]">Bom dia, {firstName}</p>
+          <p className="text-[1.7rem] font-semibold leading-tight">❤️ Bom dia, {firstName}</p>
+          <p className="mt-1 text-sm font-semibold leading-5 text-[#536b68]">
+            Seu coração está estável hoje. Vamos melhorar mais 1%?
+          </p>
 
-          <section className="mt-3 overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-4 shadow-[0_26px_90px_-62px_rgba(16,32,31,0.62)]">
+          <section className="mt-4 overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-4 shadow-[0_26px_90px_-62px_rgba(16,32,31,0.62)]">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-bold text-[#536b68]">❤️ Seu coração hoje</p>
+                <p className="text-sm font-bold text-[#536b68]">Seu coração hoje</p>
                 <div className="mt-3 flex items-end gap-2">
                   <span className="font-sans text-6xl font-semibold leading-none">
                     {currentScore ?? "—"}
@@ -264,7 +269,25 @@ function PanelPage() {
               </div>
               <CompactScoreRing value={currentScore} />
             </div>
-            <p className="mt-4 rounded-[1.2rem] bg-[#f7faf9] px-4 py-3 text-sm font-semibold leading-5 text-[#536b68]">
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-[1.2rem] bg-[#f7faf9] px-3 py-3">
+                <p className="text-[0.65rem] font-bold uppercase tracking-[0.12em] text-[#78908d]">
+                  Semana passada
+                </p>
+                <p className="mt-1 text-sm font-bold text-[#10201f]">{trend.label}</p>
+              </div>
+              <div className="rounded-[1.2rem] bg-[#e8f5ef] px-3 py-3">
+                <p className="text-[0.65rem] font-bold uppercase tracking-[0.12em] text-[#2f6760]">
+                  Desde o início
+                </p>
+                <p className="mt-1 text-sm font-bold text-[#10201f]">
+                  {sortedHistory.length > 1
+                    ? `${Math.max(0, Math.round((currentScore ?? 0) - sortedHistory[0].score))} pts`
+                    : "começando"}
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 rounded-[1.2rem] bg-[#f7faf9] px-4 py-3 text-sm font-semibold leading-5 text-[#536b68]">
               {scoreComparison}
             </p>
             <div className="mt-3 flex items-center gap-2 text-xs font-bold">
@@ -304,26 +327,60 @@ function PanelPage() {
               {currentMission?.text ??
                 "Leva menos de 30 segundos para atualizar seus dados de hoje."}
             </p>
+            <p className="mt-3 inline-flex rounded-full bg-[#fff7dc] px-3 py-1.5 text-xs font-black text-[#9a5b12]">
+              +{currentMission?.points ?? 50} XP ao concluir
+            </p>
           </section>
 
           <Button
             size="xl"
-            className="mt-3 min-h-14 w-full rounded-[1.25rem] bg-[#10201f] text-base font-semibold text-white shadow-[0_20px_60px_-36px_rgba(16,32,31,0.75)]"
+            className="mt-3 min-h-14 w-full rounded-[1.25rem] bg-[linear-gradient(135deg,#2f8fc8,#49c7ae)] text-base font-black uppercase tracking-[0.04em] text-white shadow-[0_20px_60px_-36px_rgba(47,143,200,0.9)]"
             asChild
           >
             <Link to={challengeStats.pendingThisWeek > 0 ? "/missoes" : "/check-in"}>
-              Continuar Jornada <ArrowRight className="h-5 w-5" />
+              Começar missão <ArrowRight className="h-5 w-5" />
             </Link>
           </Button>
 
+          <section className="mt-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78908d]">
+                  Próximo nível
+                </p>
+                <h2 className="mt-1 font-sans text-2xl font-semibold">Nível {heartLevel.level}</h2>
+                <p className="mt-1 text-xs font-semibold text-[#536b68]">
+                  {heartLevel.currentXp} / 1000 XP · {heartLevel.title}
+                </p>
+              </div>
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#10201f] text-white">
+                <Trophy className="h-6 w-6" />
+              </span>
+            </div>
+            <div className="mt-4 h-5 overflow-hidden rounded-full bg-[#eef3f1]">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${heartLevel.progress}%` }}
+                transition={{ duration: 0.9, ease: "easeOut" }}
+                className="h-full rounded-full bg-[linear-gradient(90deg,#2f8fc8,#49c7ae,#ffd36a)]"
+              />
+            </div>
+          </section>
+
           <section className="mt-3 flex items-center gap-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
-            <Carelito className="h-20 w-20 shrink-0" expression="confident" />
+            <motion.div
+              animate={{ rotate: [-2, 2, -2], y: [0, -2, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              className="h-20 w-20 shrink-0"
+            >
+              <Carelito className="h-full w-full" expression="confident" />
+            </motion.div>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#2f8fc8]">
                 Carelito
               </p>
               <p className="mt-1 text-sm font-semibold leading-5 text-[#536b68]">
-                Pequenas escolhas, grandes mudanças. Vamos manter sua jornada viva hoje.
+                {dailyCarelitoMessage}
               </p>
             </div>
           </section>
@@ -860,6 +917,31 @@ function getScoreComparison(score: number | null) {
   if (score >= 80) return "Seu risco está melhor que 73% das pessoas da sua idade.";
   if (score >= 50) return "Seu risco está em uma faixa que merece acompanhamento semanal.";
   return "Seu resultado pede atenção. Vamos evoluir um passo por dia.";
+}
+
+function getHeartLevel(points: number) {
+  const level = Math.floor(points / 1000) + 1;
+  const currentXp = points % 1000;
+  const titles = [
+    "Primeiros passos",
+    "Cuidando de mim",
+    "Rotina ativa",
+    "Guardião do Coração",
+    "Especialista HTCARE",
+  ];
+  return {
+    level,
+    currentXp,
+    progress: (currentXp / 1000) * 100,
+    title: titles[Math.min(level - 1, titles.length - 1)] ?? "Especialista HTCARE",
+  };
+}
+
+function getDailyCarelitoMessage(name: string, score: number | null) {
+  if (score == null) return `${name}, vamos desbloquear seu primeiro score hoje.`;
+  if (score >= 80) return "Você está indo muito bem. Hoje é dia de manter a sequência viva.";
+  if (score >= 50) return "Atenção necessária não é derrota. É só o mapa do próximo passo.";
+  return "Um passo pequeno hoje já conta. Eu estou com você nessa jornada.";
 }
 
 function CompactScoreRing({ value }: { value: number | null }) {

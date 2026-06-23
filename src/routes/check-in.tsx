@@ -1,9 +1,10 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
-import { motion } from "motion/react";
-import { ArrowRight } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { CheckCircle2, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { Carelito } from "@/components/HeartMascot";
 import { Logo } from "@/components/Logo";
 import { MobileAppNav } from "@/components/MobileAppNav";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ export const Route = createFileRoute("/check-in")({
   component: CheckInPage,
 });
 
-type Feeling = "bem" | "cansado" | "mal" | "";
+type Feeling = "excelente" | "bem" | "normal" | "cansado" | "mal" | "";
 type YesNo = "sim" | "nao" | "";
 
 interface CheckInData {
@@ -35,6 +36,9 @@ interface CheckInData {
   measuredGlucose: YesNo;
   glucose: string;
   weight: string;
+  sleptWell: YesNo;
+  exercised: YesNo;
+  tookMedication: YesNo;
 }
 
 const initialData: CheckInData = {
@@ -46,6 +50,9 @@ const initialData: CheckInData = {
   measuredGlucose: "",
   glucose: "",
   weight: "",
+  sleptWell: "",
+  exercised: "",
+  tookMedication: "",
 };
 
 const symptoms = ["dor no peito", "falta de ar", "palpitação", "inchaço nas pernas", "nenhum"];
@@ -53,14 +60,16 @@ const symptoms = ["dor no peito", "falta de ar", "palpitação", "inchaço nas p
 function CheckInPage() {
   const navigate = useNavigate();
   const [data, setData] = useState<CheckInData>(initialData);
+  const [completed, setCompleted] = useState(false);
   const canSave =
     Boolean(data.feeling) &&
-    data.symptoms.length > 0 &&
     (data.measuredBloodPressure === "nao" ||
+      data.measuredBloodPressure === "" ||
       (data.measuredBloodPressure === "sim" &&
         Number(data.systolic) > 0 &&
         Number(data.diastolic) > 0)) &&
     (data.measuredGlucose === "nao" ||
+      data.measuredGlucose === "" ||
       (data.measuredGlucose === "sim" && Number(data.glucose) > 0));
 
   function update<K extends keyof CheckInData>(key: K, value: CheckInData[K]) {
@@ -81,18 +90,27 @@ function CheckInPage() {
 
   async function save() {
     if (!canSave) return;
+    setCompleted(true);
+    window.navigator.vibrate?.(35);
     const rawHistory = window.localStorage.getItem("htcare:score-history");
     const history = rawHistory
       ? (JSON.parse(rawHistory) as Array<{ score: number; createdAt: string; source: string }>)
       : [];
     const lastScore = history.at(-1)?.score ?? 75;
-    const result = updateRiskScoreFromCheckIn(lastScore, data);
+    const riskInput = {
+      ...data,
+      feeling: normalizeFeeling(data.feeling),
+      symptoms: data.symptoms.length ? data.symptoms : ["nenhum"],
+      measuredBloodPressure: data.measuredBloodPressure || "nao",
+      measuredGlucose: data.measuredGlucose || "nao",
+    };
+    const result = updateRiskScoreFromCheckIn(lastScore, riskInput);
     const score = result.score;
     const point = {
       score,
       createdAt: new Date().toISOString(),
       source: "check-in",
-      checkIn: data,
+      checkIn: riskInput,
     };
     window.localStorage.setItem("htcare:score-history", JSON.stringify([...history, point]));
     window.localStorage.setItem("htcare:last-check-in", JSON.stringify(point));
@@ -101,8 +119,8 @@ function CheckInPage() {
     if (user) {
       const { error: checkinError } = await supabase.from("checkins").insert({
         user_id: user.id,
-        humor: data.feeling as "bem" | "cansado" | "mal",
-        sintomas: data.symptoms,
+        humor: normalizeFeeling(data.feeling),
+        sintomas: data.symptoms.length ? data.symptoms : ["nenhum"],
         pressao_sistolica:
           data.measuredBloodPressure === "sim" ? toNumberOrNull(data.systolic) : null,
         pressao_diastolica:
@@ -128,7 +146,7 @@ function CheckInPage() {
       }
       void recordUserActivity(user.id, "checkin");
     }
-    navigate({ to: "/painel", replace: true });
+    window.setTimeout(() => navigate({ to: "/painel", replace: true }), 850);
   }
 
   return (
@@ -141,41 +159,81 @@ function CheckInPage() {
           <Link to="/painel">Voltar ao painel</Link>
         </Button>
       </div>
-      <section className="mx-auto flex min-h-[calc(100vh-96px)] max-w-3xl items-center justify-center py-10">
+      <section className="mx-auto flex min-h-[calc(100vh-96px)] max-w-3xl items-center justify-center py-4 sm:py-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
-          className="w-full rounded-[2rem] border border-[#10201f]/8 bg-white p-6 shadow-soft sm:p-10"
+          className="relative w-full overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-4 shadow-soft sm:p-10"
         >
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78908d]">
-            Check-in recorrente
-          </p>
-          <h1 className="mt-5 font-sans text-4xl font-semibold leading-tight sm:text-5xl">
-            Atualize seu score em menos de 1 minuto.
-          </h1>
+          <AnimatePresence>
+            {completed && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-20 grid place-items-center bg-white/92 backdrop-blur-sm"
+              >
+                <motion.div
+                  initial={{ y: 20, scale: 0.92 }}
+                  animate={{ y: 0, scale: 1 }}
+                  className="text-center"
+                >
+                  <Carelito className="mx-auto h-32 w-32" expression="excited" />
+                  <h2 className="mt-3 font-sans text-3xl font-semibold">Check-in feito!</h2>
+                  <p className="mt-2 font-bold text-[#2f6760]">+50 XP voando para sua jornada</p>
+                  <div className="mt-5 flex justify-center gap-2">
+                    {[...Array(9)].map((_, index) => (
+                      <motion.span
+                        key={index}
+                        initial={{ y: 0, opacity: 0, scale: 0.7 }}
+                        animate={{ y: [-4, -34, -10], opacity: [0, 1, 0], scale: [0.7, 1, 0.8] }}
+                        transition={{ duration: 0.85, delay: index * 0.04 }}
+                        className="h-2.5 w-2.5 rounded-full bg-[#49c7ae]"
+                      />
+                    ))}
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-          <div className="mt-8 space-y-8">
-            <Question title="Como você está se sentindo hoje?">
-              <ChoiceGrid>
+          <div className="flex items-center gap-3">
+            <Carelito className="h-20 w-20 shrink-0 sm:h-24 sm:w-24" expression="happy" />
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#2f8fc8]">
+                Check-in de 30 segundos
+              </p>
+              <h1 className="mt-2 font-sans text-3xl font-semibold leading-tight sm:text-5xl">
+                Como seu coração está hoje?
+              </h1>
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-5 sm:mt-8 sm:space-y-8">
+            <Question title="Escolha seu estado de hoje">
+              <div className="grid grid-cols-5 gap-2">
                 {[
-                  ["bem", "Bem"],
-                  ["cansado", "Cansado"],
-                  ["mal", "Mal"],
-                ].map(([value, label]) => (
-                  <Choice
+                  ["excelente", "😃", "Excelente"],
+                  ["bem", "🙂", "Bem"],
+                  ["normal", "😐", "Normal"],
+                  ["cansado", "😕", "Cansado"],
+                  ["mal", "😞", "Mal"],
+                ].map(([value, emoji, label]) => (
+                  <MoodChoice
                     key={value}
                     selected={data.feeling === value}
                     onClick={() => update("feeling", value as Feeling)}
+                    emoji={emoji}
                   >
                     {label}
-                  </Choice>
+                  </MoodChoice>
                 ))}
-              </ChoiceGrid>
+              </div>
             </Question>
 
             <Question title="Sentiu algum destes sintomas na última semana?">
-              <ChoiceGrid>
+              <div className="flex gap-2 overflow-x-auto pb-1">
                 {symptoms.map((symptom) => (
                   <Choice
                     key={symptom}
@@ -185,77 +243,111 @@ function CheckInPage() {
                     {symptom}
                   </Choice>
                 ))}
-              </ChoiceGrid>
+              </div>
             </Question>
 
-            <Question title="Mediu a pressão essa semana?">
-              <YesNoChoices
-                value={data.measuredBloodPressure}
-                onChange={(value) => update("measuredBloodPressure", value)}
-              />
-              {data.measuredBloodPressure === "sim" && (
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <NumberField
-                    label="Sistólica"
-                    value={data.systolic}
-                    onChange={(value) => update("systolic", value)}
-                    placeholder="120"
-                  />
-                  <NumberField
-                    label="Diastólica"
-                    value={data.diastolic}
-                    onChange={(value) => update("diastolic", value)}
-                    placeholder="80"
-                  />
-                </div>
-              )}
-            </Question>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <QuickCard title="Pressão hoje?">
+                <YesNoChoices
+                  value={data.measuredBloodPressure}
+                  onChange={(value) => update("measuredBloodPressure", value)}
+                />
+                {data.measuredBloodPressure === "sim" && (
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <NumberField
+                      label="Sistólica"
+                      value={data.systolic}
+                      onChange={(value) => update("systolic", value)}
+                      placeholder="120"
+                    />
+                    <NumberField
+                      label="Diastólica"
+                      value={data.diastolic}
+                      onChange={(value) => update("diastolic", value)}
+                      placeholder="80"
+                    />
+                  </div>
+                )}
+              </QuickCard>
 
-            <Question title="Mediu glicemia essa semana?">
-              <YesNoChoices
-                value={data.measuredGlucose}
-                onChange={(value) => update("measuredGlucose", value)}
-              />
-              {data.measuredGlucose === "sim" && (
-                <div className="mt-4 max-w-xs">
-                  <NumberField
-                    label="Glicemia"
-                    value={data.glucose}
-                    onChange={(value) => update("glucose", value)}
-                    placeholder="92"
-                  />
-                </div>
-              )}
-            </Question>
-
-            <Question title="Peso atual">
-              <p className="mb-3 text-sm leading-6 text-[#536b68]">
-                Opcional. Sugerimos atualizar aproximadamente 1x por mês.
-              </p>
-              <div className="max-w-xs">
+              <QuickCard title="Peso hoje?">
                 <NumberField
                   label="Peso (kg)"
                   value={data.weight}
                   onChange={(value) => update("weight", value)}
                   placeholder="72"
                 />
+              </QuickCard>
+
+              <QuickCard title="Dormiu bem?">
+                <YesNoChoices
+                  value={data.sleptWell}
+                  onChange={(value) => update("sleptWell", value)}
+                />
+              </QuickCard>
+
+              <QuickCard title="Fez exercício?">
+                <YesNoChoices
+                  value={data.exercised}
+                  onChange={(value) => update("exercised", value)}
+                />
+              </QuickCard>
+
+              <QuickCard title="Tomou seus medicamentos?">
+                <YesNoChoices
+                  value={data.tookMedication}
+                  onChange={(value) => update("tookMedication", value)}
+                />
+              </QuickCard>
+
+              <QuickCard title="Glicemia?">
+                <YesNoChoices
+                  value={data.measuredGlucose}
+                  onChange={(value) => update("measuredGlucose", value)}
+                />
+                {data.measuredGlucose === "sim" && (
+                  <div className="mt-3">
+                    <NumberField
+                      label="Glicemia"
+                      value={data.glucose}
+                      onChange={(value) => update("glucose", value)}
+                      placeholder="92"
+                    />
+                  </div>
+                )}
+              </QuickCard>
+            </div>
+
+            <div className="rounded-[1.4rem] bg-[#f7faf9] p-4">
+              <div className="flex items-center gap-2 text-sm font-bold text-[#2f6760]">
+                <Sparkles className="h-4 w-4" />
+                +50 XP ao concluir
               </div>
-            </Question>
+              <p className="mt-1 text-sm leading-5 text-[#536b68]">
+                O Carelito usa esse check-in para atualizar sua evolução sem complicar sua rotina.
+              </p>
+            </div>
           </div>
 
           <Button
             size="xl"
-            className="mt-9 w-full rounded-full bg-[#10201f] font-semibold"
-            disabled={!canSave}
+            className="mt-6 w-full rounded-[1.25rem] bg-[linear-gradient(135deg,#2f8fc8,#49c7ae)] font-black uppercase tracking-[0.04em] shadow-[0_20px_60px_-36px_rgba(47,143,200,0.9)]"
+            disabled={!canSave || completed}
             onClick={save}
           >
-            Salvar check-in <ArrowRight className="h-4 w-4" />
+            Finalizar check-in <CheckCircle2 className="h-5 w-5" />
           </Button>
         </motion.div>
       </section>
       <MobileAppNav />
     </main>
   );
+}
+
+function normalizeFeeling(value: Feeling): "bem" | "cansado" | "mal" {
+  if (value === "mal") return "mal";
+  if (value === "cansado" || value === "normal") return "cansado";
+  return "bem";
 }
 
 function toNumberOrNull(value: string) {
@@ -266,9 +358,47 @@ function toNumberOrNull(value: string) {
 function Question({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h2 className="font-sans text-xl font-semibold text-[#10201f]">{title}</h2>
+      <h2 className="font-sans text-lg font-semibold text-[#10201f] sm:text-xl">{title}</h2>
       <div className="mt-3">{children}</div>
     </div>
+  );
+}
+
+function QuickCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-[1.35rem] border border-[#10201f]/8 bg-[#fbfcfc] p-3">
+      <h3 className="font-sans text-base font-semibold">{title}</h3>
+      <div className="mt-3">{children}</div>
+    </div>
+  );
+}
+
+function MoodChoice({
+  selected,
+  onClick,
+  emoji,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  emoji: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`min-h-20 rounded-[1.25rem] border p-2 text-center transition active:scale-95 ${
+        selected
+          ? "border-[#49c7ae] bg-[#e8f5ef] shadow-soft"
+          : "border-[#10201f]/8 bg-white hover:bg-[#f7faf9]"
+      }`}
+    >
+      <span className="block text-2xl">{emoji}</span>
+      <span className="mt-1 block text-[0.68rem] font-bold leading-tight text-[#536b68]">
+        {children}
+      </span>
+    </button>
   );
 }
 

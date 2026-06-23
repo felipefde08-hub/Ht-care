@@ -153,6 +153,7 @@ function ProfilePage() {
     (milestone) => challengeStats.points >= milestone.points,
   ).length;
   const healthIndex = latestScore ?? data.result?.score ?? null;
+  const profileLevel = getProfileLevel(challengeStats.points);
   const firstName = getFirstName(
     (user.user_metadata?.name as string | undefined) ??
       (user.user_metadata?.full_name as string | undefined) ??
@@ -407,15 +408,13 @@ function ProfilePage() {
                   Olá, {firstName}!
                 </p>
                 <span className="rounded-full bg-[#e8f5ef] px-3 py-1 text-xs font-bold text-[#2f6760]">
-                  Plano Gratuito
+                  Nível {profileLevel.level}
                 </span>
                 <Link to="/planos" className="text-xs font-bold text-[#2f8fc8]">
-                  Ver planos
+                  Plano Gratuito
                 </Link>
               </div>
-              <p className="mt-1 text-xs leading-4 text-[#536b68]">
-                Cuidar da sua saúde hoje é investir no seu amanhã.
-              </p>
+              <p className="mt-1 text-xs leading-4 text-[#536b68]">🏆 {profileLevel.title}</p>
               <div className="mt-3 flex items-center gap-2 text-xs font-bold text-[#10201f]">
                 <span className="rounded-full bg-[#e9f4fb] px-2.5 py-1 text-[#2f8fc8]">
                   {healthIndex == null ? "—" : `${Math.round(healthIndex)}%`} ·{" "}
@@ -425,10 +424,21 @@ function ProfilePage() {
                   🔥 {challengeStats.streakWeeks}
                 </span>
                 <span className="rounded-full bg-[#f1ecff] px-2.5 py-1 text-[#6f55c8]">
-                  ♥ {challengeStats.points}
+                  {profileLevel.currentXp}/1000 XP
+                </span>
+                <span className="rounded-full bg-[#e8f5ef] px-2.5 py-1 text-[#2f6760]">
+                  🏅 {achievements}
                 </span>
               </div>
             </div>
+          </div>
+          <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#eef3f1]">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${profileLevel.progress}%` }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+              className="h-full rounded-full bg-[linear-gradient(90deg,#2f8fc8,#49c7ae,#ffd36a)]"
+            />
           </div>
         </motion.div>
 
@@ -1339,6 +1349,24 @@ function scoreQualityLabel(score: number | null) {
   if (score >= 80) return "Bom";
   if (score >= 50) return "Regular";
   return "Atenção";
+}
+
+function getProfileLevel(points: number) {
+  const level = Math.floor(points / 1000) + 1;
+  const currentXp = points % 1000;
+  const titles = [
+    "Primeiros passos",
+    "Cuidando de mim",
+    "Rotina ativa",
+    "Guardião do Coração",
+    "Especialista HTCARE",
+  ];
+  return {
+    level,
+    currentXp,
+    progress: (currentXp / 1000) * 100,
+    title: titles[Math.min(level - 1, titles.length - 1)] ?? "Especialista HTCARE",
+  };
 }
 
 function formatPersonalSummary(data: OnboardingData) {
