@@ -1,6 +1,6 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowRight, Bell, CheckCircle2, Flame, HeartPulse, Sparkles } from "lucide-react";
+import { ArrowRight, Bell, CheckCircle2, Flame, Gift, HeartPulse, Sparkles } from "lucide-react";
 import { useMemo, useState, type PointerEvent } from "react";
 import { Carelito } from "@/components/HeartMascot";
 import { Logo } from "@/components/Logo";
@@ -15,6 +15,7 @@ import {
   missionTone,
   type ChallengeMission,
 } from "@/lib/challenge";
+import { HEART_POINTS } from "@/lib/points";
 import { recordUserActivity } from "@/lib/user-activity";
 
 export const Route = createFileRoute("/missoes")({
@@ -35,6 +36,7 @@ function MissionsPage() {
   const missions = useMemo(() => getWeeklyMissions(factors), [factors]);
   const [stats, setStats] = useState(() => getChallengeStats(missions));
   const [celebrating, setCelebrating] = useState<string | null>(null);
+  const level = getMissionLevel(stats.points);
 
   function markDone(mission: ChallengeMission) {
     if (stats.progress.completedMissionIds.includes(missionCompletionKey(mission.id))) return;
@@ -121,6 +123,9 @@ function MissionsPage() {
           </p>
         </div>
 
+        <MissionLevelCard level={level} />
+        <DailyMissionCard />
+
         <div className="mt-4 space-y-3">
           {missions.map((mission, index) => {
             const done = stats.progress.completedMissionIds.includes(
@@ -180,6 +185,11 @@ function MissionsPage() {
           </div>
         </motion.div>
 
+        <div className="mt-8 grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+          <MissionLevelCard level={level} desktop />
+          <DailyMissionCard desktop />
+        </div>
+
         <div className="-mx-4 mt-6 flex snap-x gap-4 overflow-x-auto px-4 pb-3 sm:mx-0 sm:mt-12 sm:grid sm:snap-none sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3">
           {missions.map((mission, index) => {
             const done = stats.progress.completedMissionIds.includes(
@@ -208,6 +218,97 @@ function MissionsPage() {
       </section>
       <MobileAppNav />
     </main>
+  );
+}
+
+function MissionLevelCard({
+  level,
+  desktop = false,
+}: {
+  level: ReturnType<typeof getMissionLevel>;
+  desktop?: boolean;
+}) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, ease: "easeOut", delay: 0.08 }}
+      className={`mt-4 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft ${
+        desktop ? "mt-0 p-6" : ""
+      }`}
+    >
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-[#e8f5ef] text-[#2f6760] shadow-soft">
+            <span className="text-center text-[0.62rem] font-black leading-3">
+              NÍVEL
+              <br />
+              {level.current}
+            </span>
+          </span>
+          <div>
+            <p className="font-sans text-lg font-semibold">Nível {level.current}</p>
+            <p className="mt-1 text-sm font-semibold text-[#536b68]">
+              Você está a {level.remaining} XP do Nível {level.current + 1}
+            </p>
+          </div>
+        </div>
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#fff7dc] text-[#d89a1d]">
+          <Gift className="h-5 w-5" />
+        </span>
+      </div>
+      <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#eef3f1]">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${level.percent}%` }}
+          transition={{ duration: 0.55, ease: "easeOut" }}
+          className="h-full rounded-full bg-[linear-gradient(90deg,#2f8fc8,#49c7ae)]"
+        />
+      </div>
+      <p className="mt-2 text-right text-xs font-bold text-[#78908d]">
+        {level.currentXp} / 1.000 XP
+      </p>
+    </motion.section>
+  );
+}
+
+function DailyMissionCard({ desktop = false }: { desktop?: boolean }) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, ease: "easeOut", delay: 0.12 }}
+      className={`mt-4 overflow-hidden rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft ${
+        desktop ? "mt-0 p-6" : ""
+      }`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-[#2f8fc8]">
+            Missão do dia
+          </p>
+          <h2 className="mt-2 font-sans text-2xl font-semibold leading-tight">
+            Registrar sua pressão hoje
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[#536b68]">
+            Acompanhar sua pressão regularmente ajuda a proteger seu coração.
+          </p>
+        </div>
+        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#ffece7] text-[#dc3f35] shadow-soft">
+          <HeartPulse className="h-7 w-7" fill="currentColor" />
+        </span>
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <span className="rounded-full bg-[#e8f5ef] px-3 py-1.5 text-xs font-black text-[#2f6760]">
+          +{HEART_POINTS.checkin} XP
+        </span>
+        <Button className="rounded-full bg-[#2fbf63] px-5 font-bold text-white" asChild>
+          <Link to="/check-in">
+            Começar missão <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
+    </motion.section>
   );
 }
 
@@ -368,6 +469,17 @@ function MissionCard({
       </motion.div>
     </motion.article>
   );
+}
+
+function getMissionLevel(points: number) {
+  const current = Math.floor(points / 1000) + 1;
+  const currentXp = points % 1000;
+  return {
+    current,
+    currentXp,
+    remaining: 1000 - currentXp,
+    percent: Math.min(100, (currentXp / 1000) * 100),
+  };
 }
 
 function readOnboardingState() {

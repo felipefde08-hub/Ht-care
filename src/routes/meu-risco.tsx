@@ -1,6 +1,17 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { ArrowLeft, ChartLine, HeartPulse, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  ChartLine,
+  CheckCircle2,
+  Clock3,
+  FileUp,
+  FlaskConical,
+  HeartPulse,
+  MapPin,
+  Phone,
+  ShieldCheck,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -31,17 +42,62 @@ export const Route = createFileRoute("/meu-risco")({
   component: MeuRiscoPage,
 });
 
+type ExamRequestStatus =
+  | "aguardando_autorizacao"
+  | "autorizado"
+  | "recusado"
+  | "resultado_recebido"
+  | "concluido";
+
+interface ExamRequest {
+  id: string;
+  user_id: string;
+  status: ExamRequestStatus;
+  cidade: string;
+  telefone_whatsapp: string;
+  plano_saude: string | null;
+  medico_id: string | null;
+  observacao_medico: string | null;
+  resultado_url: string | null;
+  resultado_path: string | null;
+  laboratorio_nome: string | null;
+  laboratorio_endereco: string | null;
+  laboratorio_telefone: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface DynamicQueryBuilder {
+  eq: (column: string, value: string) => DynamicQueryBuilder;
+  order: (column: string, options?: { ascending?: boolean }) => DynamicQueryBuilder;
+  limit: (count: number) => DynamicQueryBuilder;
+  maybeSingle: () => Promise<{ data: unknown; error: unknown }>;
+}
+
+interface DynamicUpdateBuilder {
+  eq: (column: string, value: string) => Promise<{ error: unknown }>;
+}
+
 interface DynamicSupabaseTable {
+  select: (columns: string) => DynamicQueryBuilder;
   insert: (values: Record<string, unknown>) => Promise<{ error: unknown }>;
+  update: (values: Record<string, unknown>) => DynamicUpdateBuilder;
 }
 
 interface DynamicSupabaseClient {
   from: (table: string) => DynamicSupabaseTable;
 }
 
+const DEFAULT_LAB = {
+  name: "Laboratório parceiro HTCare",
+  address: "Endereço confirmado pelo WhatsApp após a autorização",
+  phone: "Contato enviado pela equipe HTCare",
+};
+
 function MeuRiscoPage() {
   const { user } = Route.useRouteContext();
   const [history, setHistory] = useState<HubScorePoint[]>([]);
+  const [examRequest, setExamRequest] = useState<ExamRequest | null>(null);
   const [stored] = useState(() => readStoredHubData());
 
   useEffect(() => {
@@ -66,6 +122,10 @@ function MeuRiscoPage() {
     }
     void load();
   }, []);
+
+  useEffect(() => {
+    void loadLatestExamRequest(user.id, setExamRequest);
+  }, [user.id]);
 
   const latest = history.at(-1);
   const score = latest?.score ?? stored?.result?.score ?? null;
@@ -137,14 +197,7 @@ function MeuRiscoPage() {
           </div>
         </Card>
 
-        <LabInterestCard
-          userId={user.id}
-          defaultName={
-            (user.user_metadata?.name as string | undefined) ??
-            (user.user_metadata?.full_name as string | undefined) ??
-            ""
-          }
-        />
+        <ExamRequestCard userId={user.id} request={examRequest} onRequestChange={setExamRequest} />
 
         <Card>
           <SectionTitle icon={ShieldCheck} title="O que fazer para reduzir 10% do risco" />
@@ -172,94 +225,288 @@ function MeuRiscoPage() {
   );
 }
 
-function LabInterestCard({ userId, defaultName }: { userId: string; defaultName: string }) {
+async function loadLatestExamRequest(
+  userId: string,
+  setExamRequest: (request: ExamRequest | null) => void,
+) {
+  const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+  const { data, error } = await dynamicSupabase
+    .from("exam_requests")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+  setExamRequest(isExamRequest(data) ? data : null);
+}
+
+function isExamRequest(data: unknown): data is ExamRequest {
+  if (!data || typeof data !== "object") return false;
+  const record = data as Partial<ExamRequest>;
+  return typeof record.id === "string" && typeof record.status === "string";
+}
+
+function ExamRequestCard({
+  userId,
+  request,
+  onRequestChange,
+}: {
+  userId: string;
+  request: ExamRequest | null;
+  onRequestChange: (request: ExamRequest | null) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: defaultName, phone: "", city: "", healthPlan: "" });
+  const [uploading, setUploading] = useState(false);
+  const [form, setForm] = useState({
+    phone: request?.telefone_whatsapp ?? "",
+    city: request?.cidade ?? "",
+    healthPlan: request?.plano_saude ?? "",
+  });
+  const requestStatus = request?.status;
 
   async function submit() {
-    if (!form.name.trim() || !form.phone.trim() || !form.city.trim() || !form.healthPlan.trim()) {
-      toast.error("Preencha nome, telefone, cidade e plano de saúde.");
+    if (!form.phone.trim() || !form.city.trim() || !form.healthPlan.trim()) {
+      toast.error("Preencha cidade, WhatsApp e plano de saúde.");
       return;
     }
     setSaving(true);
     const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
-    const { error } = await dynamicSupabase.from("lab_exam_interests").insert({
+    const { error } = await dynamicSupabase.from("exam_requests").insert({
       user_id: userId,
-      nome: form.name.trim(),
-      telefone: form.phone.trim(),
       cidade: form.city.trim(),
+      telefone_whatsapp: form.phone.trim(),
       plano_saude: form.healthPlan.trim(),
-      source: "meu-risco",
+      status: "aguardando_autorizacao",
     });
     setSaving(false);
     if (error) {
-      toast.error("Não foi possível registrar o interesse. Verifique a tabela no Supabase.");
+      toast.error("Não foi possível enviar a solicitação. Verifique a tabela exam_requests.");
       console.error(error);
       return;
     }
-    toast.success("Interesse registrado. Entraremos em contato.");
+    toast.success(
+      "Solicitação enviada! O médico parceiro vai analisar seu perfil e você receberá a autorização em até 24 horas pelo WhatsApp.",
+    );
     setOpen(false);
-    setForm({ name: defaultName, phone: "", city: "", healthPlan: "" });
+    await loadLatestExamRequest(userId, onRequestChange);
+  }
+
+  async function uploadResult(file: File | null) {
+    if (!request || !file) return;
+    setUploading(true);
+    const safeName = file.name.replace(/[^\w.-]+/g, "-");
+    const filePath = `${userId}/exam-request-${request.id}-${Date.now()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage.from("exams").upload(filePath, file, {
+      cacheControl: "3600",
+      upsert: true,
+    });
+    if (uploadError) {
+      toast.error("Não foi possível enviar o resultado.");
+      console.error(uploadError);
+      setUploading(false);
+      return;
+    }
+
+    const publicUrl = supabase.storage.from("exams").getPublicUrl(filePath).data.publicUrl;
+    const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+    const { error } = await dynamicSupabase
+      .from("exam_requests")
+      .update({
+        status: "resultado_recebido",
+        resultado_url: publicUrl,
+        resultado_path: filePath,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", request.id);
+    setUploading(false);
+
+    if (error) {
+      toast.error("Arquivo enviado, mas não conseguimos atualizar o status.");
+      console.error(error);
+      return;
+    }
+    toast.success("Recebemos seu resultado! O Carelito vai interpretar em breve.");
+    await loadLatestExamRequest(userId, onRequestChange);
   }
 
   return (
     <Card>
       <SectionTitle icon={ShieldCheck} title="Próximo passo" />
-      <h2 className="mt-4 font-sans text-2xl font-semibold">Aprofunde com exame de sangue</h2>
-      <p className="mt-2 text-sm leading-6 text-[#536b68]">
-        Com um exame de sangue, conseguimos analisar biomarcadores reais como ApoB, resistência à
-        insulina e inflamação para uma visão mais precisa do seu risco.
-      </p>
-      {!open ? (
-        <Button className="mt-4 w-full rounded-full bg-[#10201f]" onClick={() => setOpen(true)}>
-          Solicitar exame em laboratório parceiro
-        </Button>
-      ) : (
-        <div className="mt-4 space-y-3 rounded-[1.25rem] bg-[#f7faf9] p-3">
-          <FormField
-            label="Nome"
-            value={form.name}
-            onChange={(name) => setForm((current) => ({ ...current, name }))}
-            placeholder="Seu nome"
-          />
-          <FormField
-            label="Telefone"
-            value={form.phone}
-            onChange={(phone) => setForm((current) => ({ ...current, phone }))}
-            placeholder="(11) 99999-9999"
-          />
-          <FormField
-            label="Cidade"
-            value={form.city}
-            onChange={(city) => setForm((current) => ({ ...current, city }))}
-            placeholder="São Paulo"
-          />
-          <FormField
-            label="Plano de saúde"
-            value={form.healthPlan}
-            onChange={(healthPlan) => setForm((current) => ({ ...current, healthPlan }))}
-            placeholder="Ex: Unimed, Bradesco, SulAmérica ou Particular"
-          />
-          <div className="flex gap-2">
-            <Button
-              className="min-h-12 flex-1 rounded-full bg-[#10201f]"
-              disabled={saving}
-              onClick={() => void submit()}
-            >
-              {saving ? "Salvando..." : "Enviar interesse"}
+      {!request || requestStatus === "recusado" ? (
+        <>
+          <h2 className="mt-4 font-sans text-2xl font-semibold">
+            Aprofunde sua avaliação com exame de sangue
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[#536b68]">
+            Com seus biomarcadores reais (ApoB, resistência à insulina, inflamação), seu score fica
+            muito mais preciso.
+          </p>
+          {requestStatus === "recusado" && request?.observacao_medico && (
+            <div className="mt-4 rounded-2xl bg-[#fff7dc] p-4 text-sm leading-6 text-[#76501d]">
+              Recado médico: {request.observacao_medico}
+            </div>
+          )}
+          {!open ? (
+            <Button className="mt-4 w-full rounded-full bg-[#10201f]" onClick={() => setOpen(true)}>
+              Solicitar exame
             </Button>
-            <Button
-              variant="outline"
-              className="min-h-12 rounded-full"
-              onClick={() => setOpen(false)}
-            >
-              Cancelar
-            </Button>
+          ) : (
+            <div className="mt-4 space-y-3 rounded-[1.25rem] bg-[#f7faf9] p-3">
+              <p className="rounded-2xl bg-white p-4 text-sm leading-6 text-[#536b68]">
+                Vamos solicitar autorização médica para o seu exame. Assim que o médico aprovar,
+                você receberá as instruções para agendar no laboratório parceiro.
+              </p>
+              <FormField
+                label="Cidade"
+                value={form.city}
+                onChange={(city) => setForm((current) => ({ ...current, city }))}
+                placeholder="São Paulo"
+              />
+              <FormField
+                label="Telefone para contato (WhatsApp)"
+                value={form.phone}
+                onChange={(phone) => setForm((current) => ({ ...current, phone }))}
+                placeholder="(11) 99999-9999"
+              />
+              <FormField
+                label="Plano de saúde"
+                value={form.healthPlan}
+                onChange={(healthPlan) => setForm((current) => ({ ...current, healthPlan }))}
+                placeholder="Ex: Unimed, Bradesco, SulAmérica ou Particular"
+              />
+              <div className="flex gap-2">
+                <Button
+                  className="min-h-12 flex-1 rounded-full bg-[#10201f]"
+                  disabled={saving}
+                  onClick={() => void submit()}
+                >
+                  {saving ? "Enviando..." : "Enviar solicitação"}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="min-h-12 rounded-full"
+                  onClick={() => setOpen(false)}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : null}
+
+      {requestStatus === "aguardando_autorizacao" && (
+        <StatusBlock
+          icon={Clock3}
+          title="Solicitação enviada"
+          text="O médico parceiro vai analisar seu perfil e você receberá a autorização em até 24 horas pelo WhatsApp."
+          tone="warning"
+        />
+      )}
+
+      {requestStatus === "autorizado" && (
+        <div className="mt-4 space-y-4">
+          <StatusBlock
+            icon={CheckCircle2}
+            title="Exame autorizado"
+            text="Agende agora no laboratório parceiro e informe que vem pela HTCare."
+            tone="success"
+          />
+          <div className="grid gap-3 rounded-[1.25rem] bg-[#f7faf9] p-4 text-sm">
+            <InfoLine
+              icon={FlaskConical}
+              label="Laboratório"
+              value={request.laboratorio_nome ?? DEFAULT_LAB.name}
+            />
+            <InfoLine
+              icon={MapPin}
+              label="Endereço"
+              value={request.laboratorio_endereco ?? DEFAULT_LAB.address}
+            />
+            <InfoLine
+              icon={Phone}
+              label="Telefone"
+              value={request.laboratorio_telefone ?? DEFAULT_LAB.phone}
+            />
+            <p className="rounded-2xl bg-white p-3 font-semibold text-[#2f6760]">
+              Informe que vem pela HTCare.
+            </p>
           </div>
+          <label className="flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-full bg-[#10201f] px-5 text-sm font-bold text-white">
+            <FileUp className="h-4 w-4" />
+            {uploading ? "Enviando..." : "Enviar resultado do exame"}
+            <input
+              type="file"
+              accept="application/pdf,image/*"
+              className="sr-only"
+              disabled={uploading}
+              onChange={(event) => void uploadResult(event.target.files?.[0] ?? null)}
+            />
+          </label>
         </div>
       )}
+
+      {requestStatus === "resultado_recebido" && (
+        <StatusBlock
+          icon={CheckCircle2}
+          title="Resultado recebido"
+          text="Recebemos seu resultado! O Carelito vai interpretar em breve."
+          tone="success"
+        />
+      )}
     </Card>
+  );
+}
+
+function StatusBlock({
+  icon: Icon,
+  title,
+  text,
+  tone,
+}: {
+  icon: typeof Clock3;
+  title: string;
+  text: string;
+  tone: "success" | "warning";
+}) {
+  const toneClass =
+    tone === "success" ? "bg-[#e8f5ef] text-[#2f6760]" : "bg-[#fff7dc] text-[#9a5b12]";
+  return (
+    <div className="mt-4 flex items-start gap-3 rounded-[1.25rem] bg-[#f7faf9] p-4">
+      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${toneClass}`}>
+        <Icon className="h-5 w-5" />
+      </span>
+      <div>
+        <p className="font-sans text-lg font-semibold">{title}</p>
+        <p className="mt-1 text-sm leading-6 text-[#536b68]">{text}</p>
+      </div>
+    </div>
+  );
+}
+
+function InfoLine({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof FlaskConical;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-2xl bg-white p-3">
+      <Icon className="mt-0.5 h-5 w-5 text-[#2f8fc8]" />
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#78908d]">{label}</p>
+        <p className="mt-1 font-semibold text-[#10201f]">{value}</p>
+      </div>
+    </div>
   );
 }
 

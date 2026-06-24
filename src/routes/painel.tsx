@@ -6,8 +6,11 @@ import {
   ArrowRight,
   ArrowUp,
   Bell,
+  CheckCircle2,
+  ChevronRight,
   Clock3,
   Download,
+  FlaskConical,
   HeartPulse,
   Minus,
   Moon,
@@ -17,6 +20,7 @@ import {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { CarelitoChat } from "@/components/CarelitoChat";
+import { Carelito } from "@/components/HeartMascot";
 import { Logo } from "@/components/Logo";
 import { MobileAppNav } from "@/components/MobileAppNav";
 import { Button } from "@/components/ui/button";
@@ -57,12 +61,48 @@ interface StoredResult {
 }
 
 interface LastCheckIn {
+  score?: number;
+  createdAt?: string;
   checkIn?: {
     measuredBloodPressure?: "sim" | "nao" | "";
     systolic?: string;
     diastolic?: string;
+    measuredGlucose?: "sim" | "nao" | "";
+    glucose?: string;
     weight?: string;
+    sleptWell?: "sim" | "nao" | "";
   };
+}
+
+type ExamRequestStatus =
+  | "aguardando_autorizacao"
+  | "autorizado"
+  | "recusado"
+  | "resultado_recebido"
+  | "concluido";
+
+interface ExamRequest {
+  id: string;
+  status: ExamRequestStatus;
+  observacao_medico: string | null;
+  laboratorio_nome: string | null;
+  laboratorio_endereco: string | null;
+  laboratorio_telefone: string | null;
+}
+
+interface DynamicQueryBuilder {
+  eq: (column: string, value: string) => DynamicQueryBuilder;
+  order: (column: string, options?: { ascending?: boolean }) => DynamicQueryBuilder;
+  limit: (count: number) => DynamicQueryBuilder;
+  maybeSingle: () => Promise<{ data: unknown; error: unknown }>;
+}
+
+interface DynamicSupabaseTable {
+  select: (columns: string) => DynamicQueryBuilder;
+}
+
+interface DynamicSupabaseClient {
+  from: (table: string) => DynamicSupabaseTable;
 }
 
 interface BeforeInstallPromptEvent extends Event {
@@ -74,6 +114,8 @@ function PanelPage() {
   const { user } = Route.useRouteContext();
   const [stored, setStored] = useState<StoredResult | null>(null);
   const [history, setHistory] = useState<ScorePoint[]>([]);
+  const [examRequest, setExamRequest] = useState<ExamRequest | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -83,6 +125,13 @@ function PanelPage() {
       const parsedHistory = rawHistory ? (JSON.parse(rawHistory) as ScorePoint[]) : [];
       setStored(parsed);
       setHistory(parsedHistory);
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("avatar_url")
+        .eq("id", user.id)
+        .maybeSingle();
+      setAvatarUrl(profile?.avatar_url ?? null);
 
       const { data, error } = await supabase
         .from("assessments")
@@ -115,10 +164,14 @@ function PanelPage() {
     }
 
     void loadData();
-  }, []);
+  }, [user.id]);
 
   useEffect(() => {
     void recordUserActivity(user.id, "app_open");
+  }, [user.id]);
+
+  useEffect(() => {
+    void loadExamRequest(user.id, setExamRequest);
   }, [user.id]);
 
   const sortedHistory = useMemo(
@@ -134,8 +187,11 @@ function PanelPage() {
       (user.user_metadata?.full_name as string | undefined) ??
       user.email,
   );
-  const mobileHealthData = buildMobileHealthData(stored, readLastCheckIn());
+  const lastCheckIn = readLastCheckIn();
+  const mobileHealthData = buildMobileHealthData(stored, lastCheckIn);
   const recommendedAction = getRecommendedAction(currentScore, latest?.createdAt ?? null);
+  const insight = buildCarelitoInsight(stored, lastCheckIn, trend, currentScore);
+  const initials = getInitials(firstName);
 
   return (
     <main className="min-h-screen bg-[#fbfcfc] px-4 pb-28 pt-4 text-[#10201f] sm:px-5 sm:py-6">
@@ -143,13 +199,25 @@ function PanelPage() {
         <Link to="/">
           <Logo />
         </Link>
-        <button
-          type="button"
-          className="relative grid h-11 w-11 place-items-center rounded-full border border-[#10201f]/8 bg-white text-[#10201f] shadow-soft sm:hidden"
-          aria-label="Notificações"
-        >
-          <Bell className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-2 sm:hidden">
+          <button
+            type="button"
+            className="relative grid h-11 w-11 place-items-center rounded-full border border-[#10201f]/8 bg-white text-[#10201f] shadow-soft"
+            aria-label="Notificações"
+          >
+            <Bell className="h-5 w-5" />
+            {examRequest && (
+              <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-[#49c7ae]" />
+            )}
+          </button>
+          <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-full border border-white bg-[#e8f5ef] text-sm font-black text-[#2f6760] shadow-soft">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              initials
+            )}
+          </div>
+        </div>
         <nav className="hidden items-center gap-1 sm:flex sm:gap-2">
           <Button variant="ghost" asChild>
             <Link to="/historico">Histórico</Link>
@@ -189,38 +257,72 @@ function PanelPage() {
           transition={{ duration: 0.45, ease: "easeOut" }}
           className="mx-auto max-w-md sm:hidden"
         >
-          <p className="text-[1.7rem] font-semibold leading-tight">Bom dia, {firstName}</p>
-          <p className="mt-1 text-sm font-semibold leading-5 text-[#536b68]">Sua saúde hoje</p>
-
-          <section className="mt-4 overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-5 shadow-[0_26px_90px_-62px_rgba(16,32,31,0.62)]">
-            <div className="text-center">
-              <p className="text-sm font-bold text-[#536b68]">Score atual</p>
-              <div className="mt-3 flex items-end justify-center gap-2">
-                <span className="font-sans text-6xl font-semibold leading-none">
-                  {currentScore ?? "—"}
-                </span>
-                <span className="pb-1 text-lg font-semibold text-[#78908d]">/100</span>
-              </div>
-              <p
-                className={`mt-3 inline-flex rounded-full px-4 py-2 text-sm font-bold ${scoreRiskClass(currentScore)}`}
-              >
-                {scoreRiskLabel(currentScore)}
+          <div className="relative min-h-24">
+            <div className="pr-24">
+              <p className="text-[1.75rem] font-semibold leading-tight">Bom dia, {firstName}! 👋</p>
+              <p className="mt-1 text-sm font-semibold leading-5 text-[#536b68]">
+                Que tal cuidar do seu coração hoje?
               </p>
             </div>
-            {previous && (
-              <p className="mt-4 text-center text-sm font-bold text-[#536b68]">{trend.label}</p>
-            )}
+            <Carelito className="absolute right-0 top-0 h-20 w-20" expression="confident" />
+            <div className="absolute right-14 top-16 max-w-[13rem] rounded-2xl rounded-tr-md bg-white px-3 py-2 text-[0.72rem] font-bold leading-4 text-[#2f6760] shadow-soft">
+              {insight.speech}
+            </div>
+          </div>
+
+          <section className="mt-5 overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-5 shadow-[0_26px_90px_-62px_rgba(16,32,31,0.62)]">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="grid h-9 w-9 place-items-center rounded-full bg-[#ffece7] text-[#dc3f35]">
+                    <HeartPulse className="h-5 w-5" fill="currentColor" />
+                  </span>
+                  <p className="font-sans text-lg font-semibold">Seu coração hoje</p>
+                </div>
+                <div className="mt-5 flex items-end gap-2">
+                  <span className="font-sans text-6xl font-semibold leading-none">
+                    {currentScore ?? "—"}
+                  </span>
+                  <span className="pb-1 text-lg font-semibold text-[#78908d]">/100</span>
+                </div>
+                <p
+                  className={`mt-3 inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${scoreRiskClass(currentScore)}`}
+                >
+                  {scoreRiskLabel(currentScore)}
+                </p>
+                <p className={`mt-3 text-sm font-bold ${trend.textClass}`}>{trend.mobileLabel}</p>
+                <Link
+                  to="/meu-risco"
+                  className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#2f8fc8]"
+                >
+                  Ver evolução <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+              <div className="w-32 shrink-0 text-center">
+                <ScoreGauge score={currentScore} />
+                <p className="mt-3 text-sm font-bold text-[#10201f]">{trend.status}</p>
+                <p className="mt-1 text-[0.72rem] leading-4 text-[#78908d]">{trend.healthText} ⓘ</p>
+              </div>
+            </div>
           </section>
 
-          <section className="mt-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78908d]">
-              Ação recomendada hoje
-            </p>
-            <h2 className="mt-1 font-sans text-xl font-semibold leading-tight">
-              {recommendedAction.title}
-            </h2>
-            <p className="mt-2 text-sm leading-5 text-[#536b68]">{recommendedAction.text}</p>
+          <section className="-mx-4 mt-3 flex snap-x gap-2 overflow-x-auto px-4 pb-1">
+            {mobileHealthData.map((item) => (
+              <CompactClinicalShortcut key={item.label} {...item} />
+            ))}
           </section>
+
+          <section className="mt-3 flex items-center gap-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#2f6760]">
+                Insight do Carelito
+              </p>
+              <p className="mt-2 text-sm font-semibold leading-5 text-[#536b68]">{insight.text}</p>
+            </div>
+            <Carelito className="h-16 w-16 shrink-0" expression={insight.expression} />
+          </section>
+
+          {examRequest && <ExamStatusCard request={examRequest} compact />}
 
           <Button
             size="xl"
@@ -232,11 +334,7 @@ function PanelPage() {
             </Link>
           </Button>
 
-          <section className="mt-3 grid grid-cols-4 gap-2">
-            {mobileHealthData.map((item) => (
-              <CompactClinicalShortcut key={item.label} {...item} />
-            ))}
-          </section>
+          <p className="sr-only">{recommendedAction.title}</p>
         </motion.div>
 
         <div className="hidden sm:block">
@@ -352,6 +450,8 @@ function PanelPage() {
             </motion.div>
           </div>
 
+          {examRequest && <ExamStatusCard request={examRequest} />}
+
           <div className="mt-5 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
             <motion.div
               initial={{ opacity: 0, y: 16 }}
@@ -403,12 +503,104 @@ function PanelPage() {
   );
 }
 
+async function loadExamRequest(
+  userId: string,
+  setExamRequest: (request: ExamRequest | null) => void,
+) {
+  const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+  const { data, error } = await dynamicSupabase
+    .from("exam_requests")
+    .select(
+      "id,status,observacao_medico,laboratorio_nome,laboratorio_endereco,laboratorio_telefone",
+    )
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  setExamRequest(isExamRequest(data) ? data : null);
+}
+
+function isExamRequest(data: unknown): data is ExamRequest {
+  if (!data || typeof data !== "object") return false;
+  const record = data as Partial<ExamRequest>;
+  return typeof record.id === "string" && typeof record.status === "string";
+}
+
+function ExamStatusCard({ request, compact = false }: { request: ExamRequest; compact?: boolean }) {
+  const content = getExamStatusContent(request);
+  const Icon = content.icon;
+  return (
+    <section
+      className={`rounded-[1.7rem] border border-[#10201f]/8 bg-white shadow-soft ${
+        compact ? "mt-3 p-4" : "mt-5 p-6"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${content.tone}`}>
+          <Icon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-sans text-lg font-semibold">{content.title}</p>
+          <p className="mt-1 text-sm leading-6 text-[#536b68]">{content.text}</p>
+          {request.status === "autorizado" && (
+            <Button className="mt-4 rounded-full bg-[#10201f] font-semibold" asChild>
+              <Link to="/meu-risco">Ver instruções de agendamento</Link>
+            </Button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function getExamStatusContent(request: ExamRequest) {
+  if (request.status === "autorizado") {
+    return {
+      icon: CheckCircle2,
+      tone: "bg-[#e8f5ef] text-[#2f6760]",
+      title: "Exame autorizado!",
+      text: "Agende agora no laboratório parceiro.",
+    };
+  }
+  if (request.status === "resultado_recebido") {
+    return {
+      icon: CheckCircle2,
+      tone: "bg-[#e8f5ef] text-[#2f6760]",
+      title: "Resultado recebido",
+      text: "Seu resultado foi enviado. A interpretação clínica será atualizada em breve.",
+    };
+  }
+  if (request.status === "recusado") {
+    return {
+      icon: Clock3,
+      tone: "bg-[#fff7dc] text-[#9a5b12]",
+      title: "Solicitação em revisão",
+      text:
+        request.observacao_medico ??
+        "O médico parceiro pediu mais informações antes de autorizar o exame.",
+    };
+  }
+  return {
+    icon: FlaskConical,
+    tone: "bg-[#e9f4fb] text-[#2f8fc8]",
+    title: "Seu exame está sendo analisado pelo Dr. Danilo",
+    text: "Você receberá a autorização e as instruções pelo WhatsApp em até 24 horas.",
+  };
+}
+
 interface MobileDataCardProps {
   icon: ReactNode;
   label: string;
   value: string;
   detail: string;
   tone: "good" | "attention" | "risk" | "neutral";
+  freshness?: "today" | "yesterday" | "old" | "missing";
   action?: string;
 }
 
@@ -438,25 +630,45 @@ function MobileDataCard({ icon, label, value, detail, tone, action }: MobileData
   );
 }
 
-function CompactClinicalShortcut({ icon, label, value, tone }: MobileDataCardProps) {
+function CompactClinicalShortcut({
+  icon,
+  label,
+  value,
+  detail,
+  tone,
+  freshness = "missing",
+}: MobileDataCardProps) {
   const toneClasses = {
     good: "bg-[#e8f5ef] text-[#2f6760]",
     attention: "bg-[#fff7dc] text-[#9a5b12]",
     risk: "bg-[#ffece7] text-[#c14525]",
     neutral: "bg-[#eef3f1] text-[#536b68]",
   };
+  const dotClasses = {
+    today: "bg-[#49c7ae]",
+    yesterday: "bg-[#d89a1d]",
+    old: "bg-[#9aa8a5]",
+    missing: "bg-[#c8d2cf]",
+  };
   return (
     <Link
       to="/check-in"
-      className="min-h-20 rounded-[1.15rem] border border-[#10201f]/6 bg-white p-2.5 shadow-soft"
+      className="min-h-[7rem] w-[38vw] min-w-[8.6rem] snap-start rounded-[1.25rem] border border-[#10201f]/6 bg-white p-3 shadow-soft"
     >
-      <div className={`grid h-8 w-8 place-items-center rounded-full ${toneClasses[tone]}`}>
-        {icon}
+      <div className="flex items-start justify-between gap-2">
+        <div className={`grid h-8 w-8 place-items-center rounded-full ${toneClasses[tone]}`}>
+          {icon}
+        </div>
+        <ChevronRight className="h-4 w-4 text-[#9aa8a5]" />
       </div>
       <p className="mt-2 text-[0.62rem] font-bold uppercase tracking-[0.1em] text-[#78908d]">
         {label}
       </p>
       <p className="mt-1 truncate font-sans text-sm font-semibold">{value}</p>
+      <p className="mt-1 flex items-center gap-1 text-[0.68rem] font-semibold text-[#78908d]">
+        <span className={`h-1.5 w-1.5 rounded-full ${dotClasses[freshness]}`} />
+        {detail}
+      </p>
     </Link>
   );
 }
@@ -474,6 +686,8 @@ function readLastCheckIn(): LastCheckIn | null {
 function buildMobileHealthData(stored: StoredResult | null, lastCheckIn: LastCheckIn | null) {
   const pressure = getLatestPressure(stored, lastCheckIn);
   const weight = getWeightSummary(stored, lastCheckIn);
+  const glucose = getGlucoseSummary(lastCheckIn);
+  const sleep = getSleepSummary(stored, lastCheckIn);
   return [
     {
       icon: <HeartPulse className="h-4 w-4" />,
@@ -481,6 +695,7 @@ function buildMobileHealthData(stored: StoredResult | null, lastCheckIn: LastChe
       value: pressure.value,
       detail: pressure.detail,
       tone: pressure.tone,
+      freshness: pressure.freshness,
       action: pressure.action,
     },
     {
@@ -489,20 +704,23 @@ function buildMobileHealthData(stored: StoredResult | null, lastCheckIn: LastChe
       value: weight.value,
       detail: weight.detail,
       tone: weight.tone,
+      freshness: weight.freshness,
     },
     {
       icon: <Activity className="h-4 w-4" />,
       label: "Glicemia",
-      value: "Registrar",
-      detail: "adicione no check-in",
-      tone: "neutral" as const,
+      value: glucose.value,
+      detail: glucose.detail,
+      tone: glucose.tone,
+      freshness: glucose.freshness,
     },
     {
       icon: <Moon className="h-4 w-4" />,
       label: "Sono",
-      value: formatSleep(stored?.sleepHours),
-      detail: stored?.sleepHours ? sleepDetail(stored.sleepHours) : "adicione no perfil",
-      tone: sleepTone(stored?.sleepHours),
+      value: sleep.value,
+      detail: sleep.detail,
+      tone: sleep.tone,
+      freshness: sleep.freshness,
     },
   ] satisfies MobileDataCardProps[];
 }
@@ -521,8 +739,9 @@ function getLatestPressure(stored: StoredResult | null, lastCheckIn: LastCheckIn
   if (!hasCheckInPressure && !hasOnboardingPressure) {
     return {
       value: "Não informado",
-      detail: "atualize no check-in",
+      detail: "Atualizar",
       tone: "neutral" as const,
+      freshness: "missing" as const,
       action: "Atualizar",
     };
   }
@@ -532,8 +751,9 @@ function getLatestPressure(stored: StoredResult | null, lastCheckIn: LastCheckIn
   const classification = classifyPressure(systolic, diastolic);
   return {
     value: `${systolic}/${diastolic}`,
-    detail: `${classification.label} · informado por você`,
+    detail: hasCheckInPressure ? `${freshnessLabel(lastCheckIn?.createdAt)} •` : "Mais antigo •",
     tone: classification.tone,
+    freshness: hasCheckInPressure ? freshnessFromDate(lastCheckIn?.createdAt) : ("old" as const),
   };
 }
 
@@ -546,12 +766,60 @@ function classifyPressure(systolic: number, diastolic: number) {
 function getWeightSummary(stored: StoredResult | null, lastCheckIn: LastCheckIn | null) {
   const weight = Number(lastCheckIn?.checkIn?.weight || stored?.weight);
   if (!weight) {
-    return { value: "Não informado", detail: "atualize no check-in", tone: "neutral" as const };
+    return {
+      value: "Não informado",
+      detail: "Atualizar",
+      tone: "neutral" as const,
+      freshness: "missing" as const,
+    };
   }
+  const hasCheckInWeight = Number(lastCheckIn?.checkIn?.weight) > 0;
   return {
     value: `${weight} kg`,
-    detail: "informado por você",
+    detail: hasCheckInWeight ? `${freshnessLabel(lastCheckIn?.createdAt)} •` : "Mais antigo •",
     tone: "neutral" as const,
+    freshness: hasCheckInWeight ? freshnessFromDate(lastCheckIn?.createdAt) : ("old" as const),
+  };
+}
+
+function getGlucoseSummary(lastCheckIn: LastCheckIn | null) {
+  const glucose = Number(lastCheckIn?.checkIn?.glucose);
+  if (!glucose) {
+    return {
+      value: "Registrar",
+      detail: "Atualizar",
+      tone: "neutral" as const,
+      freshness: "missing" as const,
+    };
+  }
+  return {
+    value: `${glucose} mg/dL`,
+    detail: `${freshnessLabel(lastCheckIn?.createdAt)} •`,
+    tone:
+      glucose >= 180
+        ? ("risk" as const)
+        : glucose >= 140
+          ? ("attention" as const)
+          : ("good" as const),
+    freshness: freshnessFromDate(lastCheckIn?.createdAt),
+  };
+}
+
+function getSleepSummary(stored: StoredResult | null, lastCheckIn: LastCheckIn | null) {
+  const sleptWell = lastCheckIn?.checkIn?.sleptWell;
+  if (sleptWell === "sim" || sleptWell === "nao") {
+    return {
+      value: sleptWell === "sim" ? "Dormiu bem" : "Atenção",
+      detail: `${freshnessLabel(lastCheckIn?.createdAt)} •`,
+      tone: sleptWell === "sim" ? ("good" as const) : ("attention" as const),
+      freshness: freshnessFromDate(lastCheckIn?.createdAt),
+    };
+  }
+  return {
+    value: formatSleep(stored?.sleepHours),
+    detail: stored?.sleepHours ? "Mais antigo •" : "Atualizar",
+    tone: sleepTone(stored?.sleepHours),
+    freshness: stored?.sleepHours ? ("old" as const) : ("missing" as const),
   };
 }
 
@@ -575,6 +843,22 @@ function sleepTone(value?: StoredResult["sleepHours"]): MobileDataCardProps["ton
   if (value === "menos_5") return "risk";
   if (value === "5_6" || value === "mais_8") return "attention";
   return "neutral";
+}
+
+function freshnessFromDate(value?: string): MobileDataCardProps["freshness"] {
+  if (!value) return "missing";
+  const days = Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  return "old";
+}
+
+function freshnessLabel(value?: string) {
+  const freshness = freshnessFromDate(value);
+  if (freshness === "today") return "Hoje";
+  if (freshness === "yesterday") return "Ontem";
+  if (freshness === "old") return "Mais antigo";
+  return "Atualizar";
 }
 
 function PwaInstallBanner() {
@@ -669,20 +953,123 @@ function scoreRiskClass(score: number | null) {
   return "bg-[#ffece7] text-[#c14525]";
 }
 
+function ScoreGauge({ score }: { score: number | null }) {
+  const safeScore = Math.max(0, Math.min(100, score ?? 0));
+  return (
+    <div
+      className="mx-auto grid h-28 w-28 place-items-center rounded-full bg-[conic-gradient(#49c7ae_var(--score),#eef3f1_var(--score)_100%)] p-2"
+      style={{ "--score": `${safeScore}%` } as React.CSSProperties}
+    >
+      <div className="grid h-full w-full place-items-center rounded-full bg-white shadow-inner">
+        <span className="font-sans text-2xl font-semibold text-[#10201f]">{score ?? "—"}</span>
+      </div>
+    </div>
+  );
+}
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
 function getTrend(current: number | null, previous: number | null) {
   if (current == null || previous == null) {
-    return { label: "Estável", icon: Minus, tone: "bg-[#eef3f1] text-[#536b68]" };
+    return {
+      label: "Estável",
+      mobileLabel: "Estável desde a última avaliação",
+      status: "Estável",
+      healthText: "Sua saúde está estável.",
+      textClass: "text-[#536b68]",
+      delta: 0,
+      icon: Minus,
+      tone: "bg-[#eef3f1] text-[#536b68]",
+    };
   }
   const delta = current - previous;
   if (delta >= 3)
-    return { label: `Subiu ${delta} pts`, icon: ArrowUp, tone: "bg-[#e8f5ef] text-[#2f6760]" };
+    return {
+      label: `Subiu ${delta} pts`,
+      mobileLabel: `↗ +${delta} pontos desde última semana`,
+      status: "Melhorando",
+      healthText: "Seu risco melhorou desde a última avaliação.",
+      textClass: "text-[#2f6760]",
+      delta,
+      icon: ArrowUp,
+      tone: "bg-[#e8f5ef] text-[#2f6760]",
+    };
   if (delta <= -3)
     return {
       label: `Desceu ${Math.abs(delta)} pts`,
+      mobileLabel: `↘ ${Math.abs(delta)} pontos desde última semana`,
+      status: "Atenção",
+      healthText: "Vale atualizar seus dados hoje.",
+      textClass: "text-[#9a5b12]",
+      delta,
       icon: ArrowDown,
       tone: "bg-[#fff3e8] text-[#9a5b12]",
     };
-  return { label: "Estável", icon: Minus, tone: "bg-[#eef3f1] text-[#536b68]" };
+  return {
+    label: "Estável",
+    mobileLabel: "Estável desde a última semana",
+    status: "Estável",
+    healthText: "Sua saúde está estável.",
+    textClass: "text-[#536b68]",
+    delta,
+    icon: Minus,
+    tone: "bg-[#eef3f1] text-[#536b68]",
+  };
+}
+
+function buildCarelitoInsight(
+  stored: StoredResult | null,
+  lastCheckIn: LastCheckIn | null,
+  trend: ReturnType<typeof getTrend>,
+  score: number | null,
+) {
+  const pressure = getLatestPressure(stored, lastCheckIn);
+  const sleep = getSleepSummary(stored, lastCheckIn);
+
+  if (pressure.tone === "risk") {
+    return {
+      speech: "Vamos acompanhar sua pressão de perto hoje?",
+      text: "Sua pressão mais recente está alta. Registrar uma nova medida em repouso ajuda a entender se isso foi pontual ou recorrente.",
+      expression: "thoughtful" as const,
+    };
+  }
+
+  if (sleep.tone === "good") {
+    return {
+      speech: "Você está indo bem! Vamos melhorar mais 1%?",
+      text: "Seu sono está dentro de um padrão positivo. Manter essa rotina ajuda seu coração ao longo do tempo.",
+      expression: "happy" as const,
+    };
+  }
+
+  if (trend.delta >= 3) {
+    return {
+      speech: "Seu score melhorou. Continue assim.",
+      text: "Seu risco cardiovascular melhorou desde a última avaliação. Pequenas atualizações mantêm esse acompanhamento mais preciso.",
+      expression: "confident" as const,
+    };
+  }
+
+  if (score != null && score < 50) {
+    return {
+      speech: "Vamos focar no próximo passo com calma.",
+      text: "Seu score pede atenção. Comece registrando pressão, peso ou glicemia hoje para deixar seu relatório mais completo.",
+      expression: "thoughtful" as const,
+    };
+  }
+
+  return {
+    speech: "Você está indo bem! Vamos melhorar mais 1%?",
+    text: "Seu acompanhamento está estável. Registrar um indicador hoje ajuda a enxergar tendências com mais clareza.",
+    expression: "confident" as const,
+  };
 }
 
 function TrendBadge({ trend }: { trend: ReturnType<typeof getTrend> }) {

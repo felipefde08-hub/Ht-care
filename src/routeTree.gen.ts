@@ -21,6 +21,7 @@ import { Route as PainelRouteImport } from './routes/painel'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as MissoesRouteImport } from './routes/missoes'
 import { Route as MeuRiscoRouteImport } from './routes/meu-risco'
+import { Route as MedicoRouteImport } from './routes/medico'
 import { Route as MedicamentosRouteImport } from './routes/medicamentos'
 import { Route as HistoricoRouteImport } from './routes/historico'
 import { Route as ExamesRouteImport } from './routes/exames'
@@ -96,6 +97,11 @@ const MissoesRoute = MissoesRouteImport.update({
 const MeuRiscoRoute = MeuRiscoRouteImport.update({
   id: '/meu-risco',
   path: '/meu-risco',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MedicoRoute = MedicoRouteImport.update({
+  id: '/medico',
+  path: '/medico',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MedicamentosRoute = MedicamentosRouteImport.update({
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/exames': typeof ExamesRoute
   '/historico': typeof HistoricoRoute
   '/medicamentos': typeof MedicamentosRoute
+  '/medico': typeof MedicoRoute
   '/meu-risco': typeof MeuRiscoRoute
   '/missoes': typeof MissoesRoute
   '/onboarding': typeof OnboardingRoute
@@ -221,6 +228,7 @@ export interface FileRoutesByTo {
   '/exames': typeof ExamesRoute
   '/historico': typeof HistoricoRoute
   '/medicamentos': typeof MedicamentosRoute
+  '/medico': typeof MedicoRoute
   '/meu-risco': typeof MeuRiscoRoute
   '/missoes': typeof MissoesRoute
   '/onboarding': typeof OnboardingRoute
@@ -252,6 +260,7 @@ export interface FileRoutesById {
   '/exames': typeof ExamesRoute
   '/historico': typeof HistoricoRoute
   '/medicamentos': typeof MedicamentosRoute
+  '/medico': typeof MedicoRoute
   '/meu-risco': typeof MeuRiscoRoute
   '/missoes': typeof MissoesRoute
   '/onboarding': typeof OnboardingRoute
@@ -283,6 +292,7 @@ export interface FileRouteTypes {
     | '/exames'
     | '/historico'
     | '/medicamentos'
+    | '/medico'
     | '/meu-risco'
     | '/missoes'
     | '/onboarding'
@@ -312,6 +322,7 @@ export interface FileRouteTypes {
     | '/exames'
     | '/historico'
     | '/medicamentos'
+    | '/medico'
     | '/meu-risco'
     | '/missoes'
     | '/onboarding'
@@ -342,6 +353,7 @@ export interface FileRouteTypes {
     | '/exames'
     | '/historico'
     | '/medicamentos'
+    | '/medico'
     | '/meu-risco'
     | '/missoes'
     | '/onboarding'
@@ -373,6 +385,7 @@ export interface RootRouteChildren {
   ExamesRoute: typeof ExamesRoute
   HistoricoRoute: typeof HistoricoRoute
   MedicamentosRoute: typeof MedicamentosRoute
+  MedicoRoute: typeof MedicoRoute
   MeuRiscoRoute: typeof MeuRiscoRoute
   MissoesRoute: typeof MissoesRoute
   OnboardingRoute: typeof OnboardingRoute
@@ -471,6 +484,13 @@ declare module '@tanstack/react-router' {
       path: '/meu-risco'
       fullPath: '/meu-risco'
       preLoaderRoute: typeof MeuRiscoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/medico': {
+      id: '/medico'
+      path: '/medico'
+      fullPath: '/medico'
+      preLoaderRoute: typeof MedicoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/medicamentos': {
@@ -630,6 +650,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExamesRoute: ExamesRoute,
   HistoricoRoute: HistoricoRoute,
   MedicamentosRoute: MedicamentosRoute,
+  MedicoRoute: MedicoRoute,
   MeuRiscoRoute: MeuRiscoRoute,
   MissoesRoute: MissoesRoute,
   OnboardingRoute: OnboardingRoute,
