@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Clock3,
   Download,
+  FileText,
   FlaskConical,
   HeartPulse,
   Minus,
@@ -352,6 +353,8 @@ function PanelPage() {
             </Link>
           </Button>
 
+          <ExamReportPreviewCard compact />
+
           <p className="sr-only">{recommendedAction.title}</p>
         </motion.div>
 
@@ -383,6 +386,8 @@ function PanelPage() {
               </div>
             </div>
           </motion.div>
+
+          <ExamReportPreviewCard />
 
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -574,6 +579,47 @@ function ExamStatusCard({ request, compact = false }: { request: ExamRequest; co
         </div>
       </div>
     </section>
+  );
+}
+
+function ExamReportPreviewCard({ compact = false }: { compact?: boolean }) {
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 16 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.45, ease: "easeOut" }}
+      className={`rounded-[1.7rem] border border-[#2f8fc8]/15 bg-[#f2faf9] shadow-soft ${
+        compact ? "mt-3 p-4" : "mt-5 p-7"
+      }`}
+    >
+      <div className="flex items-start gap-4">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white text-[#2f8fc8] shadow-soft">
+          <FileText className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#2f6760]">
+            Relatório com exame de sangue
+          </p>
+          <h2
+            className={`mt-2 font-sans font-semibold leading-tight ${
+              compact ? "text-xl" : "text-3xl"
+            }`}
+          >
+            Entenda seus biomarcadores com clareza
+          </h2>
+          <p className="mt-2 text-sm font-semibold leading-6 text-[#536b68]">
+            Veja como ApoB, resistência à insulina e inflamação mudam seu score, com comparação por
+            faixa etária, evolução e um plano de 90 dias.
+          </p>
+          <Button asChild className="mt-4 min-h-12 rounded-full bg-[#10201f] font-semibold">
+            <Link to="/exame-resultado/$id" params={{ id: "demo" }}>
+              Ver exemplo do relatório <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </motion.section>
   );
 }
 
