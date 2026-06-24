@@ -36,7 +36,14 @@ function MissionsPage() {
   const missions = useMemo(() => getWeeklyMissions(factors), [factors]);
   const [stats, setStats] = useState(() => getChallengeStats(missions));
   const [celebrating, setCelebrating] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"ativas" | "concluidas" | "todas">("ativas");
   const level = getMissionLevel(stats.points);
+  const visibleMissions = missions.filter((mission) => {
+    const done = stats.progress.completedMissionIds.includes(missionCompletionKey(mission.id));
+    if (filter === "ativas") return !done;
+    if (filter === "concluidas") return done;
+    return true;
+  });
 
   function markDone(mission: ChallengeMission) {
     if (stats.progress.completedMissionIds.includes(missionCompletionKey(mission.id))) return;
@@ -52,23 +59,23 @@ function MissionsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f5fbff] px-4 pb-28 pt-4 text-[#10201f] sm:bg-[#fffaf2] sm:px-5 sm:py-6">
+    <main className="min-h-screen bg-[#F9FAFB] px-4 pb-28 pt-4 text-[#111827] sm:px-5 sm:py-6">
       <div className="mx-auto flex max-w-6xl items-center justify-between">
         <Link to="/">
           <Logo />
         </Link>
         <div className="flex items-center gap-2 sm:hidden">
-          <span className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-bold text-[#d85b1f] shadow-soft">
+          <span className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-bold text-[#F59E0B] shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
             <Flame className="h-4 w-4" fill="currentColor" />
             {stats.streakWeeks}
           </span>
-          <span className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-bold text-[#2f6760] shadow-soft">
+          <span className="inline-flex h-10 items-center gap-1.5 rounded-full bg-white px-3 text-xs font-bold text-[#16A34A] shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
             <HeartPulse className="h-4 w-4" fill="currentColor" />
             {stats.points}
           </span>
           <button
             type="button"
-            className="relative grid h-10 w-10 place-items-center rounded-full bg-white text-[#10201f] shadow-soft"
+            className="relative grid h-10 w-10 place-items-center rounded-full bg-white text-[#111827] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
             aria-label="Notificações"
           >
             <Bell className="h-5 w-5" />
@@ -92,42 +99,46 @@ function MissionsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
         >
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2f8fc8]">Missões</p>
-          <h1 className="mt-2 font-sans text-3xl font-semibold leading-tight">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#2563EB]">
+            Missões
+          </p>
+          <h1 className="mt-2 font-sans text-[22px] font-bold leading-tight">
             Pequenas ações para esta semana.
           </h1>
-          <p className="mt-2 text-sm leading-6 text-[#536b68]">
+          <p className="mt-2 text-sm leading-6 text-[#6B7280]">
             Escolha uma ação simples por vez. Sem pressa, sem jogo exagerado.
           </p>
         </motion.div>
 
-        <div className="mt-5 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
+        <div className="mt-5 rounded-2xl bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-[#536b68]">Progresso semanal</p>
-            <p className="text-sm font-bold text-[#10201f]">
+            <p className="text-sm text-[#6B7280]">Progresso semanal</p>
+            <p className="text-sm font-semibold text-[#111827]">
               {stats.completedThisWeek} de {missions.length} completas
             </p>
           </div>
-          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#eef3f1]">
+          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#E5E7EB]">
             <motion.div
               initial={{ width: 0 }}
               animate={{
                 width: `${missions.length ? (stats.completedThisWeek / missions.length) * 100 : 0}%`,
               }}
               transition={{ duration: 0.45, ease: "easeOut" }}
-              className="h-full rounded-full bg-[#2f8fc8]"
+              className="h-full rounded-full bg-[#2563EB]"
             />
           </div>
-          <p className="mt-3 text-xs font-semibold text-[#78908d]">
+          <p className="mt-3 text-xs text-[#6B7280]">
             Sequência {stats.streakWeeks} · {stats.points} pontos
           </p>
         </div>
+
+        <MissionFilters value={filter} onChange={setFilter} />
 
         <MissionLevelCard level={level} />
         <DailyMissionCard />
 
         <div className="mt-4 space-y-3">
-          {missions.map((mission, index) => {
+          {visibleMissions.map((mission, index) => {
             const done = stats.progress.completedMissionIds.includes(
               missionCompletionKey(mission.id),
             );
@@ -190,8 +201,10 @@ function MissionsPage() {
           <DailyMissionCard desktop />
         </div>
 
+        <MissionFilters value={filter} onChange={setFilter} desktop />
+
         <div className="-mx-4 mt-6 flex snap-x gap-4 overflow-x-auto px-4 pb-3 sm:mx-0 sm:mt-12 sm:grid sm:snap-none sm:gap-5 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-3">
-          {missions.map((mission, index) => {
+          {visibleMissions.map((mission, index) => {
             const done = stats.progress.completedMissionIds.includes(
               missionCompletionKey(mission.id),
             );
@@ -218,6 +231,41 @@ function MissionsPage() {
       </section>
       <MobileAppNav />
     </main>
+  );
+}
+
+function MissionFilters({
+  value,
+  onChange,
+  desktop = false,
+}: {
+  value: "ativas" | "concluidas" | "todas";
+  onChange: (value: "ativas" | "concluidas" | "todas") => void;
+  desktop?: boolean;
+}) {
+  return (
+    <div
+      className={`grid grid-cols-3 gap-2 rounded-2xl bg-white p-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)] ${
+        desktop ? "mt-8 max-w-md" : "mt-4"
+      }`}
+    >
+      {[
+        ["ativas", "Ativas"],
+        ["concluidas", "Concluídas"],
+        ["todas", "Todas"],
+      ].map(([filterValue, label]) => (
+        <button
+          key={filterValue}
+          type="button"
+          onClick={() => onChange(filterValue as typeof value)}
+          className={`min-h-11 rounded-xl text-sm font-semibold transition ${
+            value === filterValue ? "bg-[#2563EB] text-white" : "text-[#6B7280]"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -350,7 +398,7 @@ function MissionCard({
       initial={{ opacity: 0, y: 24, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.55, ease: "easeOut", delay: index * 0.08 }}
-      className="relative min-h-[355px] w-[82vw] shrink-0 snap-center [perspective:1200px] sm:min-h-[430px] sm:w-auto sm:shrink"
+      className="relative w-[82vw] shrink-0 snap-center [perspective:1200px] sm:w-auto sm:shrink"
       onPointerMove={handlePointerMove}
       onPointerLeave={resetTilt}
       onPointerCancel={resetTilt}
@@ -404,13 +452,9 @@ function MissionCard({
         }}
         whileHover={done ? undefined : { y: -6 }}
         transition={{ type: "spring", stiffness: 170, damping: 20 }}
-        className="absolute inset-0 [transform-style:preserve-3d]"
+        className="[transform-style:preserve-3d]"
       >
-        <div
-          className={`absolute inset-0 overflow-hidden rounded-[2rem] bg-gradient-to-br ${missionTone(
-            mission.category,
-          )} p-4 shadow-[0_30px_100px_-76px_rgba(16,32,31,0.62)] [backface-visibility:hidden] sm:p-6`}
-        >
+        <div className="relative overflow-hidden rounded-2xl bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] [backface-visibility:hidden]">
           <motion.div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 hover:opacity-100"
@@ -418,34 +462,47 @@ function MissionCard({
               background: `radial-gradient(circle at ${tilt.glareX}% ${tilt.glareY}%, rgba(255,255,255,0.62), transparent 34%)`,
             }}
           />
-          <div className="relative z-10 flex items-start justify-between gap-5">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/82 shadow-soft sm:h-14 sm:w-14">
-              <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
+          <div className="relative z-10 flex items-start gap-3">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#EFF6FF] text-[#2563EB]">
+              <Icon className="h-6 w-6" />
             </span>
-            <span className="rounded-full bg-white/60 px-3 py-1 text-xs font-bold">
-              ação semanal
-            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="text-base font-semibold leading-tight text-[#111827]">
+                  {mission.title}
+                </h2>
+                <span className="shrink-0 rounded-full bg-[#DCFCE7] px-2.5 py-1 text-xs font-semibold text-[#16A34A]">
+                  +{mission.points} XP
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-[#6B7280]">3x esta semana</p>
+            </div>
           </div>
-          <h2 className="relative z-10 mt-6 font-sans text-2xl font-semibold leading-tight sm:mt-8 sm:text-3xl">
-            {mission.title}
-          </h2>
-          <p className="relative z-10 mt-3 min-h-16 text-sm leading-6 opacity-78 sm:mt-4 sm:min-h-20 sm:text-base sm:leading-7">
-            {mission.text}
-          </p>
+          <p className="relative z-10 mt-4 text-sm leading-6 text-[#6B7280]">{mission.text}</p>
+          <div className="relative z-10 mt-4">
+            <div className="flex items-center justify-between text-xs text-[#6B7280]">
+              <span>Progresso</span>
+              <span>{done ? "3/3" : "1/3"}</span>
+            </div>
+            <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#E5E7EB]">
+              <div
+                className="h-full rounded-full bg-[#2563EB]"
+                style={{ width: done ? "100%" : "33%" }}
+              />
+            </div>
+          </div>
           <button
             type="button"
             disabled={done}
             onClick={onDone}
-            className="relative z-10 mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#10201f] px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#1f3b38] disabled:bg-[#2f6760] sm:mt-7"
+            className="relative z-10 mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-5 text-sm font-semibold text-white transition hover:-translate-y-0.5 disabled:bg-[#16A34A]"
           >
-            {done ? "Registrado com sucesso" : "Marcar como feita"} <Sparkles className="h-4 w-4" />
+            {done ? "Registrado com sucesso" : "Marcar como feita"}{" "}
+            <CheckCircle2 className="h-4 w-4" />
           </button>
-          <p className="relative z-10 mt-4 hidden text-center text-xs font-semibold opacity-70 sm:block">
-            Dica: mova o cursor pelo card para sentir a missão.
-          </p>
         </div>
 
-        <div className="absolute inset-0 grid place-items-center overflow-hidden rounded-[2rem] bg-[#10201f] p-5 text-center text-white shadow-[0_30px_100px_-76px_rgba(16,32,31,0.62)] [backface-visibility:hidden] [transform:rotateY(180deg)] sm:p-7">
+        <div className="absolute inset-0 grid place-items-center overflow-hidden rounded-2xl bg-[#111827] p-5 text-center text-white shadow-[0_2px_8px_rgba(0,0,0,0.06)] [backface-visibility:hidden] [transform:rotateY(180deg)] sm:p-7">
           <div>
             <motion.div
               animate={done ? { scale: [0.92, 1.08, 1] } : undefined}

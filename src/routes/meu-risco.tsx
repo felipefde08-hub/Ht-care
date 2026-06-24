@@ -1,17 +1,22 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import {
+  Activity,
   ArrowLeft,
+  Brain,
   ChartLine,
   CheckCircle2,
   Clock3,
+  Dumbbell,
   FileText,
   FileUp,
   FlaskConical,
   HeartPulse,
   MapPin,
+  Moon,
   Phone,
   ShieldCheck,
+  Utensils,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -146,6 +151,7 @@ function MeuRiscoPage() {
   const [period, setPeriod] = useState<"week" | "month" | "quarter">("month");
   const [examRequest, setExamRequest] = useState<ExamRequest | null>(null);
   const [examResults, setExamResults] = useState<ExamResultListItem[]>([]);
+  const [activeTab, setActiveTab] = useState<"resumo" | "fatores">("resumo");
   const [stored] = useState(() => readStoredHubData());
 
   useEffect(() => {
@@ -183,7 +189,10 @@ function MeuRiscoPage() {
 
   const latest = history.at(-1);
   const score = latest?.score ?? stored?.result?.score ?? null;
-  const factors = latest?.factors ?? stored?.result?.factors ?? [];
+  const factors = useMemo(
+    () => latest?.factors ?? stored?.result?.factors ?? [],
+    [latest?.factors, stored?.result?.factors],
+  );
   const chartData = useMemo(
     () =>
       history.map((item) => ({
@@ -196,143 +205,159 @@ function MeuRiscoPage() {
     [history],
   );
   const clinicalData = useMemo(() => buildClinicalCharts(checkins, period), [checkins, period]);
+  const factorScores = useMemo(() => buildFactorScores(score, factors), [score, factors]);
 
   return (
-    <main className="min-h-screen bg-[#fbfcfc] px-4 pb-28 pt-4 text-[#10201f] sm:px-5 sm:py-6">
+    <main className="min-h-screen bg-[#F9FAFB] px-4 pb-28 pt-4 text-[#111827] sm:px-5 sm:py-6">
       <Header title="Meu Risco" />
       <section className="mx-auto mt-5 max-w-3xl space-y-4">
-        <Card className="text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#78908d]">Score atual</p>
-          <div
-            className="mx-auto mt-5 grid h-44 w-44 place-items-center rounded-full bg-[conic-gradient(#2f8fc8_var(--score),#e6eeec_var(--score)_100%)] p-3 [--score:0%]"
-            style={{ "--score": `${score ?? 0}%` } as React.CSSProperties}
-          >
-            <div className="grid h-full w-full place-items-center rounded-full bg-white">
-              <div>
-                <p className="font-sans text-5xl font-semibold">{score ?? "—"}</p>
-                <p className="text-sm font-semibold text-[#78908d]">/ 100</p>
-              </div>
-            </div>
-          </div>
-          <span
-            className={`mt-5 inline-flex rounded-full px-4 py-2 text-sm font-bold ${riskToneFromScore(score)}`}
-          >
-            Risco {riskLabelFromScore(score)}
-          </span>
-        </Card>
+        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white p-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          {[
+            ["resumo", "Resumo"],
+            ["fatores", "Fatores"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setActiveTab(value as typeof activeTab)}
+              className={`min-h-12 rounded-xl text-sm font-semibold transition ${
+                activeTab === value ? "bg-[#2563EB] text-white" : "text-[#6B7280]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-        <Card>
-          <SectionTitle icon={ChartLine} title="Evolução do risco" />
-          {chartData.length >= 2 ? (
-            <div className="mt-4 h-52">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <XAxis dataKey="date" axisLine={false} tickLine={false} />
-                  <YAxis domain={[0, 100]} axisLine={false} tickLine={false} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="score" stroke="#2f8fc8" strokeWidth={3} dot />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <p className="mt-4 rounded-2xl bg-[#f7faf9] p-4 text-sm text-[#536b68]">
-              Disponível após sua próxima reavaliação.
-            </p>
-          )}
-        </Card>
-
-        <Card>
-          <SectionTitle icon={HeartPulse} title="Fatores identificados" />
-          <div className="mt-4 grid gap-2">
-            {(factors.length ? factors : ["Nenhum fator crítico salvo ainda."]).map((factor) => (
-              <div key={factor} className="rounded-2xl bg-[#f7faf9] p-4 text-sm font-semibold">
-                {factor}
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <SectionTitle icon={ChartLine} title="Tendência dos indicadores" />
-            <div className="grid grid-cols-3 gap-1 rounded-full bg-[#f7faf9] p-1 text-xs font-bold">
-              {[
-                ["week", "Semana"],
-                ["month", "Mês"],
-                ["quarter", "3 meses"],
-              ].map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setPeriod(value as typeof period)}
-                  className={`rounded-full px-3 py-2 ${
-                    period === value ? "bg-white text-[#10201f] shadow-soft" : "text-[#78908d]"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="mt-4 grid gap-4">
-            <ClinicalChart
-              title="Pressão arterial"
-              data={clinicalData.pressure}
-              lines={[
-                { key: "sistolica", color: "#2f8fc8", label: "Sistólica" },
-                { key: "diastolica", color: "#49c7ae", label: "Diastólica" },
-              ]}
-              reference={130}
-              empty="Registre pressão no check-in para ver a tendência."
-            />
-            <ClinicalChart
-              title="Peso"
-              data={clinicalData.weight}
-              lines={[{ key: "peso", color: "#2f6760", label: "Peso" }]}
-              empty="Registre peso no check-in para ver a tendência."
-            />
-            <ClinicalChart
-              title="Glicemia"
-              data={clinicalData.glucose}
-              lines={[{ key: "glicemia", color: "#d89a1d", label: "Glicemia" }]}
-              reference={100}
-              empty="Registre glicemia no check-in para ver a tendência."
-            />
-          </div>
-        </Card>
-
-        <ExamRequestCard
-          userId={user.id}
-          request={examRequest}
-          estimatedScore={score}
-          onRequestChange={(nextRequest) => {
-            setExamRequest(nextRequest);
-            void loadExamResults(user.id, setExamResults);
-          }}
-        />
-
-        <ExamResultsHistoryCard results={examResults} />
-
-        <Card>
-          <SectionTitle icon={ShieldCheck} title="O que fazer para reduzir 10% do risco" />
-          <ul className="mt-4 space-y-2">
-            {recommendationsForFactors(factors).map((item) => (
-              <li
-                key={item}
-                className="rounded-2xl bg-[#f7faf9] p-4 text-sm leading-6 text-[#536b68]"
+        {activeTab === "resumo" ? (
+          <>
+            <Card className="text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6B7280]">
+                Score atual
+              </p>
+              <div
+                className="mx-auto mt-5 grid h-44 w-44 place-items-center rounded-full bg-[conic-gradient(#2563EB_var(--score),#E5E7EB_var(--score)_100%)] p-3 [--score:0%]"
+                style={{ "--score": `${score ?? 0}%` } as React.CSSProperties}
               >
-                {item}
-              </li>
-            ))}
-          </ul>
-        </Card>
+                <div className="grid h-full w-full place-items-center rounded-full bg-white">
+                  <div>
+                    <p className="font-sans text-5xl font-bold text-[#111827]">{score ?? "—"}</p>
+                    <p className="text-sm text-[#6B7280]">/ 100</p>
+                  </div>
+                </div>
+              </div>
+              <span
+                className={`mt-5 inline-flex rounded-full px-4 py-2 text-sm font-semibold ${riskToneFromScore(score)}`}
+              >
+                Risco {riskLabelFromScore(score)}
+              </span>
+            </Card>
 
-        <Card>
-          <SectionTitle icon={ChartLine} title="Comparação populacional" />
-          <p className="mt-4 text-sm leading-6 text-[#536b68]">
-            {populationReference(stored?.age, stored?.biologicalSex)}
-          </p>
-        </Card>
+            <Card>
+              <SectionTitle icon={ChartLine} title="Evolução do risco" />
+              {chartData.length >= 2 ? (
+                <div className="mt-4 h-52">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData}>
+                      <XAxis dataKey="date" axisLine={false} tickLine={false} />
+                      <YAxis domain={[0, 100]} axisLine={false} tickLine={false} />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="score" stroke="#2563EB" strokeWidth={3} dot />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <p className="mt-4 rounded-2xl bg-[#F9FAFB] p-4 text-sm text-[#6B7280]">
+                  Disponível após sua próxima reavaliação.
+                </p>
+              )}
+            </Card>
+
+            <Card className="bg-[#EFF6FF]">
+              <SectionTitle icon={Brain} title="Recomendação da IA" />
+              <p className="mt-4 text-sm leading-6 text-[#374151]">
+                {recommendationsForFactors(factors)[0] ??
+                  "Complete seus registros para receber uma recomendação mais precisa."}
+              </p>
+            </Card>
+
+            <Card>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <SectionTitle icon={ChartLine} title="Tendência dos indicadores" />
+                <div className="grid grid-cols-3 gap-1 rounded-xl bg-[#F9FAFB] p-1 text-xs font-semibold">
+                  {[
+                    ["week", "Semana"],
+                    ["month", "Mês"],
+                    ["quarter", "3 meses"],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPeriod(value as typeof period)}
+                      className={`rounded-lg px-3 py-2 ${
+                        period === value
+                          ? "bg-white text-[#111827] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                          : "text-[#6B7280]"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-4 grid gap-4">
+                <ClinicalChart
+                  title="Pressão arterial"
+                  data={clinicalData.pressure}
+                  lines={[
+                    { key: "sistolica", color: "#2563EB", label: "Sistólica" },
+                    { key: "diastolica", color: "#16A34A", label: "Diastólica" },
+                  ]}
+                  reference={130}
+                  empty="Registre pressão no check-in para ver a tendência."
+                />
+                <ClinicalChart
+                  title="Peso"
+                  data={clinicalData.weight}
+                  lines={[{ key: "peso", color: "#16A34A", label: "Peso" }]}
+                  empty="Registre peso no check-in para ver a tendência."
+                />
+                <ClinicalChart
+                  title="Glicemia"
+                  data={clinicalData.glucose}
+                  lines={[{ key: "glicemia", color: "#F59E0B", label: "Glicemia" }]}
+                  reference={100}
+                  empty="Registre glicemia no check-in para ver a tendência."
+                />
+              </div>
+            </Card>
+
+            <ExamRequestCard
+              userId={user.id}
+              request={examRequest}
+              estimatedScore={score}
+              onRequestChange={(nextRequest) => {
+                setExamRequest(nextRequest);
+                void loadExamResults(user.id, setExamResults);
+              }}
+            />
+
+            <ExamResultsHistoryCard results={examResults} />
+
+            <Card>
+              <SectionTitle icon={ChartLine} title="Comparação populacional" />
+              <p className="mt-4 text-sm leading-6 text-[#6B7280]">
+                {populationReference(stored?.age, stored?.biologicalSex)}
+              </p>
+            </Card>
+          </>
+        ) : (
+          <div className="space-y-3">
+            {factorScores.map((factor) => (
+              <FactorScoreCard key={factor.title} factor={factor} />
+            ))}
+          </div>
+        )}
       </section>
       <MobileAppNav />
     </main>
@@ -375,6 +400,91 @@ async function loadExamResults(
     return;
   }
   setExamResults(Array.isArray(data) ? data.filter(isExamResultListItem) : []);
+}
+
+interface FactorScore {
+  title: string;
+  score: number;
+  label: string;
+  tone: "good" | "moderate" | "high";
+  icon: typeof HeartPulse;
+}
+
+function buildFactorScores(score: number | null, factors: string[]): FactorScore[] {
+  const text = factors.join(" ").toLowerCase();
+  const base = score ?? 72;
+  const has = (terms: string[]) => terms.some((term) => text.includes(term));
+  const values = [
+    {
+      title: "Colesterol",
+      score: has(["colesterol", "ldl", "triglicer"]) ? Math.min(base + 6, 76) : 82,
+      icon: Activity,
+    },
+    {
+      title: "Pressão arterial",
+      score: has(["pressão", "hipertens"]) ? Math.min(base, 68) : 84,
+      icon: HeartPulse,
+    },
+    {
+      title: "Atividade física",
+      score: has(["sedent", "atividade"]) ? Math.min(base + 4, 63) : 82,
+      icon: Dumbbell,
+    },
+    {
+      title: "Alimentação",
+      score: has(["imc", "obesidade", "sobrepeso", "diabetes", "glicemia"]) ? 63 : 78,
+      icon: Utensils,
+    },
+    {
+      title: "Sono",
+      score: has(["sono", "estresse", "apneia"]) ? 75 : 85,
+      icon: Moon,
+    },
+  ];
+
+  return values.map((item) => {
+    const label = item.score >= 80 ? "Bom" : item.score >= 65 ? "Moderado" : "Alto";
+    const tone = item.score >= 80 ? "good" : item.score >= 65 ? "moderate" : "high";
+    return { ...item, label, tone };
+  });
+}
+
+function FactorScoreCard({ factor }: { factor: FactorScore }) {
+  const Icon = factor.icon;
+  const toneClass = {
+    good: "bg-[#DCFCE7] text-[#16A34A]",
+    moderate: "bg-[#FEF3C7] text-[#92400E]",
+    high: "bg-[#FEE2E2] text-[#B91C1C]",
+  }[factor.tone];
+  const barClass = {
+    good: "bg-[#16A34A]",
+    moderate: "bg-[#F59E0B]",
+    high: "bg-[#EF4444]",
+  }[factor.tone];
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3">
+        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${toneClass}`}>
+          <Icon className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-[#111827]">{factor.title}</h2>
+            <p className="shrink-0 text-sm font-semibold text-[#111827]">
+              {factor.score}/100 <span className="text-[#6B7280]">{factor.label}</span>
+            </p>
+          </div>
+          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#E5E7EB]">
+            <div
+              className={`h-full rounded-full ${barClass}`}
+              style={{ width: `${factor.score}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 function isExamRequest(data: unknown): data is ExamRequest {
@@ -606,22 +716,25 @@ function ExamRequestCard({
           <h2 className="mt-4 font-sans text-2xl font-semibold">
             Aprofunde sua avaliação com exame de sangue
           </h2>
-          <p className="mt-2 text-sm leading-6 text-[#536b68]">
+          <p className="mt-2 text-sm leading-6 text-[#6B7280]">
             Com seus biomarcadores reais (ApoB, resistência à insulina, inflamação), seu score fica
             muito mais preciso.
           </p>
           {requestStatus === "recusado" && request?.observacao_medico && (
-            <div className="mt-4 rounded-2xl bg-[#fff7dc] p-4 text-sm leading-6 text-[#76501d]">
+            <div className="mt-4 rounded-2xl bg-[#FEF3C7] p-4 text-sm leading-6 text-[#92400E]">
               Recado médico: {request.observacao_medico}
             </div>
           )}
           {!open ? (
-            <Button className="mt-4 w-full rounded-full bg-[#10201f]" onClick={() => setOpen(true)}>
+            <Button
+              className="mt-4 min-h-12 w-full rounded-xl bg-[#2563EB]"
+              onClick={() => setOpen(true)}
+            >
               Solicitar exame
             </Button>
           ) : (
-            <div className="mt-4 space-y-3 rounded-[1.25rem] bg-[#f7faf9] p-3">
-              <p className="rounded-2xl bg-white p-4 text-sm leading-6 text-[#536b68]">
+            <div className="mt-4 space-y-3 rounded-2xl bg-[#F9FAFB] p-3">
+              <p className="rounded-2xl bg-white p-4 text-sm leading-6 text-[#6B7280]">
                 Vamos solicitar autorização médica para o seu exame. Assim que o médico aprovar,
                 você receberá as instruções para agendar no laboratório parceiro.
               </p>
@@ -645,7 +758,7 @@ function ExamRequestCard({
               />
               <div className="flex gap-2">
                 <Button
-                  className="min-h-12 flex-1 rounded-full bg-[#10201f]"
+                  className="min-h-12 flex-1 rounded-xl bg-[#2563EB]"
                   disabled={saving}
                   onClick={() => void submit()}
                 >
@@ -1127,7 +1240,7 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`rounded-[2rem] border border-[#10201f]/8 bg-white p-5 shadow-soft ${className}`}
+      className={`rounded-2xl bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] ${className}`}
     >
       {children}
     </motion.div>
@@ -1137,10 +1250,10 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 function SectionTitle({ icon: Icon, title }: { icon: typeof HeartPulse; title: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid h-10 w-10 place-items-center rounded-full bg-[#e9f4fb] text-[#2f8fc8]">
+      <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#EFF6FF] text-[#2563EB]">
         <Icon className="h-5 w-5" />
       </span>
-      <h1 className="font-sans text-xl font-semibold">{title}</h1>
+      <h1 className="font-sans text-base font-semibold text-[#111827]">{title}</h1>
     </div>
   );
 }

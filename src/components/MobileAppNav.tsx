@@ -120,7 +120,7 @@ export function MobileAppNav() {
         </div>
       )}
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-[#10201f]/8 bg-white/88 px-3 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 shadow-[0_-18px_70px_-48px_rgba(16,32,31,0.55)] backdrop-blur-2xl sm:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-5 gap-1 rounded-[1.35rem] bg-[#f7faf9]/80 p-1">
+        <div className="mx-auto grid max-w-md grid-cols-5 gap-1 rounded-2xl bg-[#F9FAFB] p-1">
           {items.map((item) => {
             const active =
               location.pathname === item.to ||
@@ -132,24 +132,21 @@ export function MobileAppNav() {
                   key={item.label}
                   type="button"
                   onClick={() => setOpen(true)}
-                  className="relative -mt-5 flex min-h-16 flex-col items-center justify-center gap-1 rounded-[1.35rem] bg-[linear-gradient(135deg,#2f8fc8,#49c7ae)] text-[0.66rem] font-bold text-white shadow-[0_18px_45px_-22px_rgba(47,143,200,0.9)] transition active:scale-95"
+                  className="relative -mt-5 flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl bg-[#2563EB] text-[0.66rem] font-bold text-white shadow-[0_14px_34px_-18px_rgba(37,99,235,0.8)] transition active:scale-95"
                 >
-                  <span className="absolute inset-0 animate-pulse rounded-[1.35rem] bg-[#49c7ae]/35 blur-md" />
                   <Icon className="h-6 w-6" strokeWidth={3} />
                   <span className="relative">{item.label}</span>
                 </button>
               );
             }
-            const activeClass =
-              item.to === "/missoes"
-                ? "bg-[#2f8fc8] text-white shadow-[0_12px_34px_-22px_rgba(47,143,200,0.9)]"
-                : "bg-[#10201f] text-white shadow-[0_12px_34px_-22px_rgba(16,32,31,0.85)]";
             return (
               <Link
                 key={item.to}
                 to={item.to}
                 className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-[1.05rem] text-[0.64rem] font-semibold transition ${
-                  active ? activeClass : "text-[#78908d] active:bg-white"
+                  active
+                    ? "bg-white text-[#2563EB] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+                    : "text-[#6B7280] active:bg-white"
                 }`}
               >
                 <Icon

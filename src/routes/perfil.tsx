@@ -375,7 +375,7 @@ function ProfilePage() {
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
-          className="rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-[0_24px_90px_-66px_rgba(16,32,31,0.62)]"
+          className="rounded-2xl bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
         >
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -383,14 +383,14 @@ function ProfilePage() {
                 <img
                   src={avatarUrl}
                   alt=""
-                  className="h-16 w-16 rounded-[1.25rem] object-cover shadow-inner"
+                  className="h-16 w-16 rounded-2xl object-cover shadow-inner"
                 />
               ) : (
-                <div className="grid h-16 w-16 place-items-center rounded-[1.25rem] bg-[linear-gradient(135deg,#e8f5ef,#dceeff)] font-sans text-xl font-semibold text-[#10201f] shadow-inner">
+                <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[#EFF6FF] font-sans text-xl font-semibold text-[#111827] shadow-inner">
                   {initials}
                 </div>
               )}
-              <label className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full border-4 border-white bg-[#10201f] text-white shadow-soft">
+              <label className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full border-4 border-white bg-[#2563EB] text-white shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
                 <input
                   type="file"
                   accept="image/*"
@@ -403,116 +403,75 @@ function ProfilePage() {
               </label>
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <p className="min-w-0 truncate font-sans text-xl font-semibold leading-tight">
-                  Olá, {firstName}!
-                </p>
-                <Link to="/planos" className="text-xs font-bold text-[#2f8fc8]">
-                  Plano Gratuito
-                </Link>
-              </div>
-              <p className="mt-1 text-xs leading-4 text-[#536b68]">
-                Dados pessoais e configurações da sua conta.
+              <p className="min-w-0 truncate font-sans text-[22px] font-bold leading-tight text-[#111827]">
+                {firstName}
               </p>
-              <div className="mt-3 flex items-center gap-2 text-xs font-bold text-[#10201f]">
-                <span className="rounded-full bg-[#e9f4fb] px-2.5 py-1 text-[#2f8fc8]">
-                  {healthIndex == null ? "—" : `${Math.round(healthIndex)}%`} ·{" "}
-                  {scoreQualityLabel(healthIndex)}
-                </span>
+              <p className="mt-1 text-xs text-[#6B7280]">Plano Gratuito</p>
+              <p className="mt-2 text-xs font-semibold text-[#111827]">
+                Nível {profileLevel.level} · {profileLevel.title} · {profileLevel.currentXp}/1.000
+                XP
+              </p>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#E5E7EB]">
+                <div
+                  className="h-full rounded-full bg-[#2563EB]"
+                  style={{ width: `${profileLevel.progress}%` }}
+                />
               </div>
             </div>
           </div>
         </motion.div>
 
-        <MobileProfileCard title="Meus dados" className="mt-3">
-          <div className="grid grid-cols-2 gap-2.5">
-            <MobileGridCard
+        <MobileProfileCard title="Conta" className="mt-3">
+          <div className="divide-y divide-[#E5E7EB]">
+            <CompactPreferenceItem
               icon={<UserRound className="h-5 w-5" />}
-              title="Informações pessoais"
+              title="Dados pessoais"
               detail={formatPersonalSummary(data)}
-              tone="bg-[#e9f4fb] text-[#2f8fc8]"
+              tone="bg-[#EFF6FF] text-[#2563EB]"
               to="/perfil/$section"
               params={{ section: "informacoes-pessoais" }}
             />
-            <MobileGridCard
-              icon={<HeartPulse className="h-5 w-5" />}
-              title="Dados de saúde"
-              detail={formatHealthSummary(data)}
-              tone="bg-[#e8f5ef] text-[#2f6760]"
+            <CompactPreferenceItem
+              icon={<FileText className="h-5 w-5" />}
+              title="Exames e documentos"
+              detail="Resultados, uploads e documentos"
+              tone="bg-[#EFF6FF] text-[#2563EB]"
               to="/perfil/$section"
-              params={{ section: "dados-saude" }}
+              params={{ section: "exames-resultados" }}
             />
-            <MobileGridCard
-              icon={<Stethoscope className="h-5 w-5" />}
-              title="Histórico médico"
-              detail={formatMedicalSummary(data)}
-              tone="bg-[#fff7dc] text-[#9a5b12]"
-              to="/perfil/$section"
-              params={{ section: "historico-medico" }}
-            />
-            <MobileGridCard
+            <CompactPreferenceItem
               icon={<Pill className="h-5 w-5" />}
               title="Medicamentos"
               detail={formatMedicationSummary(data)}
-              tone="bg-[#f1ecff] text-[#6f55c8]"
+              tone="bg-[#DCFCE7] text-[#16A34A]"
               to="/perfil/$section"
               params={{ section: "medicamentos" }}
             />
-            <MobileGridCard
-              icon={<FileText className="h-5 w-5" />}
-              title="Exames"
-              detail="Em breve: laboratórios parceiros."
-              tone="bg-[#eef3f1] text-[#536b68]"
-              to="/perfil/$section"
-              params={{ section: "exames-resultados" }}
-              className="col-span-2"
-            />
-          </div>
-        </MobileProfileCard>
-
-        <MobileProfileCard title="Preferências" className="mt-3">
-          <div className="divide-y divide-[#10201f]/6 rounded-[1.25rem] bg-[#f7faf9] px-2">
             <CompactPreferenceItem
-              icon={<Bell className="h-5 w-5" />}
-              title="Lembretes"
-              detail={reminders.weeklyEmail ? "E-mail semanal ativo" : "E-mail semanal inativo"}
-              tone="bg-[#e9f4fb] text-[#2f8fc8]"
+              icon={<HeartPulse className="h-5 w-5" />}
+              title="Metas de saúde"
+              detail={formatHealthSummary(data)}
+              tone="bg-[#FEF3C7] text-[#92400E]"
+              to="/perfil/$section"
+              params={{ section: "dados-saude" }}
+            />
+            <CompactPreferenceItem
+              icon={<Settings className="h-5 w-5" />}
+              title="Configurações"
+              detail={reminders.weeklyEmail ? "Notificações ativas" : "Notificações inativas"}
+              tone="bg-[#F3F4F6] text-[#6B7280]"
               to="/perfil/$section"
               params={{ section: "notificacoes" }}
             />
-            <CompactPreferenceItem
-              icon={<Lock className="h-5 w-5" />}
-              title="Privacidade"
-              detail="Conta protegida pelo Supabase Auth"
-              tone="bg-[#e8f5ef] text-[#2f6760]"
-              to="/perfil/$section"
-              params={{ section: "privacidade-seguranca" }}
-            />
-            <CompactPreferenceItem
-              icon={<Languages className="h-5 w-5" />}
-              title="Idioma"
-              detail="Português"
-              tone="bg-[#fff7dc] text-[#9a5b12]"
-              to="/perfil/$section"
-              params={{ section: "idioma" }}
-            />
-            <CompactPreferenceItem
-              icon={<Moon className="h-5 w-5" />}
-              title="Aparência"
-              detail="Claro"
-              tone="bg-[#eef3f1] text-[#536b68]"
-              to="/perfil/$section"
-              params={{ section: "aparencia" }}
-            />
           </div>
         </MobileProfileCard>
 
-        <MobileProfileCard title="Suporte" className="mt-3">
+        <MobileProfileCard title="Ajuda" className="mt-3">
           <CompactPreferenceItem
             icon={<Globe2 className="h-5 w-5" />}
             title="Central de ajuda"
             detail="Dúvidas, privacidade e próximos passos"
-            tone="bg-[#e9f4fb] text-[#2f8fc8]"
+            tone="bg-[#EFF6FF] text-[#2563EB]"
             to="/perfil/$section"
             params={{ section: "central-ajuda" }}
           />
@@ -991,9 +950,9 @@ function MobileProfileCard({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.42, ease: "easeOut" }}
-      className={`rounded-[1.55rem] border border-[#10201f]/8 bg-white p-3.5 shadow-soft ${className}`}
+      className={`rounded-2xl bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] ${className}`}
     >
-      <h2 className="font-sans text-base font-semibold">{title}</h2>
+      <h2 className="font-sans text-base font-semibold text-[#111827]">{title}</h2>
       <div className="mt-2.5">{children}</div>
     </motion.div>
   );
@@ -1059,10 +1018,10 @@ function CompactPreferenceItem({
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold leading-tight text-[#10201f]">{title}</span>
-        <span className="mt-0.5 block truncate text-xs text-[#78908d]">{detail}</span>
+        <span className="block text-sm font-semibold leading-tight text-[#111827]">{title}</span>
+        <span className="mt-0.5 block truncate text-xs text-[#6B7280]">{detail}</span>
       </span>
-      <ChevronRight className="h-4 w-4 shrink-0 text-[#9aa8a5]" />
+      <ChevronRight className="h-4 w-4 shrink-0 text-[#9CA3AF]" />
     </Link>
   );
 }
