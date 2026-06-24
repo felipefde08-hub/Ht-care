@@ -1,21 +1,6 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import {
-  Apple,
-  ArrowRight,
-  Bell,
-  CheckCircle2,
-  Dumbbell,
-  Flame,
-  HeartPulse,
-  Lock,
-  Moon,
-  ShieldCheck,
-  Sparkles,
-  Target,
-  Trophy,
-  type LucideIcon,
-} from "lucide-react";
+import { ArrowRight, Bell, CheckCircle2, Flame, HeartPulse, Sparkles } from "lucide-react";
 import { useMemo, useState, type PointerEvent } from "react";
 import { Carelito } from "@/components/HeartMascot";
 import { Logo } from "@/components/Logo";
@@ -50,9 +35,6 @@ function MissionsPage() {
   const missions = useMemo(() => getWeeklyMissions(factors), [factors]);
   const [stats, setStats] = useState(() => getChallengeStats(missions));
   const [celebrating, setCelebrating] = useState<string | null>(null);
-  const level = getJourneyLevel(stats.points);
-  const journeySteps = buildJourneyMap(onboarding, stats);
-  const feedback = getJourneyFeedback(stats, journeySteps);
 
   function markDone(mission: ChallengeMission) {
     if (stats.progress.completedMissionIds.includes(missionCompletionKey(mission.id))) return;
@@ -64,8 +46,7 @@ function MissionsPage() {
       weekKey: stats.currentWeek,
     });
     setStats(getChallengeStats(missions));
-    setCelebrating(mission.id);
-    window.setTimeout(() => setCelebrating(null), 1100);
+    setCelebrating(null);
   }
 
   return (
@@ -109,118 +90,63 @@ function MissionsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
         >
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2f8fc8]">
-            Sua jornada
-          </p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2f8fc8]">Missões</p>
           <h1 className="mt-2 font-sans text-3xl font-semibold leading-tight">
-            Complete missões e cuide melhor do seu coração.
+            Pequenas ações para esta semana.
           </h1>
+          <p className="mt-2 text-sm leading-6 text-[#536b68]">
+            Escolha uma ação simples por vez. Sem pressa, sem jogo exagerado.
+          </p>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: "easeOut", delay: 0.08 }}
-          className="relative mt-5 overflow-hidden rounded-[1.8rem] border border-[#10201f]/8 bg-white p-4 shadow-[0_24px_90px_-66px_rgba(16,32,31,0.62)]"
-        >
-          <div className="pointer-events-none absolute -right-10 -top-8 h-28 w-28 rounded-full bg-[#dff7ff]" />
-          <div className="pointer-events-none absolute -bottom-12 -left-8 h-32 w-32 rounded-full bg-[#e8f5ef]" />
-          <div className="relative flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78908d]">
-                Nível atual
-              </p>
-              <h2 className="mt-1 font-sans text-xl font-semibold">
-                Nível {level.level} — {level.name}
-              </h2>
-              <p className="mt-1 text-xs text-[#78908d]">
-                {level.currentXp}/{level.nextXp} XP · Pontos do Coração reais
-              </p>
-            </div>
-            <span className="grid h-14 w-14 place-items-center rounded-[1.2rem] bg-[#10201f] text-white shadow-soft">
-              <Trophy className="h-7 w-7" />
-            </span>
+        <div className="mt-5 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-[#536b68]">Progresso semanal</p>
+            <p className="text-sm font-bold text-[#10201f]">
+              {stats.completedThisWeek} de {missions.length} completas
+            </p>
           </div>
-          <div className="relative mt-4 h-4 overflow-hidden rounded-full bg-[#e6eef2]">
+          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#eef3f1]">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: `${level.progress}%` }}
-              transition={{ duration: 0.9, ease: "easeOut" }}
-              className="h-full rounded-full bg-[linear-gradient(90deg,#2f8fc8,#49c7ae)]"
+              animate={{
+                width: `${missions.length ? (stats.completedThisWeek / missions.length) * 100 : 0}%`,
+              }}
+              transition={{ duration: 0.45, ease: "easeOut" }}
+              className="h-full rounded-full bg-[#2f8fc8]"
             />
           </div>
-        </motion.div>
-
-        <div className="relative mt-5 overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white px-4 py-6 shadow-soft">
-          <DecorativeScenery />
-          <motion.div
-            initial={{ height: 0 }}
-            animate={{ height: "calc(100% - 4.5rem)" }}
-            transition={{ duration: 1.1, ease: "easeOut", delay: 0.2 }}
-            className="absolute left-[2.55rem] top-12 w-0.5 border-l-2 border-dashed border-[#bcd7e6]"
-          />
-          <div className="relative space-y-5">
-            {journeySteps.map((step, index) => (
-              <JourneyStepCard key={step.title} step={step} index={index} />
-            ))}
-          </div>
+          <p className="mt-3 text-xs font-semibold text-[#78908d]">
+            Sequência {stats.streakWeeks} · {stats.points} pontos
+          </p>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: "easeOut", delay: 0.28 }}
-          className="mt-5 flex items-center gap-3 rounded-[1.8rem] border border-[#10201f]/8 bg-white p-4 shadow-soft"
-        >
-          <motion.div
-            animate={{ rotate: [-2, 2, -2], y: [0, -2, 0] }}
-            transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-            className="h-20 w-20 shrink-0"
-          >
-            <Carelito
-              className="h-full w-full"
-              expression={stats.streakWeeks ? "excited" : "thoughtful"}
-            />
-          </motion.div>
-          <div>
-            <p className="text-sm font-bold text-[#10201f]">{feedback.title}</p>
-            <p className="mt-1 text-sm leading-5 text-[#536b68]">{feedback.text}</p>
-          </div>
-        </motion.div>
+        <div className="mt-4 space-y-3">
+          {missions.map((mission, index) => {
+            const done = stats.progress.completedMissionIds.includes(
+              missionCompletionKey(mission.id),
+            );
+            return (
+              <MissionCard
+                key={mission.id}
+                mission={mission}
+                index={index}
+                done={done}
+                celebrating={celebrating === mission.id}
+                onDone={() => markDone(mission)}
+              />
+            );
+          })}
+        </div>
 
-        <section id="missoes-da-semana" className="scroll-mt-6 pt-6">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2f8fc8]">
-                Plano de ação
-              </p>
-              <h2 className="mt-1 font-sans text-2xl font-semibold leading-tight">
-                Missões da semana
-              </h2>
-            </div>
-            <span className="rounded-full bg-white px-3 py-1.5 text-xs font-bold text-[#536b68] shadow-soft">
-              {stats.completedThisWeek}/{missions.length}
-            </span>
-          </div>
-
-          <div className="-mx-4 mt-4 flex snap-x gap-4 overflow-x-auto px-4 pb-4">
-            {missions.map((mission, index) => {
-              const done = stats.progress.completedMissionIds.includes(
-                missionCompletionKey(mission.id),
-              );
-              return (
-                <MissionCard
-                  key={mission.id}
-                  mission={mission}
-                  index={index}
-                  done={done}
-                  celebrating={celebrating === mission.id}
-                  onDone={() => markDone(mission)}
-                />
-              );
-            })}
-          </div>
-        </section>
+        <div className="mt-4 flex items-center gap-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
+          <Carelito className="h-14 w-14 shrink-0" expression="confident" />
+          <p className="text-sm leading-5 text-[#536b68]">
+            {stats.pendingThisWeek > 0
+              ? "Uma ação pequena hoje já ajuda seu histórico."
+              : "Registrado. Seu plano da semana está em dia."}
+          </p>
+        </div>
       </section>
 
       <section className="mx-auto mt-6 hidden max-w-6xl sm:mt-14 sm:block">
@@ -371,7 +297,7 @@ function MissionCard({
 
       <motion.div
         animate={{
-          rotateY: done ? 180 : tilt.rotateY,
+          rotateY: done ? 0 : tilt.rotateY,
           rotateX: done ? 0 : tilt.rotateX,
           y: done ? 0 : 0,
         }}
@@ -396,7 +322,7 @@ function MissionCard({
               <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
             </span>
             <span className="rounded-full bg-white/60 px-3 py-1 text-xs font-bold">
-              {mission.points} pts
+              ação semanal
             </span>
           </div>
           <h2 className="relative z-10 mt-6 font-sans text-2xl font-semibold leading-tight sm:mt-8 sm:text-3xl">
@@ -407,10 +333,11 @@ function MissionCard({
           </p>
           <button
             type="button"
+            disabled={done}
             onClick={onDone}
-            className="relative z-10 mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#10201f] px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#1f3b38] sm:mt-7"
+            className="relative z-10 mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#10201f] px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#1f3b38] disabled:bg-[#2f6760] sm:mt-7"
           >
-            Marcar como feita <Sparkles className="h-4 w-4" />
+            {done ? "Registrado com sucesso" : "Marcar como feita"} <Sparkles className="h-4 w-4" />
           </button>
           <p className="relative z-10 mt-4 hidden text-center text-xs font-semibold opacity-70 sm:block">
             Dica: mova o cursor pelo card para sentir a missão.
@@ -443,127 +370,6 @@ function MissionCard({
   );
 }
 
-type JourneyStatus = "complete" | "current" | "locked";
-
-interface JourneyStep {
-  title: string;
-  status: JourneyStatus;
-  icon: LucideIcon;
-  xp: number;
-  badge: string;
-  reward: string;
-  lockedText?: string;
-  target?: "missions";
-  to?: "/onboarding" | "/relatorio" | "/missoes" | "/check-in";
-}
-
-function JourneyStepCard({ step, index }: { step: JourneyStep; index: number }) {
-  const Icon = step.icon;
-  const content = (
-    <motion.div
-      initial={{ opacity: 0, y: 18, scale: 0.94 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ type: "spring", stiffness: 130, damping: 16, delay: 0.08 * index }}
-      whileTap={step.status === "locked" ? undefined : { scale: 0.97 }}
-      className={`relative flex min-h-20 items-center gap-4 rounded-[1.45rem] border p-3 shadow-[0_18px_70px_-58px_rgba(16,32,31,0.55)] ${
-        step.status === "complete"
-          ? "border-[#7fd7c0]/40 bg-[#f7fffb]"
-          : step.status === "current"
-            ? "border-[#2f8fc8]/28 bg-[#f6fbff]"
-            : "border-[#10201f]/6 bg-[#f8faf9] opacity-72"
-      }`}
-    >
-      {step.status === "current" && (
-        <motion.span
-          aria-hidden="true"
-          animate={{ opacity: [0.18, 0.42, 0.18], scale: [1, 1.1, 1] }}
-          transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute left-2 top-2 h-14 w-14 rounded-full bg-[#2f8fc8]/30 blur-xl"
-        />
-      )}
-      <div
-        className={`relative z-10 grid h-16 w-16 shrink-0 place-items-center rounded-full border-4 border-white shadow-soft ${
-          step.status === "complete"
-            ? "bg-[#49c7ae] text-white"
-            : step.status === "current"
-              ? "bg-[#2f8fc8] text-white"
-              : "bg-[#e8eef0] text-[#9aa8a5]"
-        }`}
-      >
-        {step.status === "complete" ? (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: [0, 1.12, 1] }}
-            transition={{ duration: 0.42, ease: "easeOut", delay: 0.12 + index * 0.06 }}
-          >
-            <CheckCircle2 className="h-8 w-8" fill="currentColor" />
-          </motion.div>
-        ) : step.status === "locked" ? (
-          <Lock className="h-7 w-7" />
-        ) : (
-          <Icon className="h-8 w-8" />
-        )}
-      </div>
-      <div className="relative z-10 min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="font-sans text-lg font-semibold leading-tight">{step.title}</p>
-          {step.status !== "locked" && (
-            <span className="rounded-full bg-white px-2 py-0.5 text-[0.62rem] font-black text-[#9a5b12] shadow-sm">
-              +{step.xp} XP
-            </span>
-          )}
-        </div>
-        <p
-          className={`mt-1 text-xs font-bold ${
-            step.status === "complete"
-              ? "text-[#2f6760]"
-              : step.status === "current"
-                ? "text-[#2f8fc8]"
-                : "text-[#9aa8a5]"
-          }`}
-        >
-          {step.status === "complete"
-            ? `Concluído · ${step.badge}`
-            : step.status === "current"
-              ? `Agora · ${step.reward}`
-              : `Bloqueado · ${step.lockedText ?? step.reward}`}
-        </p>
-      </div>
-      {step.status !== "locked" && <ArrowRight className="h-5 w-5 shrink-0 text-[#9aa8a5]" />}
-    </motion.div>
-  );
-
-  if (step.status === "locked") return content;
-
-  if (step.target === "missions") {
-    return (
-      <a href="#missoes-da-semana" className="block">
-        {content}
-      </a>
-    );
-  }
-
-  if (!step.to) return content;
-  return (
-    <Link to={step.to} className="block">
-      {content}
-    </Link>
-  );
-}
-
-function DecorativeScenery() {
-  return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="absolute right-4 top-4 h-8 w-16 rounded-full bg-[#e7f6ff]" />
-      <div className="absolute right-14 top-8 h-6 w-12 rounded-full bg-[#eefaff]" />
-      <div className="absolute bottom-0 left-0 h-20 w-32 rounded-tr-[4rem] bg-[#e9f7f2]" />
-      <div className="absolute bottom-0 right-0 h-24 w-40 rounded-tl-[5rem] bg-[#e7f2fb]" />
-      <div className="absolute right-7 top-24 h-9 w-1 rounded-full bg-[#49c7ae]" />
-      <div className="absolute right-7 top-20 h-7 w-9 rounded-r-full bg-[#ffcf5f]" />
-    </div>
-  );
-}
-
 function readOnboardingState() {
   try {
     const raw = window.localStorage.getItem("htcare:onboarding");
@@ -576,127 +382,4 @@ function readOnboardingState() {
   } catch {
     return { hasQuestionnaire: false, hasScore: false, factors: [] };
   }
-}
-
-function getJourneyLevel(points: number) {
-  const level = Math.floor(points / 1000) + 1;
-  const currentXp = points % 1000;
-  const names = [
-    "Primeiros passos",
-    "Cuidando de mim",
-    "Rotina ativa",
-    "Consistência",
-    "Coração protegido",
-  ];
-  return {
-    level,
-    currentXp,
-    nextXp: 1000,
-    progress: (currentXp / 1000) * 100,
-    name: names[Math.min(level - 1, names.length - 1)] ?? "Coração protegido",
-  };
-}
-
-function buildJourneyMap(
-  onboarding: ReturnType<typeof readOnboardingState>,
-  stats: ReturnType<typeof getChallengeStats>,
-): JourneyStep[] {
-  const totalCompletedMissions = stats.progress.completions.length;
-  const planComplete = totalCompletedMissions >= 3;
-  const exerciseComplete = totalCompletedMissions >= 6;
-  const foodComplete = totalCompletedMissions >= 9;
-  const sleepComplete = totalCompletedMissions >= 12;
-  const protectedComplete = stats.streakWeeks >= 4 && stats.points >= 300;
-
-  return [
-    {
-      title: "Questionário",
-      status: onboarding.hasQuestionnaire ? "complete" : "current",
-      icon: ShieldCheck,
-      xp: 100,
-      badge: "Primeiro passo",
-      reward: "desbloqueia seu score",
-      to: "/onboarding",
-    },
-    {
-      title: "Seu risco",
-      status: onboarding.hasScore ? "complete" : onboarding.hasQuestionnaire ? "current" : "locked",
-      icon: HeartPulse,
-      xp: 100,
-      badge: "Score liberado",
-      reward: "entenda seu coração",
-      to: "/relatorio",
-    },
-    {
-      title: "Plano de ação",
-      status: planComplete ? "complete" : onboarding.hasScore ? "current" : "locked",
-      icon: Target,
-      xp: 150,
-      badge: "Plano ativo",
-      reward: "complete 3 missões",
-      target: "missions",
-    },
-    {
-      title: "Exercício físico",
-      status: exerciseComplete ? "complete" : planComplete ? "current" : "locked",
-      icon: Dumbbell,
-      xp: 200,
-      badge: "Corpo em movimento",
-      reward: "complete 6 missões",
-      lockedText: "desbloqueia ao concluir Plano de ação",
-      target: "missions",
-    },
-    {
-      title: "Alimentação",
-      status: foodComplete ? "complete" : exerciseComplete ? "current" : "locked",
-      icon: Apple,
-      xp: 200,
-      badge: "Prato colorido",
-      reward: "complete 9 missões",
-      lockedText: "desbloqueia ao concluir Exercício físico",
-      target: "missions",
-    },
-    {
-      title: "Sono e descanso",
-      status: sleepComplete ? "complete" : foodComplete ? "current" : "locked",
-      icon: Moon,
-      xp: 200,
-      badge: "Sono protegido",
-      reward: "complete 12 missões",
-      lockedText: "desbloqueia ao concluir Alimentação",
-      target: "missions",
-    },
-    {
-      title: "Coração protegido",
-      status: protectedComplete ? "complete" : sleepComplete ? "current" : "locked",
-      icon: Trophy,
-      xp: 500,
-      badge: "Guardião do Coração",
-      reward: "4 semanas de sequência",
-      lockedText: "desbloqueia ao concluir Sono e descanso",
-      to: "/check-in",
-    },
-  ];
-}
-
-function getJourneyFeedback(stats: ReturnType<typeof getChallengeStats>, steps: JourneyStep[]) {
-  if (!stats.streakWeeks) {
-    return {
-      title: "Vamos começar uma nova sequência?",
-      text: "Uma missão pequena hoje já coloca sua jornada em movimento, sem pressão.",
-    };
-  }
-  if (stats.pendingThisWeek > 0) {
-    return {
-      title: "Você está no caminho certo.",
-      text: `Faltam ${stats.pendingThisWeek} ${stats.pendingThisWeek > 1 ? "missões" : "missão"} para fechar a semana.`,
-    };
-  }
-  const current = steps.find((step) => step.status === "current");
-  return {
-    title: "Ótimo trabalho!",
-    text: current
-      ? `A próxima etapa é ${current.title.toLowerCase()}. Você está cuidando cada vez melhor do seu coração.`
-      : "Você completou a trilha atual. Continue acompanhando sua evolução com calma.",
-  };
 }

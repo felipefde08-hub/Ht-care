@@ -12,20 +12,14 @@ import {
   Minus,
   Moon,
   Scale,
-  ShieldCheck,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CarelitoChat } from "@/components/CarelitoChat";
-import { Carelito } from "@/components/HeartMascot";
 import { Logo } from "@/components/Logo";
 import { MobileAppNav } from "@/components/MobileAppNav";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { getChallengeStats, getWeeklyMissions } from "@/lib/challenge";
 import { recordUserActivity } from "@/lib/user-activity";
 
 export const Route = createFileRoute("/painel")({
@@ -74,14 +68,6 @@ interface LastCheckIn {
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
-}
-
-interface DynamicSupabaseTable {
-  insert: (values: Record<string, unknown>) => Promise<{ error: unknown }>;
-}
-
-interface DynamicSupabaseClient {
-  from: (table: string) => DynamicSupabaseTable;
 }
 
 function PanelPage() {
@@ -143,20 +129,13 @@ function PanelPage() {
   const previous = sortedHistory.length >= 2 ? sortedHistory.at(-2) : null;
   const currentScore = latest?.score ?? stored?.result?.score ?? null;
   const trend = getTrend(currentScore, previous?.score ?? null);
-  const nextStep = getNextStep(latest?.createdAt ?? null);
-  const weeklyMissions = useMemo(
-    () => getWeeklyMissions(stored?.result?.factors ?? latest?.factors ?? []),
-    [latest?.factors, stored?.result?.factors],
-  );
-  const challengeStats = getChallengeStats(weeklyMissions);
   const firstName = getFirstName(
     (user.user_metadata?.name as string | undefined) ??
       (user.user_metadata?.full_name as string | undefined) ??
       user.email,
   );
-  const scoreComparison = getScoreComparison(currentScore);
-  const dailyCarelitoMessage = getClinicalCarelitoMessage(currentScore, trend);
   const mobileHealthData = buildMobileHealthData(stored, readLastCheckIn());
+  const recommendedAction = getRecommendedAction(currentScore, latest?.createdAt ?? null);
 
   return (
     <main className="min-h-screen bg-[#fbfcfc] px-4 pb-28 pt-4 text-[#10201f] sm:px-5 sm:py-6">
@@ -170,11 +149,6 @@ function PanelPage() {
           aria-label="Notificações"
         >
           <Bell className="h-5 w-5" />
-          {challengeStats.pendingThisWeek > 0 && (
-            <span className="absolute right-2 top-2 grid h-4 min-w-4 place-items-center rounded-full bg-[#ff9f43] px-1 text-[0.62rem] font-bold leading-none text-white">
-              {challengeStats.pendingThisWeek}
-            </span>
-          )}
         </button>
         <nav className="hidden items-center gap-1 sm:flex sm:gap-2">
           <Button variant="ghost" asChild>
@@ -216,60 +190,36 @@ function PanelPage() {
           className="mx-auto max-w-md sm:hidden"
         >
           <p className="text-[1.7rem] font-semibold leading-tight">Bom dia, {firstName}</p>
-          <p className="mt-1 text-sm font-semibold leading-5 text-[#536b68]">
-            Seu relatório cardiovascular vivo está atualizado.
-          </p>
+          <p className="mt-1 text-sm font-semibold leading-5 text-[#536b68]">Sua saúde hoje</p>
 
-          <section className="mt-4 overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-4 shadow-[0_26px_90px_-62px_rgba(16,32,31,0.62)]">
+          <section className="mt-4 overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-5 shadow-[0_26px_90px_-62px_rgba(16,32,31,0.62)]">
             <div className="text-center">
-              <p className="text-sm font-bold text-[#536b68]">Score cardiovascular atual</p>
+              <p className="text-sm font-bold text-[#536b68]">Score atual</p>
               <div className="mt-3 flex items-end justify-center gap-2">
                 <span className="font-sans text-6xl font-semibold leading-none">
                   {currentScore ?? "—"}
                 </span>
                 <span className="pb-1 text-lg font-semibold text-[#78908d]">/100</span>
               </div>
-              <p className="mt-2 font-sans text-xl font-semibold">
-                {scoreQualityLabel(currentScore)}
+              <p
+                className={`mt-3 inline-flex rounded-full px-4 py-2 text-sm font-bold ${scoreRiskClass(currentScore)}`}
+              >
+                {scoreRiskLabel(currentScore)}
               </p>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <div className="rounded-[1.2rem] bg-[#f7faf9] px-3 py-3">
-                <p className="text-[0.65rem] font-bold uppercase tracking-[0.12em] text-[#78908d]">
-                  Semana passada
-                </p>
-                <p className="mt-1 text-sm font-bold text-[#10201f]">{trend.label}</p>
-              </div>
-              <div className="rounded-[1.2rem] bg-[#e8f5ef] px-3 py-3">
-                <p className="text-[0.65rem] font-bold uppercase tracking-[0.12em] text-[#2f6760]">
-                  Desde o início
-                </p>
-                <p className="mt-1 text-sm font-bold text-[#10201f]">
-                  {sortedHistory.length > 1
-                    ? `${Math.max(0, Math.round((currentScore ?? 0) - sortedHistory[0].score))} pts`
-                    : "começando"}
-                </p>
-              </div>
-            </div>
-            <p className="mt-3 rounded-[1.2rem] bg-[#f7faf9] px-4 py-3 text-sm font-semibold leading-5 text-[#536b68]">
-              {scoreComparison}
-            </p>
-            {sortedHistory.length >= 2 && <MiniScoreTrend history={sortedHistory} />}
+            {previous && (
+              <p className="mt-4 text-center text-sm font-bold text-[#536b68]">{trend.label}</p>
+            )}
           </section>
 
           <section className="mt-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78908d]">
-                  Próxima ação recomendada
-                </p>
-                <h2 className="mt-1 font-sans text-xl font-semibold leading-tight">
-                  {nextStep.title}
-                </h2>
-              </div>
-              <TrendBadge trend={trend} />
-            </div>
-            <p className="mt-3 text-sm leading-5 text-[#536b68]">{nextStep.text}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78908d]">
+              Ação recomendada hoje
+            </p>
+            <h2 className="mt-1 font-sans text-xl font-semibold leading-tight">
+              {recommendedAction.title}
+            </h2>
+            <p className="mt-2 text-sm leading-5 text-[#536b68]">{recommendedAction.text}</p>
           </section>
 
           <Button
@@ -286,20 +236,6 @@ function PanelPage() {
             {mobileHealthData.map((item) => (
               <CompactClinicalShortcut key={item.label} {...item} />
             ))}
-          </section>
-
-          <LabInterestCard userId={user.id} defaultName={firstName} />
-
-          <section className="mt-3 flex items-center gap-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
-            <Carelito className="h-20 w-20 shrink-0" expression="thoughtful" />
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#2f8fc8]">
-                Insight do Carelito
-              </p>
-              <p className="mt-1 text-sm font-semibold leading-5 text-[#536b68]">
-                {dailyCarelitoMessage}
-              </p>
-            </div>
           </section>
         </motion.div>
 
@@ -329,38 +265,6 @@ function PanelPage() {
                   <Link to="/relatorio">Ver relatório</Link>
                 </Button>
               </div>
-            </div>
-
-            <LabInterestCard userId={user.id} defaultName={firstName} compact />
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
-            className="mt-5 rounded-[1.5rem] border border-[#10201f]/8 bg-white p-4 shadow-soft sm:rounded-[2rem] sm:p-6"
-          >
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-medium text-[#536b68]">Acompanhamento semanal</p>
-                <h2 className="mt-1 font-sans text-xl font-semibold sm:text-3xl">
-                  {challengeStats.completedThisWeek} de {weeklyMissions.length} ações leves
-                  registradas
-                </h2>
-              </div>
-              <Button variant="outline" className="rounded-full" asChild>
-                <Link to="/missoes">Ver Jornada</Link>
-              </Button>
-            </div>
-            <div className="mt-6 h-4 overflow-hidden rounded-full bg-[#eef3f1]">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{
-                  width: `${weeklyMissions.length ? (challengeStats.completedThisWeek / weeklyMissions.length) * 100 : 0}%`,
-                }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
-                className="h-full rounded-full bg-gradient-to-r from-[#2f8fc8] to-[#49c7ae]"
-              />
             </div>
           </motion.div>
 
@@ -427,9 +331,11 @@ function PanelPage() {
                 </span>
                 <div>
                   <p className="text-sm font-medium text-[#536b68]">Próximo passo</p>
-                  <h2 className="mt-2 font-sans text-3xl font-semibold">{nextStep.title}</h2>
+                  <h2 className="mt-2 font-sans text-3xl font-semibold">
+                    {recommendedAction.title}
+                  </h2>
                   <p className="mt-3 max-w-xl text-base leading-7 text-[#536b68]">
-                    {nextStep.text}
+                    {recommendedAction.text}
                   </p>
                 </div>
               </div>
@@ -555,179 +461,6 @@ function CompactClinicalShortcut({ icon, label, value, tone }: MobileDataCardPro
   );
 }
 
-function MiniScoreTrend({ history }: { history: ScorePoint[] }) {
-  const lastFour = history.slice(-4);
-  const min = Math.min(...lastFour.map((item) => item.score));
-  const max = Math.max(...lastFour.map((item) => item.score));
-  const range = Math.max(1, max - min);
-  return (
-    <div className="mt-3 rounded-[1.2rem] bg-[#f7faf9] px-4 py-3">
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#78908d]">
-          Evolução recente
-        </p>
-        <Link to="/historico" className="text-xs font-bold text-[#2f8fc8]">
-          Ver histórico
-        </Link>
-      </div>
-      <div className="flex h-16 items-end gap-2">
-        {lastFour.map((point) => (
-          <div key={point.createdAt} className="flex flex-1 flex-col items-center gap-1">
-            <div
-              className="w-full rounded-t-lg bg-[#2f8fc8]"
-              style={{ height: `${28 + ((point.score - min) / range) * 36}px` }}
-            />
-            <span className="text-[0.65rem] font-semibold text-[#78908d]">{point.score}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function LabInterestCard({
-  userId,
-  defaultName,
-  compact = false,
-}: {
-  userId: string;
-  defaultName: string;
-  compact?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: defaultName, phone: "", city: "", healthPlan: "" });
-
-  async function submit() {
-    if (!form.name.trim() || !form.phone.trim() || !form.city.trim() || !form.healthPlan.trim()) {
-      toast.error("Preencha nome, telefone, cidade e plano de saúde.");
-      return;
-    }
-    setSaving(true);
-    const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
-    const { error } = await dynamicSupabase.from("lab_exam_interests").insert({
-      user_id: userId,
-      nome: form.name.trim(),
-      telefone: form.phone.trim(),
-      cidade: form.city.trim(),
-      plano_saude: form.healthPlan.trim(),
-      source: "home",
-    });
-    setSaving(false);
-    if (error) {
-      toast.error("Não foi possível registrar o interesse. Verifique a tabela no Supabase.");
-      console.error(error);
-      return;
-    }
-    toast.success("Interesse registrado. Entraremos em contato.");
-    setOpen(false);
-    setForm({ name: defaultName, phone: "", city: "", healthPlan: "" });
-  }
-
-  return (
-    <section
-      className={`mt-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white shadow-soft ${
-        compact ? "p-5" : "p-4"
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#e9f4fb] text-[#2f8fc8]">
-          <ShieldCheck className="h-5 w-5" />
-        </span>
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78908d]">
-            Aprofunde sua avaliação
-          </p>
-          <h2 className="mt-1 font-sans text-xl font-semibold leading-tight">
-            Marcar exame com laboratório parceiro
-          </h2>
-          <p className="mt-2 text-sm leading-5 text-[#536b68]">
-            Com um exame de sangue, conseguimos analisar biomarcadores reais como ApoB, resistência
-            à insulina e inflamação para uma visão mais precisa do seu risco.
-          </p>
-        </div>
-      </div>
-      {!open ? (
-        <Button
-          className="mt-4 w-full rounded-full bg-[#10201f] font-semibold text-white"
-          onClick={() => setOpen(true)}
-        >
-          Marcar exame com laboratório parceiro
-        </Button>
-      ) : (
-        <div className="mt-4 space-y-3 rounded-[1.25rem] bg-[#f7faf9] p-3">
-          <FormField
-            label="Nome"
-            value={form.name}
-            onChange={(name) => setForm((current) => ({ ...current, name }))}
-            placeholder="Seu nome"
-          />
-          <FormField
-            label="Telefone"
-            value={form.phone}
-            onChange={(phone) => setForm((current) => ({ ...current, phone }))}
-            placeholder="(11) 99999-9999"
-          />
-          <FormField
-            label="Cidade"
-            value={form.city}
-            onChange={(city) => setForm((current) => ({ ...current, city }))}
-            placeholder="São Paulo"
-          />
-          <FormField
-            label="Plano de saúde"
-            value={form.healthPlan}
-            onChange={(healthPlan) => setForm((current) => ({ ...current, healthPlan }))}
-            placeholder="Ex: Unimed, Bradesco, SulAmérica ou Particular"
-          />
-          <div className="flex gap-2">
-            <Button
-              className="min-h-12 flex-1 rounded-full bg-[#10201f] font-semibold text-white"
-              disabled={saving}
-              onClick={() => void submit()}
-            >
-              {saving ? "Salvando..." : "Enviar interesse"}
-            </Button>
-            <Button
-              variant="outline"
-              className="min-h-12 rounded-full"
-              onClick={() => setOpen(false)}
-            >
-              Cancelar
-            </Button>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function FormField({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <div>
-      <Label className="text-xs font-bold uppercase tracking-[0.12em] text-[#78908d]">
-        {label}
-      </Label>
-      <Input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="mt-2 h-12 rounded-2xl bg-white"
-      />
-    </div>
-  );
-}
-
 function readLastCheckIn(): LastCheckIn | null {
   if (typeof window === "undefined") return null;
   try {
@@ -740,7 +473,7 @@ function readLastCheckIn(): LastCheckIn | null {
 
 function buildMobileHealthData(stored: StoredResult | null, lastCheckIn: LastCheckIn | null) {
   const pressure = getLatestPressure(stored, lastCheckIn);
-  const bmi = getBmiSummary(stored, lastCheckIn);
+  const weight = getWeightSummary(stored, lastCheckIn);
   return [
     {
       icon: <HeartPulse className="h-4 w-4" />,
@@ -752,17 +485,17 @@ function buildMobileHealthData(stored: StoredResult | null, lastCheckIn: LastChe
     },
     {
       icon: <Scale className="h-4 w-4" />,
-      label: "IMC",
-      value: bmi.value,
-      detail: bmi.detail,
-      tone: bmi.tone,
+      label: "Peso",
+      value: weight.value,
+      detail: weight.detail,
+      tone: weight.tone,
     },
     {
       icon: <Activity className="h-4 w-4" />,
-      label: "Atividade",
-      value: formatActivity(stored?.activityLevel),
-      detail: stored?.activityLevel ? "informado no questionário" : "adicione no perfil",
-      tone: activityTone(stored?.activityLevel),
+      label: "Glicemia",
+      value: "Registrar",
+      detail: "adicione no check-in",
+      tone: "neutral" as const,
     },
     {
       icon: <Moon className="h-4 w-4" />,
@@ -810,35 +543,16 @@ function classifyPressure(systolic: number, diastolic: number) {
   return { label: "Normal", tone: "good" as const };
 }
 
-function getBmiSummary(stored: StoredResult | null, lastCheckIn: LastCheckIn | null) {
+function getWeightSummary(stored: StoredResult | null, lastCheckIn: LastCheckIn | null) {
   const weight = Number(lastCheckIn?.checkIn?.weight || stored?.weight);
-  const height = Number(stored?.height) / 100;
-  if (!weight || !height) {
-    return { value: "Não informado", detail: "peso e altura pendentes", tone: "neutral" as const };
+  if (!weight) {
+    return { value: "Não informado", detail: "atualize no check-in", tone: "neutral" as const };
   }
-  const bmi = weight / (height * height);
-  const rounded = bmi.toFixed(1).replace(".", ",");
-  if (bmi >= 30) return { value: `IMC ${rounded}`, detail: "Obesidade", tone: "risk" as const };
-  if (bmi >= 25)
-    return { value: `IMC ${rounded}`, detail: "Sobrepeso", tone: "attention" as const };
-  if (bmi < 18.5)
-    return { value: `IMC ${rounded}`, detail: "Abaixo do peso", tone: "attention" as const };
-  return { value: `IMC ${rounded}`, detail: "Normal", tone: "good" as const };
-}
-
-function formatActivity(value?: StoredResult["activityLevel"]) {
-  if (value === "sedentario") return "Sedentário";
-  if (value === "leve") return "Leve 1-2x/sem.";
-  if (value === "moderado") return "Ativo 3-4x/sem.";
-  if (value === "intenso") return "Intenso";
-  return "Não informado";
-}
-
-function activityTone(value?: StoredResult["activityLevel"]): MobileDataCardProps["tone"] {
-  if (value === "intenso" || value === "moderado") return "good";
-  if (value === "leve") return "attention";
-  if (value === "sedentario") return "risk";
-  return "neutral";
+  return {
+    value: `${weight} kg`,
+    detail: "informado por você",
+    tone: "neutral" as const,
+  };
 }
 
 function formatSleep(value?: StoredResult["sleepHours"]) {
@@ -941,33 +655,18 @@ function getFirstName(name?: string | null) {
   return name.split("@")[0]?.split(" ")[0] || "vamos lá";
 }
 
-function scoreQualityLabel(score: number | null) {
-  if (score == null) return "Comece sua jornada";
-  if (score >= 80) return "Muito bom";
-  if (score >= 50) return "Atenção necessária";
-  return "Risco identificado";
+function scoreRiskLabel(score: number | null) {
+  if (score == null) return "Avaliação pendente";
+  if (score >= 80) return "Risco baixo";
+  if (score >= 50) return "Risco moderado";
+  return "Risco alto";
 }
 
-function getScoreComparison(score: number | null) {
-  if (score == null) return "Complete sua avaliação para desbloquear seu primeiro score.";
-  if (score >= 80) return "Seu risco está melhor que 73% das pessoas da sua idade.";
-  if (score >= 50) return "Seu risco está em uma faixa que merece acompanhamento semanal.";
-  return "Seu resultado pede atenção e acompanhamento mais próximo dos seus indicadores.";
-}
-
-function getClinicalCarelitoMessage(score: number | null, trend: ReturnType<typeof getTrend>) {
-  if (score == null) return "Complete a avaliação inicial para gerar seu primeiro relatório.";
-  if (trend.label.startsWith("Subiu")) {
-    return `Seu score melhorou desde a última avaliação (${trend.label.toLowerCase()}). Continue acompanhando pressão e peso.`;
-  }
-  if (trend.label.startsWith("Desceu")) {
-    return `Seu score reduziu desde a última avaliação (${trend.label.toLowerCase()}). Vale atualizar pressão e considerar exame complementar.`;
-  }
-  if (score >= 80)
-    return "Seus últimos dados sugerem baixo risco no momento. Mantenha o acompanhamento.";
-  if (score >= 50)
-    return "Seu risco está em faixa de atenção. Registrar pressão ajuda a interpretar melhor a tendência.";
-  return "Seu score indica risco elevado. Recomendamos procurar avaliação médica e aprofundar com exames.";
+function scoreRiskClass(score: number | null) {
+  if (score == null) return "bg-[#eef3f1] text-[#536b68]";
+  if (score >= 80) return "bg-[#e8f5ef] text-[#2f6760]";
+  if (score >= 50) return "bg-[#fff7dc] text-[#9a5b12]";
+  return "bg-[#ffece7] text-[#c14525]";
 }
 
 function getTrend(current: number | null, previous: number | null) {
@@ -998,11 +697,17 @@ function TrendBadge({ trend }: { trend: ReturnType<typeof getTrend> }) {
   );
 }
 
-function getNextStep(lastCheckIn: string | null) {
+function getRecommendedAction(score: number | null, lastCheckIn: string | null) {
+  if (score == null) {
+    return {
+      title: "Complete sua avaliação",
+      text: "Responda o questionário para gerar seu primeiro score cardiovascular.",
+    };
+  }
   if (!lastCheckIn) {
     return {
-      title: "Faça seu check-in semanal",
-      text: "Atualize alguns dados rápidos para começar a acompanhar sua evolução ao longo do tempo.",
+      title: "Registre sua pressão de hoje",
+      text: "Uma medida simples ajuda a manter seu acompanhamento mais preciso.",
     };
   }
   const days = Math.floor((Date.now() - new Date(lastCheckIn).getTime()) / 86_400_000);
@@ -1014,7 +719,7 @@ function getNextStep(lastCheckIn: string | null) {
   }
   if (days >= 7) {
     return {
-      title: "Faça seu check-in semanal",
+      title: "Registre sua pressão de hoje",
       text: "Já passou uma semana desde sua última atualização. Leva menos de um minuto.",
     };
   }

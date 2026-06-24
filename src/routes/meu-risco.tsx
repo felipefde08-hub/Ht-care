@@ -3,9 +3,12 @@ import { motion } from "motion/react";
 import { ArrowLeft, ChartLine, HeartPulse, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
 import { MobileAppNav } from "@/components/MobileAppNav";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import {
   populationReference,
@@ -22,12 +25,22 @@ export const Route = createFileRoute("/meu-risco")({
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) throw redirect({ to: "/auth" });
+    return { user: data.user };
   },
   head: () => ({ meta: [{ title: "Meu Risco — HTCare" }] }),
   component: MeuRiscoPage,
 });
 
+interface DynamicSupabaseTable {
+  insert: (values: Record<string, unknown>) => Promise<{ error: unknown }>;
+}
+
+interface DynamicSupabaseClient {
+  from: (table: string) => DynamicSupabaseTable;
+}
+
 function MeuRiscoPage() {
+  const { user } = Route.useRouteContext();
   const [history, setHistory] = useState<HubScorePoint[]>([]);
   const [stored] = useState(() => readStoredHubData());
 
@@ -124,6 +137,15 @@ function MeuRiscoPage() {
           </div>
         </Card>
 
+        <LabInterestCard
+          userId={user.id}
+          defaultName={
+            (user.user_metadata?.name as string | undefined) ??
+            (user.user_metadata?.full_name as string | undefined) ??
+            ""
+          }
+        />
+
         <Card>
           <SectionTitle icon={ShieldCheck} title="O que fazer para reduzir 10% do risco" />
           <ul className="mt-4 space-y-2">
@@ -147,6 +169,123 @@ function MeuRiscoPage() {
       </section>
       <MobileAppNav />
     </main>
+  );
+}
+
+function LabInterestCard({ userId, defaultName }: { userId: string; defaultName: string }) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: defaultName, phone: "", city: "", healthPlan: "" });
+
+  async function submit() {
+    if (!form.name.trim() || !form.phone.trim() || !form.city.trim() || !form.healthPlan.trim()) {
+      toast.error("Preencha nome, telefone, cidade e plano de saúde.");
+      return;
+    }
+    setSaving(true);
+    const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+    const { error } = await dynamicSupabase.from("lab_exam_interests").insert({
+      user_id: userId,
+      nome: form.name.trim(),
+      telefone: form.phone.trim(),
+      cidade: form.city.trim(),
+      plano_saude: form.healthPlan.trim(),
+      source: "meu-risco",
+    });
+    setSaving(false);
+    if (error) {
+      toast.error("Não foi possível registrar o interesse. Verifique a tabela no Supabase.");
+      console.error(error);
+      return;
+    }
+    toast.success("Interesse registrado. Entraremos em contato.");
+    setOpen(false);
+    setForm({ name: defaultName, phone: "", city: "", healthPlan: "" });
+  }
+
+  return (
+    <Card>
+      <SectionTitle icon={ShieldCheck} title="Próximo passo" />
+      <h2 className="mt-4 font-sans text-2xl font-semibold">Aprofunde com exame de sangue</h2>
+      <p className="mt-2 text-sm leading-6 text-[#536b68]">
+        Com um exame de sangue, conseguimos analisar biomarcadores reais como ApoB, resistência à
+        insulina e inflamação para uma visão mais precisa do seu risco.
+      </p>
+      {!open ? (
+        <Button className="mt-4 w-full rounded-full bg-[#10201f]" onClick={() => setOpen(true)}>
+          Solicitar exame em laboratório parceiro
+        </Button>
+      ) : (
+        <div className="mt-4 space-y-3 rounded-[1.25rem] bg-[#f7faf9] p-3">
+          <FormField
+            label="Nome"
+            value={form.name}
+            onChange={(name) => setForm((current) => ({ ...current, name }))}
+            placeholder="Seu nome"
+          />
+          <FormField
+            label="Telefone"
+            value={form.phone}
+            onChange={(phone) => setForm((current) => ({ ...current, phone }))}
+            placeholder="(11) 99999-9999"
+          />
+          <FormField
+            label="Cidade"
+            value={form.city}
+            onChange={(city) => setForm((current) => ({ ...current, city }))}
+            placeholder="São Paulo"
+          />
+          <FormField
+            label="Plano de saúde"
+            value={form.healthPlan}
+            onChange={(healthPlan) => setForm((current) => ({ ...current, healthPlan }))}
+            placeholder="Ex: Unimed, Bradesco, SulAmérica ou Particular"
+          />
+          <div className="flex gap-2">
+            <Button
+              className="min-h-12 flex-1 rounded-full bg-[#10201f]"
+              disabled={saving}
+              onClick={() => void submit()}
+            >
+              {saving ? "Salvando..." : "Enviar interesse"}
+            </Button>
+            <Button
+              variant="outline"
+              className="min-h-12 rounded-full"
+              onClick={() => setOpen(false)}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function FormField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div>
+      <Label className="text-xs font-bold uppercase tracking-[0.12em] text-[#78908d]">
+        {label}
+      </Label>
+      <Input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="mt-2 h-12 rounded-2xl bg-white"
+      />
+    </div>
   );
 }
 

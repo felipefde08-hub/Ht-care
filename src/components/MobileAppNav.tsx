@@ -1,14 +1,12 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
-  ChartNoAxesColumnIncreasing,
-  ClipboardCheck,
+  Activity,
   FlaskConical,
-  HeartHandshake,
   HeartPulse,
   House,
-  Map,
-  Pill,
-  Trophy,
+  Moon,
+  Scale,
+  Target,
   UserRound,
   X,
 } from "lucide-react";
@@ -16,9 +14,9 @@ import { useState } from "react";
 
 const items = [
   { label: "Início", to: "/painel", icon: House },
-  { label: "Jornada", to: "/missoes", icon: Map },
-  { label: "Check-in", to: "/check-in", icon: HeartHandshake, featured: true },
-  { label: "Histórico", to: "/historico", icon: ChartNoAxesColumnIncreasing },
+  { label: "Meu Risco", to: "/meu-risco", icon: HeartPulse },
+  { label: "Registrar", to: "/check-in", icon: Activity, featured: true },
+  { label: "Missões", to: "/missoes", icon: Target },
   { label: "Perfil", to: "/perfil", icon: UserRound },
 ];
 
@@ -28,39 +26,39 @@ export function MobileAppNav() {
   const [open, setOpen] = useState(false);
   const hubItems = [
     {
-      label: "Meu Risco",
-      description: "Score, fatores e próximos passos",
-      to: "/meu-risco",
+      label: "Pressão",
+      description: "Registrar medida de hoje",
+      to: "/check-in",
       icon: HeartPulse,
       tone: "bg-[#e8f5ef] text-[#2f6760]",
     },
     {
-      label: "Plano de Ação",
-      description: "Missões e progresso da semana",
-      to: "/plano-acao",
-      icon: ClipboardCheck,
+      label: "Peso",
+      description: "Atualizar peso atual",
+      to: "/check-in",
+      icon: Scale,
       tone: "bg-[#e9f4fb] text-[#2f8fc8]",
     },
     {
-      label: "Exames",
-      description: "PDFs, imagens e observações",
-      to: "/exames",
-      icon: FlaskConical,
+      label: "Glicemia",
+      description: "Registrar valor manual",
+      to: "/check-in",
+      icon: Activity,
       tone: "bg-[#f1ecff] text-[#6f55c8]",
     },
     {
-      label: "Medicamentos",
-      description: "Uso, dose e lembretes",
-      to: "/medicamentos",
-      icon: Pill,
+      label: "Sono",
+      description: "Atualizar rotina de sono",
+      to: "/check-in",
+      icon: Moon,
       tone: "bg-[#fff7dc] text-[#9a5b12]",
     },
     {
-      label: "Conquistas",
-      description: "Badges da sua jornada",
-      to: "/conquistas",
-      icon: Trophy,
-      tone: "bg-[#fff1e8] text-[#b45421]",
+      label: "Exame",
+      description: "Enviar PDF ou imagem",
+      to: "/exames",
+      icon: FlaskConical,
+      tone: "bg-[#eef3f1] text-[#536b68]",
     },
   ];
 
@@ -77,8 +75,8 @@ export function MobileAppNav() {
           <div className="absolute inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+5.7rem)] mx-auto max-w-md rounded-[2rem] border border-white/70 bg-white p-4 shadow-[0_28px_110px_-54px_rgba(16,32,31,0.74)]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-sans text-xl font-semibold text-[#10201f]">Abrir área</p>
-                <p className="mt-1 text-sm text-[#78908d]">Escolha o que quer acompanhar agora.</p>
+                <p className="font-sans text-xl font-semibold text-[#10201f]">Registrar dado</p>
+                <p className="mt-1 text-sm text-[#78908d]">Atualize um indicador rapidamente.</p>
               </div>
               <button
                 type="button"
@@ -133,7 +131,7 @@ export function MobileAppNav() {
                 <button
                   key={item.label}
                   type="button"
-                  onClick={() => void navigate({ to: item.to })}
+                  onClick={() => setOpen(true)}
                   className="relative -mt-5 flex min-h-16 flex-col items-center justify-center gap-1 rounded-[1.35rem] bg-[linear-gradient(135deg,#2f8fc8,#49c7ae)] text-[0.66rem] font-bold text-white shadow-[0_18px_45px_-22px_rgba(47,143,200,0.9)] transition active:scale-95"
                 >
                   <span className="absolute inset-0 animate-pulse rounded-[1.35rem] bg-[#49c7ae]/35 blur-md" />

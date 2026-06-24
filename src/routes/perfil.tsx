@@ -407,38 +407,20 @@ function ProfilePage() {
                 <p className="min-w-0 truncate font-sans text-xl font-semibold leading-tight">
                   Olá, {firstName}!
                 </p>
-                <span className="rounded-full bg-[#e8f5ef] px-3 py-1 text-xs font-bold text-[#2f6760]">
-                  Nível {profileLevel.level}
-                </span>
                 <Link to="/planos" className="text-xs font-bold text-[#2f8fc8]">
                   Plano Gratuito
                 </Link>
               </div>
-              <p className="mt-1 text-xs leading-4 text-[#536b68]">🏆 {profileLevel.title}</p>
+              <p className="mt-1 text-xs leading-4 text-[#536b68]">
+                Dados pessoais e configurações da sua conta.
+              </p>
               <div className="mt-3 flex items-center gap-2 text-xs font-bold text-[#10201f]">
                 <span className="rounded-full bg-[#e9f4fb] px-2.5 py-1 text-[#2f8fc8]">
                   {healthIndex == null ? "—" : `${Math.round(healthIndex)}%`} ·{" "}
                   {scoreQualityLabel(healthIndex)}
                 </span>
-                <span className="rounded-full bg-[#fff7dc] px-2.5 py-1">
-                  🔥 {challengeStats.streakWeeks}
-                </span>
-                <span className="rounded-full bg-[#f1ecff] px-2.5 py-1 text-[#6f55c8]">
-                  {profileLevel.currentXp}/1000 XP
-                </span>
-                <span className="rounded-full bg-[#e8f5ef] px-2.5 py-1 text-[#2f6760]">
-                  🏅 {achievements}
-                </span>
               </div>
             </div>
-          </div>
-          <div className="mt-4 h-3 overflow-hidden rounded-full bg-[#eef3f1]">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${profileLevel.progress}%` }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-              className="h-full rounded-full bg-[linear-gradient(90deg,#2f8fc8,#49c7ae,#ffd36a)]"
-            />
           </div>
         </motion.div>
 
