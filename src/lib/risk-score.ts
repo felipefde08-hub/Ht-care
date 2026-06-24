@@ -11,8 +11,8 @@ export interface RiskResult {
 export interface InitialRiskInput {
   age: string | number;
   biologicalSex: "feminino" | "masculino" | "";
-  smokes: "sim" | "nao" | "";
-  diabetes: "sim" | "nao" | "nao_sei" | "";
+  smokes: "sim" | "ex_fumante_menos_5" | "ex_fumante_mais_5" | "nao" | "";
+  diabetes: "sim" | "diabetes_tipo_1" | "diabetes_tipo_2" | "pre_diabetes" | "nao" | "nao_sei" | "";
   knowsBloodPressure: "sim" | "nao" | "";
   systolic: string | number;
   diastolic?: string | number;
@@ -107,7 +107,12 @@ export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
     hasCurrentSmoker = true;
     add(25, "tabagismo");
   }
-  if (input.diabetes === "sim") add(20, "diabetes ou pré-diabetes diagnosticada");
+  if (input.smokes === "ex_fumante_menos_5") add(12, "ex-tabagismo recente");
+  if (input.smokes === "ex_fumante_mais_5") add(8, "histórico de tabagismo");
+  if (input.diabetes === "sim" || input.diabetes === "diabetes_tipo_2")
+    add(20, "diabetes tipo 2 diagnosticado");
+  if (input.diabetes === "diabetes_tipo_1") add(15, "diabetes tipo 1 diagnosticado");
+  if (input.diabetes === "pre_diabetes") add(12, "pré-diabetes diagnosticado");
   if (input.diabetes === "nao_sei") add(5, "status de diabetes desconhecido");
 
   if (input.knowsBloodPressure === "sim") {

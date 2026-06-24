@@ -1,31 +1,17 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  ArrowRight,
-  Bell,
-  CheckCircle2,
-  ClipboardList,
-  Gem,
-  HeartPulse,
-  ShieldCheck,
-  Trophy,
-  TrendingUp,
-} from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowRight, CheckCircle2, Send } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { Carelito } from "@/components/HeartMascot";
+import { HealthReport } from "@/components/HealthReport";
 import { Logo } from "@/components/Logo";
+import { MobileAppNav } from "@/components/MobileAppNav";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { HealthReport } from "@/components/HealthReport";
-import { MobileAppNav } from "@/components/MobileAppNav";
-import { calculateInitialRiskScore } from "@/lib/risk-score";
-import { getChallengeStats } from "@/lib/challenge";
+import { supabase } from "@/integrations/supabase/client";
 import { recordUserActivity } from "@/lib/user-activity";
+import { calculateInitialRiskScore } from "@/lib/risk-score";
 
 export const Route = createFileRoute("/onboarding")({
   ssr: false,
@@ -34,18 +20,19 @@ export const Route = createFileRoute("/onboarding")({
     if (error || !data.user) throw redirect({ to: "/auth" });
     return { user: data.user };
   },
-  head: () => ({ meta: [{ title: "Onboarding — HTCare" }] }),
+  head: () => ({ meta: [{ title: "Avaliação inicial — HTCare" }] }),
   component: OnboardingPage,
 });
 
 type YesNo = "sim" | "nao";
 type YesNoUnknown = "sim" | "nao" | "nao_sei";
+type DiabetesStatus = "diabetes_tipo_1" | "diabetes_tipo_2" | "pre_diabetes" | "nao" | "nao_sei";
 
 interface OnboardingData {
   age: string;
   biologicalSex: "feminino" | "masculino" | "";
-  smokes: YesNo | "";
-  diabetes: YesNoUnknown | "";
+  smokes: "sim" | "ex_fumante_menos_5" | "ex_fumante_mais_5" | "nao" | "";
+  diabetes: DiabetesStatus | "";
   knowsBloodPressure: YesNo | "";
   systolic: string;
   diastolic: string;
@@ -53,7 +40,7 @@ interface OnboardingData {
   ldl: string;
   hdl: string;
   totalCholesterol: string;
-  familyHistory: YesNo | "";
+  familyHistory: YesNoUnknown | "";
   weight: string;
   height: string;
   activityLevel: "sedentario" | "leve" | "moderado" | "intenso" | "";
@@ -69,6 +56,48 @@ interface OnboardingData {
   takesMedication: YesNo | "";
   medicationCategories: string[];
   mainReason: string[];
+}
+
+interface DynamicSupabaseTable {
+  upsert?: (values: Record<string, unknown>) => Promise<{ error: unknown }>;
+}
+
+interface DynamicSupabaseClient {
+  from: (table: string) => DynamicSupabaseTable;
+}
+
+interface ChatProgress {
+  step: number;
+  data: OnboardingData;
+  skipped?: boolean;
+}
+
+type QuestionId =
+  | "age"
+  | "biologicalSex"
+  | "smokes"
+  | "diabetes"
+  | "bloodPressure"
+  | "cholesterol"
+  | "familyHistory"
+  | "body"
+  | "activity"
+  | "previousCardiacDiagnosis"
+  | "symptoms"
+  | "stress"
+  | "sleep"
+  | "alcohol"
+  | "waist"
+  | "highCholesterolDiagnosis"
+  | "sleepApnea"
+  | "pregnancy"
+  | "medication"
+  | "mainReason";
+
+interface QuestionConfig {
+  id: QuestionId;
+  text: (data: OnboardingData, firstName: string) => string;
+  confirmation?: (data: OnboardingData) => string;
 }
 
 const initialData: OnboardingData = {
@@ -119,46 +148,52 @@ const reasons = [
   "já tive algum evento cardíaco e quero acompanhar",
 ];
 
-const onboardingStages = [
-  { name: "Perfil", start: 0, end: 1 },
-  { name: "Hábitos", start: 2, end: 2 },
-  { name: "Saúde", start: 3, end: 8 },
-  { name: "Histórico", start: 9, end: 18 },
-  { name: "Resultado", start: 19, end: 19 },
-];
+const confirmations = ["Anotado! 😊", "Entendido!", "Ótimo.", "Perfeito!", "Obrigado!"];
 
 function OnboardingPage() {
   const { user } = Route.useRouteContext();
   const navigate = useNavigate();
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [phase, setPhase] = useState<"intro" | "questions" | "calculating" | "completed">("intro");
   const [step, setStep] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [data, setData] = useState<OnboardingData>(initialData);
-  const totalSteps = 20;
-  const stage = getOnboardingStage(step);
-  const progress = ((stage.index + 1) / onboardingStages.length) * 100;
-  const challengeStats = useMemo(() => getChallengeStats(), []);
-  const bmi = useMemo(() => calculateBmi(data.weight, data.height), [data.height, data.weight]);
-  const canContinue = isStepValid(step, data);
+  const [loaded, setLoaded] = useState(false);
   const firstName = getFirstName(
     (user.user_metadata?.name as string | undefined) ??
       (user.user_metadata?.full_name as string | undefined) ??
       user.email,
   );
+  const questions = useMemo(() => getQuestions(data), [data]);
+  const currentQuestion = questions[Math.min(step, questions.length - 1)];
+  const bmi = useMemo(() => calculateBmi(data.weight, data.height), [data.height, data.weight]);
+
+  useEffect(() => {
+    const saved = readSavedProgress(user.id);
+    if (saved?.skipped) {
+      setLoaded(true);
+      return;
+    }
+    if (saved) {
+      setData({ ...initialData, ...saved.data });
+      setStep(Math.max(0, saved.step));
+      setPhase(saved.step > 0 ? "questions" : "intro");
+    }
+    setLoaded(true);
+  }, [user.id]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [phase, step, data, completed]);
 
   function update<K extends keyof OnboardingData>(key: K, value: OnboardingData[K]) {
     setData((current) => ({ ...current, [key]: value }));
   }
 
-  function toggleReason(reason: string) {
-    setData((current) => ({
-      ...current,
-      mainReason: current.mainReason.includes(reason)
-        ? current.mainReason.filter((item) => item !== reason)
-        : [...current.mainReason, reason],
-    }));
-  }
-
-  function toggleArrayItem(key: "frequentSymptoms" | "medicationCategories", value: string) {
+  function toggleArrayItem(
+    key: "frequentSymptoms" | "medicationCategories" | "mainReason",
+    value: string,
+  ) {
     setData((current) => {
       const values = current[key];
       const next =
@@ -173,14 +208,56 @@ function OnboardingPage() {
     });
   }
 
-  async function next() {
-    if (!canContinue) return;
-    if (step < totalSteps - 1) {
-      setStep((current) => current + 1);
+  async function persist(nextData = data, nextStep = step, skipped = false) {
+    const payload: ChatProgress = { step: nextStep, data: nextData, skipped };
+    window.localStorage.setItem(progressStorageKey(user.id), JSON.stringify(payload));
+    const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+    const { error } =
+      (await dynamicSupabase.from("onboarding_chat_progress").upsert?.({
+        user_id: user.id,
+        step: nextStep,
+        data: nextData,
+        skipped,
+        updated_at: new Date().toISOString(),
+      })) ?? {};
+    if (error) console.warn("Não foi possível sincronizar progresso do chat no Supabase.", error);
+  }
+
+  async function start() {
+    setPhase("questions");
+    await persist(data, 0);
+  }
+
+  async function skip() {
+    window.localStorage.setItem("htcare:onboarding-skipped", "true");
+    await persist(data, step, true);
+    navigate({ to: "/painel", replace: true });
+  }
+
+  async function answerAndNext(nextData = data) {
+    const nextStep = step + 1;
+    if (nextStep >= questions.length) {
+      await persist(nextData, nextStep);
+      setData(nextData);
+      setPhase("calculating");
+      window.setTimeout(() => {
+        void finish(nextData);
+      }, 2300);
       return;
     }
-    const result = calculateInitialRiskScore(data);
-    window.localStorage.setItem("htcare:onboarding", JSON.stringify({ ...data, bmi, result }));
+    setData(nextData);
+    setStep(nextStep);
+    await persist(nextData, nextStep);
+  }
+
+  async function finish(finalData: OnboardingData) {
+    const result = calculateInitialRiskScore(finalData);
+    const finalBmi = calculateBmi(finalData.weight, finalData.height);
+    window.localStorage.removeItem("htcare:onboarding-skipped");
+    window.localStorage.setItem(
+      "htcare:onboarding",
+      JSON.stringify({ ...finalData, bmi: finalBmi, result }),
+    );
     const previousHistory = JSON.parse(
       window.localStorage.getItem("htcare:score-history") || "[]",
     ) as Array<{ score: number; createdAt: string; source: string }>;
@@ -191,48 +268,50 @@ function OnboardingPage() {
         { score: result.score, createdAt: new Date().toISOString(), source: "onboarding" },
       ]),
     );
-    const { data: authData } = await supabase.auth.getUser();
-    const user = authData.user;
-    if (user) {
-      const { error: profileError } = await supabase.from("profiles").upsert({
-        id: user.id,
-        email: user.email ?? "",
-        nome:
-          (user.user_metadata?.name as string | undefined) ??
-          (user.user_metadata?.full_name as string | undefined) ??
-          "",
-        idade: toNumberOrNull(data.age),
-        sexo: data.biologicalSex || null,
-        fumante: data.smokes === "sim",
-        diabetes_status: mapDiabetesStatus(data.diabetes),
-        historico_familiar: data.familyHistory === "sim",
-        peso_kg: toNumberOrNull(data.weight),
-        altura_cm: toNumberOrNull(data.height),
-        nivel_atividade: data.activityLevel || null,
-        motivo_principal: data.mainReason,
-      });
-      if (profileError) {
-        toast.error("Não foi possível salvar seu perfil no Supabase.");
-        console.error(profileError);
-      }
 
-      const { error: assessmentError } = await supabase.from("assessments").insert({
-        user_id: user.id,
-        score: result.score,
-        categoria_risco: result.level,
-        fatores_que_pesaram: result.factors,
-        origem: "onboarding",
-      });
-      if (assessmentError) {
-        toast.error("Não foi possível salvar o score no Supabase.");
-        console.error(assessmentError);
-      }
-      void recordUserActivity(user.id, "onboarding");
+    const { error: profileError } = await supabase.from("profiles").upsert({
+      id: user.id,
+      email: user.email ?? "",
+      nome:
+        (user.user_metadata?.name as string | undefined) ??
+        (user.user_metadata?.full_name as string | undefined) ??
+        "",
+      idade: toNumberOrNull(finalData.age),
+      sexo: finalData.biologicalSex || null,
+      fumante: finalData.smokes === "sim",
+      diabetes_status: mapDiabetesStatus(finalData.diabetes),
+      historico_familiar: finalData.familyHistory === "sim",
+      peso_kg: toNumberOrNull(finalData.weight),
+      altura_cm: toNumberOrNull(finalData.height),
+      nivel_atividade: finalData.activityLevel || null,
+      motivo_principal: finalData.mainReason,
+    });
+    if (profileError) {
+      toast.error("Não foi possível salvar seu perfil no Supabase.");
+      console.error(profileError);
     }
+
+    const { error: assessmentError } = await supabase.from("assessments").insert({
+      user_id: user.id,
+      score: result.score,
+      categoria_risco: result.level,
+      fatores_que_pesaram: result.factors,
+      origem: "onboarding",
+    });
+    if (assessmentError) {
+      toast.error("Não foi possível salvar o score no Supabase.");
+      console.error(assessmentError);
+    }
+    void recordUserActivity(user.id, "onboarding");
     setCompleted(true);
+    setPhase("completed");
   }
 
-  if (completed) {
+  if (!loaded) {
+    return <main className="min-h-screen bg-[#eef2ee]" />;
+  }
+
+  if (completed || phase === "completed") {
     const result = calculateInitialRiskScore(data);
     const personName =
       (user.user_metadata?.name as string | undefined) ??
@@ -261,6 +340,7 @@ function OnboardingPage() {
               result={result}
               onReview={() => {
                 setCompleted(false);
+                setPhase("questions");
                 setStep(0);
               }}
             />
@@ -271,85 +351,92 @@ function OnboardingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] px-3 pb-24 pt-2 text-[#10201f] sm:bg-[#fbfcfc] sm:px-5 sm:pb-6 sm:pt-6">
-      <MobileOnboardingHeader
-        streakWeeks={challengeStats.streakWeeks}
-        points={challengeStats.points}
-      />
-      <MobileStageProgress stageIndex={stage.index} progress={progress} />
-
-      <div className="mx-auto hidden max-w-6xl items-center justify-between sm:flex">
-        <Link to="/">
+    <main className="min-h-screen bg-[#eef2ee] text-[#10201f]">
+      <header className="sticky top-0 z-20 border-b border-black/5 bg-[#eef2ee]/92 px-4 py-3 backdrop-blur">
+        <div className="mx-auto flex max-w-3xl items-center justify-between">
           <Logo />
-        </Link>
-        <p className="rounded-full bg-white px-4 py-2 text-sm font-bold text-[#536b68] shadow-soft">
-          Etapa {stage.index + 1} de {onboardingStages.length} · {stage.name}
-        </p>
-      </div>
+          <span className="rounded-full bg-white/80 px-3 py-1.5 text-xs font-bold text-[#536b68] shadow-sm">
+            {phase === "questions" && currentQuestion
+              ? `Pergunta ${step + 1} de ${questions.length}`
+              : "Avaliação rápida"}
+          </span>
+        </div>
+      </header>
 
-      <section className="mx-auto flex max-w-6xl items-center justify-center py-1 sm:min-h-[calc(100vh-96px)] sm:py-10">
-        <div className="grid w-full gap-5 lg:grid-cols-[1fr_320px]">
-          <div>
-            <div className="hidden h-1.5 overflow-hidden rounded-full bg-[#e5ecea] sm:block">
+      <section className="mx-auto flex min-h-[calc(100vh-72px)] max-w-3xl flex-col px-3 pb-28 pt-4 sm:px-5 sm:pb-10">
+        <div className="flex-1 space-y-3">
+          <CarelitoBubble>
+            Olá, {firstName}! 👋 Sou o Carelito, seu assistente de saúde cardiovascular. Vamos fazer
+            uma avaliação rápida juntos? São 20 perguntas bem rápidas — leva menos de 5 minutos.
+          </CarelitoBubble>
+
+          {phase === "intro" && (
+            <div className="ml-14 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                className="rounded-full bg-[#0d9488] px-5 font-semibold text-white"
+                onClick={() => void start()}
+              >
+                Vamos lá! ✅
+              </Button>
+              <Button type="button" variant="outline" className="rounded-full" onClick={skip}>
+                Pular por agora
+              </Button>
+            </div>
+          )}
+
+          {phase !== "intro" &&
+            questions
+              .slice(0, Math.min(step, questions.length))
+              .map((question, index) => (
+                <AnsweredQuestion
+                  key={question.id}
+                  question={question}
+                  data={data}
+                  firstName={firstName}
+                  confirmation={
+                    question.confirmation?.(data) ?? confirmations[index % confirmations.length]
+                  }
+                />
+              ))}
+
+          {phase === "questions" && currentQuestion && (
+            <AnimatePresence mode="wait">
               <motion.div
-                className="h-full rounded-full bg-[linear-gradient(90deg,#2f8fc8,#49c7ae)]"
-                animate={{ width: `${progress}%` }}
-                transition={{ duration: 0.4, ease: "easeOut" }}
-              />
-            </div>
+                key={currentQuestion.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+              >
+                <CarelitoBubble>{currentQuestion.text(data, firstName)}</CarelitoBubble>
+                <AnswerComposer
+                  question={currentQuestion}
+                  data={data}
+                  update={update}
+                  toggleArrayItem={toggleArrayItem}
+                  bmi={bmi}
+                  onSubmit={() => void answerAndNext(data)}
+                />
+              </motion.div>
+            </AnimatePresence>
+          )}
 
-            <div className="rounded-[1.35rem] border border-[#dce9f2] bg-white/92 p-3 shadow-[0_28px_90px_-62px_rgba(16,32,31,0.72)] backdrop-blur sm:mt-10 sm:rounded-[2rem] sm:border-[#10201f]/8 sm:p-10">
-              <div className="hidden items-center justify-between gap-4 sm:flex">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78908d]">
-                  Jornada inicial
-                </p>
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#fff7dc] px-3 py-1.5 text-xs font-bold text-[#9a5b12]">
-                  <Trophy className="h-4 w-4" />
-                  +50 XP nesta etapa
+          {phase === "calculating" && (
+            <>
+              <CarelitoBubble>
+                Perfeito, {firstName}! Tenho tudo que preciso. Vou calcular seu score agora... 🔍
+              </CarelitoBubble>
+              <CarelitoBubble>
+                <span className="inline-flex items-center gap-1 py-1">
+                  <TypingDot delay="0s" />
+                  <TypingDot delay="0.15s" />
+                  <TypingDot delay="0.3s" />
                 </span>
-              </div>
-              <div className="min-h-[0] overflow-hidden sm:mt-6 sm:min-h-[360px]">
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={step}
-                    initial={{ opacity: 0, x: 24 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -24 }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                  >
-                    {renderStep(step, data, update, toggleReason, toggleArrayItem, bmi, firstName)}
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-
-              <div className="mt-3 flex items-center justify-between gap-3 sm:mt-10">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={step === 0}
-                  onClick={() => setStep((current) => Math.max(0, current - 1))}
-                  className="min-h-10 rounded-full px-2 text-[#6b7d8f] sm:min-h-10 sm:px-4"
-                >
-                  <ArrowLeft className="h-4 w-4" /> Voltar
-                </Button>
-                <Button
-                  type="button"
-                  className="min-h-11 rounded-full bg-[#19b84d] px-5 font-semibold text-white shadow-[0_18px_44px_-22px_rgba(25,184,77,0.82)] hover:bg-[#16a843] sm:min-h-10 sm:bg-[#10201f] sm:px-6"
-                  disabled={!canContinue}
-                  onClick={next}
-                >
-                  {step === totalSteps - 1 ? "Finalizar" : "Continuar"}
-                  {step === totalSteps - 1 ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                  ) : (
-                    <ArrowRight className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
-            <MobileOutcomeCards />
-          </div>
-          <ResultPreviewCard />
+              </CarelitoBubble>
+            </>
+          )}
+          <div ref={bottomRef} />
         </div>
       </section>
       <MobileAppNav />
@@ -357,797 +444,778 @@ function OnboardingPage() {
   );
 }
 
-function renderStep(
-  step: number,
-  data: OnboardingData,
-  update: <K extends keyof OnboardingData>(key: K, value: OnboardingData[K]) => void,
-  toggleReason: (reason: string) => void,
-  toggleArrayItem: (key: "frequentSymptoms" | "medicationCategories", value: string) => void,
-  bmi: number | null,
-  firstName: string,
-) {
-  switch (step) {
-    case 0:
-      return (
-        <Question
-          firstName={firstName}
-          title="Qual é a sua idade?"
-          subtitle="Usamos sua idade para calibrar seu perfil de risco inicial."
-        >
-          <div className="max-w-xs">
-            <Label htmlFor="age">Idade</Label>
-            <Input
-              id="age"
-              type="number"
-              min={1}
-              max={120}
-              value={data.age}
-              onChange={(e) => update("age", e.target.value)}
-              placeholder="Ex: 42"
-              className="mt-2 h-12 text-base sm:h-14 sm:text-lg"
-            />
-          </div>
-        </Question>
-      );
-    case 1:
-      return (
-        <Question
-          firstName={firstName}
-          title="Qual é seu sexo biológico?"
-          subtitle="Essa informação ajuda a ajustar referências clínicas de risco."
-        >
-          <ChoiceGrid>
-            <Choice
-              selected={data.biologicalSex === "feminino"}
-              onClick={() => update("biologicalSex", "feminino")}
-            >
-              Feminino
-            </Choice>
-            <Choice
-              selected={data.biologicalSex === "masculino"}
-              onClick={() => update("biologicalSex", "masculino")}
-            >
-              Masculino
-            </Choice>
-          </ChoiceGrid>
-        </Question>
-      );
-    case 2:
-      return (
-        <Question
-          firstName={firstName}
-          title="Você fuma?"
-          subtitle="Tabagismo é um dos fatores mais importantes no risco cardiovascular."
-        >
-          <YesNoChoices value={data.smokes} onChange={(value) => update("smokes", value)} />
-        </Question>
-      );
-    case 3:
-      return (
-        <Question
-          firstName={firstName}
-          title="Você tem diabetes ou pré-diabetes diagnosticada?"
-          subtitle="Se você não souber, tudo bem. O acompanhamento começa mesmo assim."
-        >
-          <ChoiceGrid>
-            <Choice selected={data.diabetes === "sim"} onClick={() => update("diabetes", "sim")}>
-              Sim
-            </Choice>
-            <Choice selected={data.diabetes === "nao"} onClick={() => update("diabetes", "nao")}>
-              Não
-            </Choice>
-            <Choice
-              selected={data.diabetes === "nao_sei"}
-              onClick={() => update("diabetes", "nao_sei")}
-            >
-              Não sei
-            </Choice>
-          </ChoiceGrid>
-        </Question>
-      );
-    case 4:
-      return (
-        <Question
-          firstName={firstName}
-          title="Você sabe seus números de pressão arterial?"
-          subtitle="Se souber, informe sistólica e diastólica. Se não souber, marque não sei."
-        >
-          <ChoiceGrid>
-            <Choice
-              selected={data.knowsBloodPressure === "sim"}
-              onClick={() => update("knowsBloodPressure", "sim")}
-            >
-              Sim
-            </Choice>
-            <Choice
-              selected={data.knowsBloodPressure === "nao"}
-              onClick={() => update("knowsBloodPressure", "nao")}
-            >
-              Não sei
-            </Choice>
-          </ChoiceGrid>
-          {data.knowsBloodPressure === "sim" && (
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <NumberField
-                label="Sistólica"
-                value={data.systolic}
-                onChange={(value) => update("systolic", value)}
-                placeholder="120"
-              />
-              <NumberField
-                label="Diastólica"
-                value={data.diastolic}
-                onChange={(value) => update("diastolic", value)}
-                placeholder="80"
-              />
-            </div>
-          )}
-        </Question>
-      );
-    case 5:
-      return (
-        <Question
-          firstName={firstName}
-          title="Você sabe seus números de colesterol?"
-          subtitle="Informe LDL, HDL e colesterol total se tiver esses resultados em mãos."
-        >
-          <ChoiceGrid>
-            <Choice
-              selected={data.knowsCholesterol === "sim"}
-              onClick={() => update("knowsCholesterol", "sim")}
-            >
-              Sim
-            </Choice>
-            <Choice
-              selected={data.knowsCholesterol === "nao"}
-              onClick={() => update("knowsCholesterol", "nao")}
-            >
-              Não sei
-            </Choice>
-          </ChoiceGrid>
-          {data.knowsCholesterol === "sim" && (
-            <div className="mt-6 grid gap-4 sm:grid-cols-3">
-              <NumberField
-                label="LDL"
-                value={data.ldl}
-                onChange={(value) => update("ldl", value)}
-                placeholder="110"
-              />
-              <NumberField
-                label="HDL"
-                value={data.hdl}
-                onChange={(value) => update("hdl", value)}
-                placeholder="50"
-              />
-              <NumberField
-                label="Total"
-                value={data.totalCholesterol}
-                onChange={(value) => update("totalCholesterol", value)}
-                placeholder="180"
-              />
-            </div>
-          )}
-        </Question>
-      );
-    case 6:
-      return (
-        <Question
-          firstName={firstName}
-          title="Há histórico familiar de infarto ou AVC antes dos 60 anos?"
-          subtitle="Histórico familiar precoce pode mudar a leitura do seu risco."
-        >
-          <YesNoChoices
-            value={data.familyHistory}
-            onChange={(value) => update("familyHistory", value)}
-          />
-        </Question>
-      );
-    case 7:
-      return (
-        <Question
-          firstName={firstName}
-          title="Qual é seu peso e altura?"
-          subtitle="A HTCare calcula seu IMC automaticamente a partir desses dados."
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <NumberField
-              label="Peso (kg)"
-              value={data.weight}
-              onChange={(value) => update("weight", value)}
-              placeholder="72"
-            />
-            <NumberField
-              label="Altura (cm)"
-              value={data.height}
-              onChange={(value) => update("height", value)}
-              placeholder="170"
-            />
-          </div>
-          <div className="mt-6 rounded-2xl bg-[#f4f8f6] p-5">
-            <p className="text-sm font-medium text-[#536b68]">IMC calculado</p>
-            <p className="mt-2 font-sans text-4xl font-semibold text-[#10201f]">
-              {bmi == null ? "—" : bmi.toFixed(1)}
-            </p>
-          </div>
-        </Question>
-      );
-    case 8:
-      return (
-        <Question
-          firstName={firstName}
-          title="Qual é seu nível de atividade física?"
-          subtitle="Escolha a opção que mais parece com sua rotina atual."
-        >
-          <ChoiceGrid>
-            {[
-              ["sedentario", "Sedentário"],
-              ["leve", "Leve"],
-              ["moderado", "Moderado"],
-              ["intenso", "Intenso"],
-            ].map(([value, label]) => (
-              <Choice
-                key={value}
-                selected={data.activityLevel === value}
-                onClick={() => update("activityLevel", value as OnboardingData["activityLevel"])}
-              >
-                {label}
-              </Choice>
-            ))}
-          </ChoiceGrid>
-        </Question>
-      );
-    case 9:
-      return (
-        <Question
-          firstName={firstName}
-          title="Você já teve algum diagnóstico cardíaco anterior?"
-          subtitle="Inclui infarto, arritmia, insuficiência cardíaca ou outro diagnóstico cardíaco já informado por profissional de saúde."
-        >
-          <YesNoChoices
-            value={data.previousCardiacDiagnosis}
-            onChange={(value) => update("previousCardiacDiagnosis", value)}
-          />
-        </Question>
-      );
-    case 10:
-      return (
-        <Question
-          firstName={firstName}
-          title="Você sente algum destes sintomas com frequência?"
-          subtitle="Escolha todos que se aplicam. Se nenhum fizer sentido para você, selecione 'nenhum desses'."
-        >
-          <ChoiceGrid>
-            {symptomOptions.map((symptom) => (
-              <Choice
-                key={symptom}
-                selected={data.frequentSymptoms.includes(symptom)}
-                onClick={() => toggleArrayItem("frequentSymptoms", symptom)}
-              >
-                {symptom}
-              </Choice>
-            ))}
-          </ChoiceGrid>
-        </Question>
-      );
-    case 11:
-      return (
-        <Question
-          firstName={firstName}
-          title="Como você descreveria seu nível de estresse no dia a dia?"
-          subtitle="Estresse frequente pode influenciar sono, pressão, hábitos e risco metabólico."
-        >
-          <ChoiceGrid>
-            {[
-              ["baixo", "Baixo"],
-              ["moderado", "Moderado"],
-              ["alto", "Alto"],
-            ].map(([value, label]) => (
-              <Choice
-                key={value}
-                selected={data.stressLevel === value}
-                onClick={() => update("stressLevel", value as OnboardingData["stressLevel"])}
-              >
-                {label}
-              </Choice>
-            ))}
-          </ChoiceGrid>
-        </Question>
-      );
-    case 12:
-      return (
-        <Question
-          firstName={firstName}
-          title="Quantas horas você dorme em média por noite?"
-          subtitle="Sono é um marcador importante para risco cardiovascular, energia e metabolismo."
-        >
-          <ChoiceGrid>
-            {[
-              ["menos_5", "Menos de 5h"],
-              ["5_6", "5-6h"],
-              ["7_8", "7-8h"],
-              ["mais_8", "Mais de 8h"],
-            ].map(([value, label]) => (
-              <Choice
-                key={value}
-                selected={data.sleepHours === value}
-                onClick={() => update("sleepHours", value as OnboardingData["sleepHours"])}
-              >
-                {label}
-              </Choice>
-            ))}
-          </ChoiceGrid>
-        </Question>
-      );
-    case 13:
-      return (
-        <Question
-          firstName={firstName}
-          title="Você consome bebida alcoólica?"
-          subtitle="Essa informação ajuda a entender hábitos e possíveis impactos no risco cardiometabólico."
-        >
-          <ChoiceGrid>
-            {[
-              ["nao_bebo", "Não bebo"],
-              ["socialmente", "Socialmente"],
-              ["algumas_vezes_semana", "Algumas vezes por semana"],
-              ["diariamente", "Diariamente"],
-            ].map(([value, label]) => (
-              <Choice
-                key={value}
-                selected={data.alcoholUse === value}
-                onClick={() => update("alcoholUse", value as OnboardingData["alcoholUse"])}
-              >
-                {label}
-              </Choice>
-            ))}
-          </ChoiceGrid>
-        </Question>
-      );
-    case 14:
-      return (
-        <Question
-          firstName={firstName}
-          title="Você sabe sua circunferência da cintura?"
-          subtitle="Opcional. A medida em cm pode indicar gordura abdominal e risco metabólico. Você pode pular se não souber."
-        >
-          <div className="max-w-xs">
-            <NumberField
-              label="Circunferência da cintura (cm)"
-              value={data.waistCircumference}
-              onChange={(value) => update("waistCircumference", value)}
-              placeholder="Ex: 88"
-            />
-          </div>
-        </Question>
-      );
-    case 15:
-      return (
-        <Question
-          firstName={firstName}
-          title="Você tem diagnóstico de colesterol alto ou triglicerídeos altos?"
-          subtitle="Mesmo sem saber os números exatos, marque se isso já foi prescrito ou informado por médico."
-        >
-          <YesNoUnknownChoices
-            value={data.highCholesterolDiagnosis}
-            onChange={(value) => update("highCholesterolDiagnosis", value)}
-          />
-        </Question>
-      );
-    case 16:
-      return (
-        <Question
-          firstName={firstName}
-          title="Você já foi diagnosticada com apneia do sono ou ronca muito?"
-          subtitle="Considere também se você se sente cansado mesmo dormindo bem."
-        >
-          <YesNoUnknownChoices
-            value={data.sleepApnea}
-            onChange={(value) => update("sleepApnea", value)}
-          />
-        </Question>
-      );
-    case 17:
-      return (
-        <Question
-          firstName={firstName}
-          title="Se aplicável, houve pressão alta na gravidez ou diabetes gestacional?"
-          subtitle="Essa informação ajuda a compor histórico cardiometabólico ao longo da vida."
-        >
-          <ChoiceGrid>
-            <Choice
-              selected={data.pregnancyHypertensionOrDiabetes === "sim"}
-              onClick={() => update("pregnancyHypertensionOrDiabetes", "sim")}
-            >
-              Sim
-            </Choice>
-            <Choice
-              selected={data.pregnancyHypertensionOrDiabetes === "nao"}
-              onClick={() => update("pregnancyHypertensionOrDiabetes", "nao")}
-            >
-              Não
-            </Choice>
-            <Choice
-              selected={data.pregnancyHypertensionOrDiabetes === "nao_se_aplica"}
-              onClick={() => update("pregnancyHypertensionOrDiabetes", "nao_se_aplica")}
-            >
-              Não se aplica
-            </Choice>
-          </ChoiceGrid>
-        </Question>
-      );
-    case 18:
-      return (
-        <Question
-          firstName={firstName}
-          title="Você toma atualmente algum remédio para pressão, colesterol ou diabetes?"
-          subtitle="Se sim, escolha apenas a categoria. Não precisamos do nome exato do remédio."
-        >
-          <YesNoChoices
-            value={data.takesMedication}
-            onChange={(value) => update("takesMedication", value)}
-          />
-          {data.takesMedication === "sim" && (
-            <div className="mt-6">
-              <p className="mb-3 text-sm font-medium text-[#536b68]">Categorias</p>
-              <ChoiceGrid>
-                {medicationCategories.map((category) => (
-                  <Choice
-                    key={category}
-                    selected={data.medicationCategories.includes(category)}
-                    onClick={() => toggleArrayItem("medicationCategories", category)}
-                  >
-                    {category}
-                  </Choice>
-                ))}
-              </ChoiceGrid>
-            </div>
-          )}
-        </Question>
-      );
-    case 19:
-      return (
-        <Question
-          firstName={firstName}
-          title="Qual é o principal motivo de você estar aqui?"
-          subtitle="Você pode escolher mais de uma opção."
-        >
-          <ChoiceGrid>
-            {reasons.map((reason) => (
-              <Choice
-                key={reason}
-                selected={data.mainReason.includes(reason)}
-                onClick={() => toggleReason(reason)}
-              >
-                {reason}
-              </Choice>
-            ))}
-          </ChoiceGrid>
-        </Question>
-      );
-  }
-}
-
-function Question({
+function AnsweredQuestion({
+  question,
+  data,
   firstName,
-  title,
-  subtitle,
-  children,
+  confirmation,
 }: {
+  question: QuestionConfig;
+  data: OnboardingData;
   firstName: string;
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
+  confirmation: string;
 }) {
   return (
-    <div>
-      <div className="grid grid-cols-[4.6rem_1fr] items-end gap-2 sm:flex sm:items-start sm:gap-4">
-        <Carelito
-          className="mx-auto h-20 w-20 shrink-0 sm:mx-0 sm:h-16 sm:w-16"
-          expression="happy"
+    <>
+      <CarelitoBubble>{question.text(data, firstName)}</CarelitoBubble>
+      <UserBubble>{formatAnswer(question.id, data)}</UserBubble>
+      <CarelitoBubble compact>{confirmation}</CarelitoBubble>
+    </>
+  );
+}
+
+function AnswerComposer({
+  question,
+  data,
+  update,
+  toggleArrayItem,
+  bmi,
+  onSubmit,
+}: {
+  question: QuestionConfig;
+  data: OnboardingData;
+  update: <K extends keyof OnboardingData>(key: K, value: OnboardingData[K]) => void;
+  toggleArrayItem: (
+    key: "frequentSymptoms" | "medicationCategories" | "mainReason",
+    value: string,
+  ) => void;
+  bmi: number | null;
+  onSubmit: () => void;
+}) {
+  const valid = isQuestionValid(question.id, data);
+
+  if (question.id === "age") {
+    return (
+      <NumberReply
+        value={data.age}
+        onChange={(value) => update("age", value)}
+        placeholder="Ex: 42"
+        disabled={!valid}
+        onSubmit={onSubmit}
+      />
+    );
+  }
+
+  if (question.id === "biologicalSex") {
+    return (
+      <ReplyOptions
+        options={[
+          ["masculino", "Masculino"],
+          ["feminino", "Feminino"],
+        ]}
+        selected={data.biologicalSex}
+        onSelect={(value) => {
+          update("biologicalSex", value as OnboardingData["biologicalSex"]);
+          window.setTimeout(onSubmit, 80);
+        }}
+      />
+    );
+  }
+
+  if (question.id === "smokes") {
+    return (
+      <ReplyOptions
+        options={[
+          ["sim", "Sim, fumo"],
+          ["ex_fumante_menos_5", "Já fumei, parei há menos de 5 anos"],
+          ["ex_fumante_mais_5", "Já fumei, parei há mais de 5 anos"],
+          ["nao", "Nunca fumei"],
+        ]}
+        selected={data.smokes}
+        onSelect={(value) => {
+          update("smokes", value as OnboardingData["smokes"]);
+          window.setTimeout(onSubmit, 80);
+        }}
+      />
+    );
+  }
+
+  if (question.id === "diabetes") {
+    return (
+      <ReplyOptions
+        options={[
+          ["diabetes_tipo_1", "Sim, diabetes tipo 1"],
+          ["diabetes_tipo_2", "Sim, diabetes tipo 2"],
+          ["pre_diabetes", "Pré-diabetes"],
+          ["nao", "Não"],
+          ["nao_sei", "Não sei"],
+        ]}
+        selected={data.diabetes}
+        onSelect={(value) => {
+          update("diabetes", value as OnboardingData["diabetes"]);
+          window.setTimeout(onSubmit, 80);
+        }}
+      />
+    );
+  }
+
+  if (question.id === "bloodPressure") {
+    return (
+      <div className="ml-12 space-y-2">
+        <ReplyOptions
+          options={[
+            ["sim", "Sei os números"],
+            ["nao", "Não sei"],
+          ]}
+          selected={data.knowsBloodPressure}
+          onSelect={(value) => update("knowsBloodPressure", value as YesNo)}
+          autoSubmit={false}
         />
-        <div className="relative min-w-0 flex-1 rounded-[1.05rem] bg-[#f3f7ff] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] before:absolute before:-left-3 before:top-12 before:hidden before:h-5 before:w-5 before:rotate-45 before:bg-[#f3f7ff] sm:rounded-[1.5rem] sm:rounded-tl-md sm:bg-[#f7faf9] sm:p-5 sm:before:block">
-          <p className="text-xs font-bold text-[#1a62d8] sm:text-sm sm:text-[#2f8fc8]">Carelito</p>
-          <p className="mt-1 text-xs leading-4 text-[#55677e] sm:mt-2 sm:text-base sm:leading-7 sm:text-[#536b68]">
-            Olá, {firstName}! Antes de continuarmos, preciso conhecer você melhor.
-          </p>
-          <h1 className="mt-2 font-sans text-lg font-semibold leading-tight tracking-normal text-[#10203a] sm:mt-4 sm:text-5xl sm:text-[#10201f]">
-            {title}
-          </h1>
+        {data.knowsBloodPressure === "sim" && (
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              type="number"
+              inputMode="numeric"
+              value={data.systolic}
+              onChange={(event) => update("systolic", event.target.value)}
+              placeholder="Sistólica"
+              className="h-12 rounded-2xl bg-white"
+            />
+            <Input
+              type="number"
+              inputMode="numeric"
+              value={data.diastolic}
+              onChange={(event) => update("diastolic", event.target.value)}
+              placeholder="Diastólica"
+              className="h-12 rounded-2xl bg-white"
+            />
+          </div>
+        )}
+        <SubmitReply disabled={!valid} onClick={onSubmit} />
+      </div>
+    );
+  }
+
+  if (question.id === "cholesterol") {
+    return (
+      <div className="ml-12 space-y-2">
+        <ReplyOptions
+          options={[
+            ["sim", "Sei os números"],
+            ["nao", "Não sei"],
+          ]}
+          selected={data.knowsCholesterol}
+          onSelect={(value) => update("knowsCholesterol", value as YesNo)}
+          autoSubmit={false}
+        />
+        {data.knowsCholesterol === "sim" && (
+          <div className="grid grid-cols-3 gap-2">
+            <Input
+              type="number"
+              inputMode="numeric"
+              value={data.ldl}
+              onChange={(event) => update("ldl", event.target.value)}
+              placeholder="LDL"
+              className="h-12 rounded-2xl bg-white"
+            />
+            <Input
+              type="number"
+              inputMode="numeric"
+              value={data.hdl}
+              onChange={(event) => update("hdl", event.target.value)}
+              placeholder="HDL"
+              className="h-12 rounded-2xl bg-white"
+            />
+            <Input
+              type="number"
+              inputMode="numeric"
+              value={data.totalCholesterol}
+              onChange={(event) => update("totalCholesterol", event.target.value)}
+              placeholder="Total"
+              className="h-12 rounded-2xl bg-white"
+            />
+          </div>
+        )}
+        <SubmitReply disabled={!valid} onClick={onSubmit} />
+      </div>
+    );
+  }
+
+  if (question.id === "familyHistory") {
+    return (
+      <ReplyOptions
+        options={[
+          ["sim", "Sim"],
+          ["nao", "Não"],
+          ["nao_sei", "Não sei"],
+        ]}
+        selected={data.familyHistory}
+        onSelect={(value) => {
+          update("familyHistory", value as OnboardingData["familyHistory"]);
+          window.setTimeout(onSubmit, 80);
+        }}
+      />
+    );
+  }
+
+  if (question.id === "body") {
+    return (
+      <div className="ml-12 space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <Input
+            type="number"
+            inputMode="decimal"
+            value={data.weight}
+            onChange={(event) => update("weight", event.target.value)}
+            placeholder="Peso kg"
+            className="h-12 rounded-2xl bg-white"
+          />
+          <Input
+            type="number"
+            inputMode="numeric"
+            value={data.height}
+            onChange={(event) => update("height", event.target.value)}
+            placeholder="Altura cm"
+            className="h-12 rounded-2xl bg-white"
+          />
         </div>
+        <div className="rounded-2xl bg-white/75 px-4 py-3 text-sm font-semibold text-[#536b68]">
+          {bmi == null ? "Seu IMC aparece aqui automaticamente." : `Seu IMC é ${bmi.toFixed(1)}.`}
+        </div>
+        <SubmitReply disabled={!valid} onClick={onSubmit} />
       </div>
-      <div className="mt-3 rounded-[1rem] border border-[#d8e9ff] bg-[#eff6ff] p-2.5 text-[#0f63ff] shadow-[0_18px_55px_-42px_rgba(47,143,200,0.8)] sm:mt-6 sm:rounded-2xl sm:border-[#10201f]/8 sm:bg-white sm:p-4 sm:text-[#536b68] sm:shadow-soft">
-        <p className="flex items-center gap-2 text-xs font-semibold text-[#0f63ff] sm:text-sm sm:text-[#10201f]">
-          <span className="grid h-5 w-5 place-items-center rounded-full border border-current text-[0.65rem] sm:h-6 sm:w-6 sm:text-xs">
-            i
-          </span>
-          Por que isso importa?
-        </p>
-        <p className="mt-1 text-[0.72rem] leading-4 sm:mt-2 sm:text-sm sm:leading-6">
-          {subtitle} Com isso vamos calcular seu risco cardiovascular e criar um plano personalizado
-          para você.
-        </p>
+    );
+  }
+
+  if (question.id === "activity") {
+    return (
+      <ReplyOptions
+        options={[
+          ["sedentario", "Sedentário"],
+          ["leve", "1-2x por semana"],
+          ["moderado", "3-4x por semana"],
+          ["intenso", "Quase todo dia"],
+        ]}
+        selected={data.activityLevel}
+        onSelect={(value) => {
+          update("activityLevel", value as OnboardingData["activityLevel"]);
+          window.setTimeout(onSubmit, 80);
+        }}
+      />
+    );
+  }
+
+  if (question.id === "previousCardiacDiagnosis") {
+    return (
+      <ReplyOptions
+        options={[
+          ["sim", "Sim"],
+          ["nao", "Não"],
+        ]}
+        selected={data.previousCardiacDiagnosis}
+        onSelect={(value) => {
+          update("previousCardiacDiagnosis", value as YesNo);
+          window.setTimeout(onSubmit, 80);
+        }}
+      />
+    );
+  }
+
+  if (question.id === "symptoms") {
+    return (
+      <MultiReply
+        values={data.frequentSymptoms}
+        options={symptomOptions}
+        onToggle={(value) => toggleArrayItem("frequentSymptoms", value)}
+        disabled={!valid}
+        onSubmit={onSubmit}
+      />
+    );
+  }
+
+  if (question.id === "stress") {
+    return (
+      <ReplyOptions
+        options={[
+          ["baixo", "Baixo"],
+          ["moderado", "Moderado"],
+          ["alto", "Alto"],
+        ]}
+        selected={data.stressLevel}
+        onSelect={(value) => {
+          update("stressLevel", value as OnboardingData["stressLevel"]);
+          window.setTimeout(onSubmit, 80);
+        }}
+      />
+    );
+  }
+
+  if (question.id === "sleep") {
+    return (
+      <ReplyOptions
+        options={[
+          ["menos_5", "Menos de 5h"],
+          ["5_6", "5-6h"],
+          ["7_8", "7-8h"],
+          ["mais_8", "Mais de 8h"],
+        ]}
+        selected={data.sleepHours}
+        onSelect={(value) => {
+          update("sleepHours", value as OnboardingData["sleepHours"]);
+          window.setTimeout(onSubmit, 80);
+        }}
+      />
+    );
+  }
+
+  if (question.id === "alcohol") {
+    return (
+      <ReplyOptions
+        options={[
+          ["nao_bebo", "Não bebo"],
+          ["socialmente", "Socialmente"],
+          ["algumas_vezes_semana", "Algumas vezes por semana"],
+          ["diariamente", "Diariamente"],
+        ]}
+        selected={data.alcoholUse}
+        onSelect={(value) => {
+          update("alcoholUse", value as OnboardingData["alcoholUse"]);
+          window.setTimeout(onSubmit, 80);
+        }}
+      />
+    );
+  }
+
+  if (question.id === "waist") {
+    return (
+      <div className="ml-12 flex gap-2">
+        <Input
+          type="number"
+          inputMode="numeric"
+          value={data.waistCircumference}
+          onChange={(event) => update("waistCircumference", event.target.value)}
+          placeholder="Cintura em cm"
+          className="h-12 rounded-2xl bg-white"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12 rounded-full bg-white"
+          onClick={onSubmit}
+        >
+          Pular
+        </Button>
+        <SubmitReply disabled={false} onClick={onSubmit} iconOnly />
       </div>
-      <div className="mt-3 sm:mt-9">{children}</div>
+    );
+  }
+
+  if (question.id === "highCholesterolDiagnosis" || question.id === "sleepApnea") {
+    const key = question.id;
+    return (
+      <ReplyOptions
+        options={[
+          ["sim", "Sim"],
+          ["nao", "Não"],
+          ["nao_sei", "Não sei"],
+        ]}
+        selected={data[key]}
+        onSelect={(value) => {
+          update(key, value as YesNoUnknown);
+          window.setTimeout(onSubmit, 80);
+        }}
+      />
+    );
+  }
+
+  if (question.id === "pregnancy") {
+    return (
+      <ReplyOptions
+        options={[
+          ["sim", "Sim"],
+          ["nao", "Não"],
+          ["nao_se_aplica", "Não se aplica"],
+        ]}
+        selected={data.pregnancyHypertensionOrDiabetes}
+        onSelect={(value) => {
+          update(
+            "pregnancyHypertensionOrDiabetes",
+            value as OnboardingData["pregnancyHypertensionOrDiabetes"],
+          );
+          window.setTimeout(onSubmit, 80);
+        }}
+      />
+    );
+  }
+
+  if (question.id === "medication") {
+    return (
+      <div className="ml-12 space-y-2">
+        <ReplyOptions
+          options={[
+            ["sim", "Sim"],
+            ["nao", "Não"],
+          ]}
+          selected={data.takesMedication}
+          onSelect={(value) => update("takesMedication", value as YesNo)}
+          autoSubmit={false}
+        />
+        {data.takesMedication === "sim" && (
+          <MultiReply
+            values={data.medicationCategories}
+            options={medicationCategories}
+            onToggle={(value) => toggleArrayItem("medicationCategories", value)}
+            disabled={false}
+            onSubmit={onSubmit}
+            hideSubmit
+          />
+        )}
+        <SubmitReply disabled={!valid} onClick={onSubmit} />
+      </div>
+    );
+  }
+
+  return (
+    <MultiReply
+      values={data.mainReason}
+      options={reasons}
+      onToggle={(value) => toggleArrayItem("mainReason", value)}
+      disabled={!valid}
+      onSubmit={onSubmit}
+    />
+  );
+}
+
+function CarelitoBubble({
+  children,
+  compact = false,
+}: {
+  children: React.ReactNode;
+  compact?: boolean;
+}) {
+  return (
+    <div className="flex items-end gap-2">
+      <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-white shadow-sm">
+        <Carelito className="h-11 w-11" expression="happy" />
+      </div>
+      <div
+        className={`relative max-w-[82%] rounded-[1.25rem] rounded-bl-sm bg-white text-sm leading-6 text-[#10201f] shadow-sm ${
+          compact ? "px-4 py-2" : "px-4 py-3"
+        }`}
+      >
+        {children}
+      </div>
     </div>
   );
 }
 
-function ResultPreviewCard() {
+function UserBubble({ children }: { children: React.ReactNode }) {
   return (
-    <aside className="hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-5 shadow-[0_32px_100px_-72px_rgba(16,32,31,0.7)] lg:sticky lg:top-6 lg:block lg:self-start">
-      <div className="flex items-center gap-3">
-        <Carelito className="h-14 w-14" expression="confident" />
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#78908d]">Ao final</p>
-          <h2 className="font-sans text-xl font-semibold">Sua jornada começa aqui</h2>
-        </div>
+    <div className="flex justify-end">
+      <div className="max-w-[82%] rounded-[1.25rem] rounded-br-sm bg-[#0d9488] px-4 py-3 text-sm font-semibold leading-6 text-white shadow-sm">
+        {children}
       </div>
-      <div className="mt-5 space-y-3">
-        {[
-          "Score cardiovascular",
-          "Principais riscos",
-          "Plano personalizado",
-          "Jornada de evolução",
-        ].map((item) => (
-          <div key={item} className="flex items-center gap-3 rounded-2xl bg-[#f7faf9] p-3">
-            <CheckCircle2 className="h-5 w-5 text-[#49a37f]" />
-            <span className="text-sm font-semibold text-[#10201f]">{item}</span>
-          </div>
-        ))}
-      </div>
-      <div className="mt-5 rounded-2xl bg-[#fff7dc] p-4 text-sm leading-6 text-[#7a4a0c]">
-        Cada resposta desbloqueia uma visão mais clara sobre seu coração. Pequenas escolhas, grandes
-        mudanças.
-      </div>
-    </aside>
+    </div>
   );
 }
 
-function ChoiceGrid({ children }: { children: React.ReactNode }) {
-  return <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">{children}</div>;
-}
-
-function Choice({
+function ReplyOptions({
+  options,
   selected,
-  onClick,
-  children,
+  onSelect,
+  autoSubmit = true,
 }: {
-  selected: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
+  options: Array<[string, string]>;
+  selected: string;
+  onSelect: (value: string) => void;
+  autoSubmit?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        selected
-          ? "rounded-[1.05rem] border border-[#10201f] bg-[#10201f] p-3 text-left text-sm font-semibold text-white shadow-soft transition sm:rounded-2xl sm:p-5 sm:text-base"
-          : "rounded-[1.05rem] border border-[#dce9f2] bg-white p-3 text-left text-sm font-semibold text-[#10201f] shadow-soft transition hover:border-[#10201f]/30 hover:bg-[#f7faf9] sm:rounded-2xl sm:border-[#10201f]/10 sm:p-5 sm:text-base"
-      }
-    >
-      {children}
-    </button>
-  );
-}
-
-function MobileOnboardingHeader({ streakWeeks, points }: { streakWeeks: number; points: number }) {
-  return (
-    <header className="mx-auto mb-2 flex max-w-md items-center justify-between sm:hidden">
-      <Logo />
-      <div className="flex items-center gap-2">
-        <div className="text-center">
-          <p className="text-sm font-black leading-none">🔥 {streakWeeks}</p>
-          <p className="mt-0.5 text-[0.62rem] font-medium text-[#5d6d82]">Sequência</p>
-        </div>
-        <div className="text-center">
-          <p className="text-sm font-black leading-none text-[#10203a]">
-            <Gem className="mr-1 inline h-3.5 w-3.5 fill-[#ffc928] text-[#ffc928]" />
-            {points}
-          </p>
-          <p className="mt-0.5 text-[0.62rem] font-medium text-[#5d6d82]">Pontos</p>
-        </div>
+    <div className="ml-12 flex flex-wrap gap-2">
+      {options.map(([value, label]) => (
         <button
           type="button"
-          aria-label="Notificações"
-          className="relative grid h-9 w-9 place-items-center rounded-full bg-white shadow-[0_14px_38px_-26px_rgba(16,32,31,0.7)]"
+          key={value}
+          onClick={() => onSelect(value)}
+          className={`min-h-11 rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition active:scale-[0.98] ${
+            selected === value
+              ? "border-[#0d9488] bg-[#0d9488] text-white"
+              : "border-white bg-white text-[#10201f] hover:border-[#0d9488]/40"
+          }`}
         >
-          <Bell className="h-5 w-5 text-[#10203a]" strokeWidth={2.5} />
-          <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-[#f04438] text-[0.62rem] font-black text-white">
-            1
-          </span>
+          {label}
         </button>
-      </div>
-    </header>
-  );
-}
-
-function MobileStageProgress({ stageIndex, progress }: { stageIndex: number; progress: number }) {
-  return (
-    <div className="mx-auto mb-2 max-w-md sm:hidden">
-      <div className="grid grid-cols-5 gap-2">
-        {onboardingStages.map((item, index) => {
-          const active = index === stageIndex;
-          const done = index < stageIndex;
-          return (
-            <div key={item.name} className="text-center">
-              <div
-                className={`mx-auto grid h-8 w-8 place-items-center rounded-full text-xs font-black shadow-sm ${
-                  active || done ? "bg-[#18b84d] text-white" : "bg-[#edf2f7] text-[#40546c]"
-                }`}
-              >
-                {index + 1}
-              </div>
-              <p
-                className={`mt-1 text-[0.66rem] font-bold ${active ? "text-[#18b84d]" : "text-[#50627a]"}`}
-              >
-                {item.name}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#e8eef4]">
-        <motion.div
-          className="h-full rounded-full bg-[#18b84d]"
-          animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.45, ease: "easeOut" }}
-        />
-      </div>
-      <p className="mt-2 text-center text-xs font-bold text-[#10203a]">
-        <span className="text-[#18b84d]">Etapa {stageIndex + 1}</span> de {onboardingStages.length}
-      </p>
+      ))}
+      {!autoSubmit && null}
     </div>
   );
 }
 
-function MobileOutcomeCards() {
-  const previewItems = [
-    {
-      title: "Score cardiovascular",
-      detail: "Seu risco atual de forma clara",
-      icon: HeartPulse,
-      color: "bg-[#19b84d] text-white",
-    },
-    {
-      title: "Principais riscos",
-      detail: "O que merece sua atenção",
-      icon: AlertTriangle,
-      color: "bg-[#4778f5] text-white",
-    },
-    {
-      title: "Plano personalizado",
-      detail: "Ações práticas para melhorar",
-      icon: ClipboardList,
-      color: "bg-[#7557df] text-white",
-    },
-    {
-      title: "Jornada de evolução",
-      detail: "Acompanhe seu progresso",
-      icon: TrendingUp,
-      color: "bg-[#2bbca8] text-white",
-    },
-  ];
-
+function MultiReply({
+  values,
+  options,
+  onToggle,
+  disabled,
+  onSubmit,
+  hideSubmit = false,
+}: {
+  values: string[];
+  options: string[];
+  onToggle: (value: string) => void;
+  disabled: boolean;
+  onSubmit: () => void;
+  hideSubmit?: boolean;
+}) {
   return (
-    <div className="mt-3 space-y-3 sm:hidden">
-      <div className="grid grid-cols-2 gap-2.5">
-        <section className="rounded-[1.25rem] border border-[#dce9f2] bg-white p-3 shadow-[0_18px_60px_-44px_rgba(16,32,31,0.75)]">
-          <h2 className="font-sans text-sm font-black text-[#10203a]">
-            Seu resultado final incluirá:
-          </h2>
-          <div className="mt-3 space-y-2">
-            {previewItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.title} className="flex gap-2">
-                  <span
-                    className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${item.color}`}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                  </span>
-                  <div>
-                    <p className="text-xs font-black leading-tight text-[#10203a]">{item.title}</p>
-                    <p className="mt-0.5 text-[0.66rem] leading-3 text-[#586980]">{item.detail}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-        <section className="relative overflow-hidden rounded-[1.25rem] border border-[#d9efe3] bg-[#f0fbf4] p-3 text-center shadow-[0_18px_60px_-44px_rgba(16,32,31,0.75)]">
-          <div className="mx-auto grid h-9 w-9 place-items-center rounded-full bg-white/70">
-            <Gem className="h-5 w-5 fill-[#19b84d] text-[#19b84d]" />
-          </div>
-          <p className="mt-3 text-xs font-semibold text-[#10203a]">Você ganhará</p>
-          <p className="mt-1 font-sans text-3xl font-black text-[#19b84d]">50 XP</p>
-          <p className="mt-1 text-xs font-semibold leading-4 text-[#10203a]">
-            ao concluir esta etapa!
-          </p>
-          <div className="mx-auto mt-3 grid h-12 w-16 place-items-center rounded-[1rem] bg-[linear-gradient(135deg,#2f8fc8,#19b84d)] shadow-[0_18px_42px_-22px_rgba(25,184,77,0.72)]">
-            <Trophy className="h-7 w-7 fill-[#ffd36a] text-[#ffd36a]" />
-          </div>
-        </section>
+    <div className="ml-12 space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => (
+          <button
+            type="button"
+            key={option}
+            onClick={() => onToggle(option)}
+            className={`min-h-11 rounded-full border px-4 py-2 text-left text-sm font-semibold shadow-sm transition active:scale-[0.98] ${
+              values.includes(option)
+                ? "border-[#0d9488] bg-[#0d9488] text-white"
+                : "border-white bg-white text-[#10201f]"
+            }`}
+          >
+            {option}
+          </button>
+        ))}
       </div>
-      <section className="flex items-center justify-between rounded-[1.2rem] border border-[#dce9f2] bg-[#eef9f8] p-3 shadow-[0_18px_60px_-48px_rgba(16,32,31,0.75)]">
-        <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-full bg-[#19b84d] text-white">
-            <ShieldCheck className="h-5 w-5" />
-          </span>
-          <p className="max-w-[230px] text-xs font-semibold leading-4 text-[#10203a]">
-            Seus dados estão 100% protegidos com segurança e privacidade.
-          </p>
-        </div>
-        <ArrowRight className="h-5 w-5 text-[#52657a]" />
-      </section>
+      {!hideSubmit && <SubmitReply disabled={disabled} onClick={onSubmit} />}
     </div>
   );
 }
 
-function YesNoChoices({
-  value,
-  onChange,
-}: {
-  value: YesNo | "";
-  onChange: (value: YesNo) => void;
-}) {
-  return (
-    <ChoiceGrid>
-      <Choice selected={value === "sim"} onClick={() => onChange("sim")}>
-        Sim
-      </Choice>
-      <Choice selected={value === "nao"} onClick={() => onChange("nao")}>
-        Não
-      </Choice>
-    </ChoiceGrid>
-  );
-}
-
-function YesNoUnknownChoices({
-  value,
-  onChange,
-}: {
-  value: YesNoUnknown | "";
-  onChange: (value: YesNoUnknown) => void;
-}) {
-  return (
-    <ChoiceGrid>
-      <Choice selected={value === "sim"} onClick={() => onChange("sim")}>
-        Sim
-      </Choice>
-      <Choice selected={value === "nao"} onClick={() => onChange("nao")}>
-        Não
-      </Choice>
-      <Choice selected={value === "nao_sei"} onClick={() => onChange("nao_sei")}>
-        Não sei
-      </Choice>
-    </ChoiceGrid>
-  );
-}
-
-function NumberField({
-  label,
+function NumberReply({
   value,
   onChange,
   placeholder,
+  disabled,
+  onSubmit,
 }: {
-  label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  disabled: boolean;
+  onSubmit: () => void;
 }) {
   return (
-    <div>
-      <Label>{label}</Label>
+    <div className="ml-12 flex gap-2">
       <Input
         type="number"
+        inputMode="numeric"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="mt-1.5 h-11 text-base sm:mt-2 sm:h-14 sm:text-lg"
+        className="h-12 rounded-2xl bg-white"
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !disabled) onSubmit();
+        }}
       />
+      <SubmitReply disabled={disabled} onClick={onSubmit} iconOnly />
     </div>
   );
+}
+
+function SubmitReply({
+  disabled,
+  onClick,
+  iconOnly = false,
+}: {
+  disabled: boolean;
+  onClick: () => void;
+  iconOnly?: boolean;
+}) {
+  return (
+    <Button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="h-12 rounded-full bg-[#10201f] px-4 font-semibold text-white disabled:opacity-45"
+    >
+      {iconOnly ? <Send className="h-4 w-4" /> : "Enviar"}
+    </Button>
+  );
+}
+
+function TypingDot({ delay }: { delay: string }) {
+  return (
+    <span
+      className="h-2 w-2 animate-bounce rounded-full bg-[#8aa09d]"
+      style={{ animationDelay: delay }}
+    />
+  );
+}
+
+function getQuestions(data: OnboardingData): QuestionConfig[] {
+  const all: QuestionConfig[] = [
+    {
+      id: "age",
+      text: () => "Ótimo! Vamos começar. Qual é a sua idade?",
+    },
+    {
+      id: "biologicalSex",
+      text: () => "E seu sexo biológico?",
+    },
+    {
+      id: "smokes",
+      text: () => "Você fuma ou já fumou?",
+      confirmation: (current) =>
+        current.smokes.startsWith("ex_fumante")
+          ? "Ótima decisão! Vou considerar esse histórico na sua avaliação."
+          : "Anotado!",
+    },
+    {
+      id: "diabetes",
+      text: () => "Você tem diabetes ou pré-diabetes diagnosticado?",
+    },
+    {
+      id: "bloodPressure",
+      text: () => "Você sabe sua pressão arterial? Pode digitar os números se souber.",
+      confirmation: (current) =>
+        current.knowsBloodPressure === "nao" ? "Tudo bem! Vamos seguir em frente. 👍" : "Anotado!",
+    },
+    {
+      id: "cholesterol",
+      text: () => "E o colesterol, você sabe os valores?",
+    },
+    {
+      id: "familyHistory",
+      text: () =>
+        "Algum familiar próximo, como pai, mãe ou irmão, teve infarto, AVC ou morte súbita antes dos 60 anos?",
+      confirmation: (current) =>
+        current.familyHistory === "sim"
+          ? "Entendido. Esse é um fator importante que vou considerar na sua avaliação."
+          : "Entendido!",
+    },
+    {
+      id: "body",
+      text: () => "Me conta seu peso e altura para eu calcular seu IMC.",
+      confirmation: (current) => {
+        const bmi = calculateBmi(current.weight, current.height);
+        return bmi == null ? "Anotado!" : `Seu IMC é ${bmi.toFixed(1)}. Anotado! ✍️`;
+      },
+    },
+    {
+      id: "activity",
+      text: () => "Com que frequência você se exercita?",
+    },
+    {
+      id: "previousCardiacDiagnosis",
+      text: () =>
+        "Você já teve algum diagnóstico cardíaco anterior? Como infarto, arritmia ou insuficiência cardíaca?",
+    },
+    {
+      id: "symptoms",
+      text: () => "Você sente algum desses sintomas com frequência?",
+    },
+    {
+      id: "stress",
+      text: () => "Como você descreveria seu nível de estresse no dia a dia?",
+    },
+    {
+      id: "sleep",
+      text: () => "Quantas horas você dorme em média por noite?",
+    },
+    {
+      id: "alcohol",
+      text: () => "Você consome bebida alcoólica?",
+    },
+    {
+      id: "waist",
+      text: () => "Se souber, qual é a medida da sua cintura em cm? Pode pular se não souber.",
+    },
+    {
+      id: "highCholesterolDiagnosis",
+      text: () =>
+        "Você já foi diagnosticado com colesterol alto ou triglicerídeos altos por um médico, mesmo sem saber os números exatos?",
+    },
+    {
+      id: "sleepApnea",
+      text: () => "Você ronca muito ou foi diagnosticado com apneia do sono?",
+    },
+    {
+      id: "pregnancy",
+      text: () => "Você já teve pressão alta na gravidez ou diabetes gestacional?",
+    },
+    {
+      id: "medication",
+      text: () => "Você toma algum remédio para pressão, colesterol ou diabetes atualmente?",
+    },
+    {
+      id: "mainReason",
+      text: () => "Última pergunta! O que te trouxe até aqui hoje?",
+    },
+  ];
+  return all.filter((question) => question.id !== "pregnancy" || data.biologicalSex === "feminino");
+}
+
+function isQuestionValid(question: QuestionId, data: OnboardingData) {
+  if (question === "age") return Number(data.age) > 0;
+  if (question === "biologicalSex") return Boolean(data.biologicalSex);
+  if (question === "smokes") return Boolean(data.smokes);
+  if (question === "diabetes") return Boolean(data.diabetes);
+  if (question === "bloodPressure") {
+    return (
+      data.knowsBloodPressure === "nao" ||
+      (data.knowsBloodPressure === "sim" && Number(data.systolic) > 0 && Number(data.diastolic) > 0)
+    );
+  }
+  if (question === "cholesterol") {
+    return (
+      data.knowsCholesterol === "nao" ||
+      (data.knowsCholesterol === "sim" &&
+        Number(data.ldl) > 0 &&
+        Number(data.hdl) > 0 &&
+        Number(data.totalCholesterol) > 0)
+    );
+  }
+  if (question === "familyHistory") return Boolean(data.familyHistory);
+  if (question === "body") return Number(data.weight) > 0 && Number(data.height) > 0;
+  if (question === "activity") return Boolean(data.activityLevel);
+  if (question === "previousCardiacDiagnosis") return Boolean(data.previousCardiacDiagnosis);
+  if (question === "symptoms") return data.frequentSymptoms.length > 0;
+  if (question === "stress") return Boolean(data.stressLevel);
+  if (question === "sleep") return Boolean(data.sleepHours);
+  if (question === "alcohol") return Boolean(data.alcoholUse);
+  if (question === "waist") return true;
+  if (question === "highCholesterolDiagnosis") return Boolean(data.highCholesterolDiagnosis);
+  if (question === "sleepApnea") return Boolean(data.sleepApnea);
+  if (question === "pregnancy") return Boolean(data.pregnancyHypertensionOrDiabetes);
+  if (question === "medication") {
+    return (
+      data.takesMedication === "nao" ||
+      (data.takesMedication === "sim" && data.medicationCategories.length > 0)
+    );
+  }
+  return data.mainReason.length > 0;
+}
+
+function formatAnswer(question: QuestionId, data: OnboardingData) {
+  if (question === "age") return `${data.age} anos`;
+  if (question === "biologicalSex") return label(data.biologicalSex);
+  if (question === "smokes") return label(data.smokes);
+  if (question === "diabetes") return label(data.diabetes);
+  if (question === "bloodPressure") {
+    return data.knowsBloodPressure === "sim"
+      ? `${data.systolic}/${data.diastolic} mmHg`
+      : "Não sei";
+  }
+  if (question === "cholesterol") {
+    return data.knowsCholesterol === "sim"
+      ? `LDL ${data.ldl}, HDL ${data.hdl}, total ${data.totalCholesterol}`
+      : "Não sei";
+  }
+  if (question === "familyHistory") return label(data.familyHistory);
+  if (question === "body") return `${data.weight} kg · ${data.height} cm`;
+  if (question === "activity") return label(data.activityLevel);
+  if (question === "previousCardiacDiagnosis") return label(data.previousCardiacDiagnosis);
+  if (question === "symptoms") return data.frequentSymptoms.join(", ");
+  if (question === "stress") return label(data.stressLevel);
+  if (question === "sleep") return label(data.sleepHours);
+  if (question === "alcohol") return label(data.alcoholUse);
+  if (question === "waist")
+    return data.waistCircumference ? `${data.waistCircumference} cm` : "Pular";
+  if (question === "highCholesterolDiagnosis") return label(data.highCholesterolDiagnosis);
+  if (question === "sleepApnea") return label(data.sleepApnea);
+  if (question === "pregnancy") return label(data.pregnancyHypertensionOrDiabetes);
+  if (question === "medication") {
+    return data.takesMedication === "sim" ? data.medicationCategories.join(", ") : "Não";
+  }
+  return data.mainReason.join(", ");
 }
 
 function calculateBmi(weight: string, height: string) {
@@ -1162,78 +1230,57 @@ function toNumberOrNull(value: string) {
   return Number.isFinite(number) && number > 0 ? number : null;
 }
 
-function mapDiabetesStatus(value: YesNoUnknown | "") {
-  if (value === "sim") return "diabetes";
+function mapDiabetesStatus(value: OnboardingData["diabetes"]) {
+  if (value === "diabetes_tipo_1" || value === "diabetes_tipo_2") return "diabetes";
+  if (value === "pre_diabetes") return "pre_diabetes";
   if (value === "nao") return "nao";
   return "nao_sei";
 }
 
-function getOnboardingStage(step: number) {
-  const index = onboardingStages.findIndex((stage) => step >= stage.start && step <= stage.end);
-  return { ...onboardingStages[Math.max(0, index)], index: Math.max(0, index) };
+function readSavedProgress(userId: string): ChatProgress | null {
+  try {
+    const raw = window.localStorage.getItem(progressStorageKey(userId));
+    return raw ? (JSON.parse(raw) as ChatProgress) : null;
+  } catch {
+    return null;
+  }
+}
+
+function progressStorageKey(userId: string) {
+  return `htcare:onboarding-chat-progress:${userId}`;
 }
 
 function getFirstName(value?: string | null) {
   return value?.split(" ")[0]?.split("@")[0] || "por aqui";
 }
 
-function isStepValid(step: number, data: OnboardingData) {
-  switch (step) {
-    case 0:
-      return Number(data.age) > 0;
-    case 1:
-      return Boolean(data.biologicalSex);
-    case 2:
-      return Boolean(data.smokes);
-    case 3:
-      return Boolean(data.diabetes);
-    case 4:
-      return (
-        data.knowsBloodPressure === "nao" ||
-        (data.knowsBloodPressure === "sim" &&
-          Number(data.systolic) > 0 &&
-          Number(data.diastolic) > 0)
-      );
-    case 5:
-      return (
-        data.knowsCholesterol === "nao" ||
-        (data.knowsCholesterol === "sim" &&
-          Number(data.ldl) > 0 &&
-          Number(data.hdl) > 0 &&
-          Number(data.totalCholesterol) > 0)
-      );
-    case 6:
-      return Boolean(data.familyHistory);
-    case 7:
-      return Number(data.weight) > 0 && Number(data.height) > 0;
-    case 8:
-      return Boolean(data.activityLevel);
-    case 9:
-      return Boolean(data.previousCardiacDiagnosis);
-    case 10:
-      return data.frequentSymptoms.length > 0;
-    case 11:
-      return Boolean(data.stressLevel);
-    case 12:
-      return Boolean(data.sleepHours);
-    case 13:
-      return Boolean(data.alcoholUse);
-    case 14:
-      return true;
-    case 15:
-      return Boolean(data.highCholesterolDiagnosis);
-    case 16:
-      return Boolean(data.sleepApnea);
-    case 17:
-      return Boolean(data.pregnancyHypertensionOrDiabetes);
-    case 18:
-      return (
-        data.takesMedication === "nao" ||
-        (data.takesMedication === "sim" && data.medicationCategories.length > 0)
-      );
-    case 19:
-      return data.mainReason.length > 0;
-    default:
-      return false;
-  }
+function label(value: string) {
+  const labels: Record<string, string> = {
+    feminino: "Feminino",
+    masculino: "Masculino",
+    sim: "Sim",
+    nao: "Não",
+    nao_sei: "Não sei",
+    nao_se_aplica: "Não se aplica",
+    ex_fumante_menos_5: "Já fumei, parei há menos de 5 anos",
+    ex_fumante_mais_5: "Já fumei, parei há mais de 5 anos",
+    diabetes_tipo_1: "Diabetes tipo 1",
+    diabetes_tipo_2: "Diabetes tipo 2",
+    pre_diabetes: "Pré-diabetes",
+    sedentario: "Sedentário",
+    leve: "1-2x por semana",
+    moderado: "3-4x por semana",
+    intenso: "Quase todo dia",
+    baixo: "Baixo",
+    alto: "Alto",
+    menos_5: "Menos de 5h",
+    "5_6": "5-6h",
+    "7_8": "7-8h",
+    mais_8: "Mais de 8h",
+    nao_bebo: "Não bebo",
+    socialmente: "Socialmente",
+    algumas_vezes_semana: "Algumas vezes por semana",
+    diariamente: "Diariamente",
+  };
+  return labels[value] ?? value;
 }
