@@ -93,6 +93,18 @@ function ExamResultPage() {
 
   useEffect(() => {
     async function load() {
+      if (id === "demo") {
+        const demo = buildDemoExamResult(user.id);
+        setResult(demo.current);
+        setAllResults(demo.history);
+        setProfile({ nome: "Felipe", idade: 44, sexo: "masculino" });
+        setDoctorNote(
+          "Prévia demonstrativa: revisar ApoB e resistência à insulina com o paciente, orientar mudança de rotina por 90 dias e repetir exames para medir resposta.",
+        );
+        setLoading(false);
+        return;
+      }
+
       const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
       const [{ data: examData, error }, { data: profileData }, { data: historyData }] =
         await Promise.all([
@@ -567,6 +579,57 @@ function resultToBiomarkers(result: ExamResultRecord): ExamBiomarkers {
     homaIr: result.homa_ir,
     pcrUs: result.pcr_us,
   };
+}
+
+function buildDemoExamResult(userId: string): {
+  current: ExamResultRecord;
+  history: ExamResultRecord[];
+} {
+  const base = {
+    user_id: userId,
+    exam_request_id: null,
+    laboratorio_nome: "Laboratório parceiro HTCare",
+    arquivo_url: null,
+    categoria_risco: "moderado" as const,
+    interpretacao_gerada: {},
+    resumo_carelito: null,
+    created_at: new Date().toISOString(),
+  };
+  const history: ExamResultRecord[] = [
+    {
+      ...base,
+      id: "demo-marco",
+      data_exame: "2026-03-24",
+      apob: 128,
+      ldl: 154,
+      hdl: 42,
+      triglicerideos: 188,
+      hba1c: 5.9,
+      glicemia_jejum: 108,
+      insulina_jejum: 13,
+      homa_ir: 3.47,
+      pcr_us: 2.8,
+      score_estimado: 70,
+      score_calculado: 58,
+    },
+    {
+      ...base,
+      id: "demo-atual",
+      data_exame: new Date().toISOString().slice(0, 10),
+      apob: 112,
+      ldl: 136,
+      hdl: 48,
+      triglicerideos: 144,
+      hba1c: 5.7,
+      glicemia_jejum: 101,
+      insulina_jejum: 9.8,
+      homa_ir: 2.45,
+      pcr_us: 1.6,
+      score_estimado: 70,
+      score_calculado: 64,
+    },
+  ];
+  return { current: history[1], history };
 }
 
 function buildPopulationComparisons(

@@ -301,6 +301,8 @@ function MeuRiscoPage() {
           </div>
         </Card>
 
+        <ExamResultPreviewCard />
+
         <ExamRequestCard
           userId={user.id}
           request={examRequest}
@@ -761,6 +763,35 @@ function ExamRequestCard({
           )}
         </div>
       )}
+    </Card>
+  );
+}
+
+function ExamResultPreviewCard() {
+  return (
+    <Card className="border-[#2f8fc8]/20 bg-[#f2faf9]">
+      <div className="flex items-start gap-4">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-white text-[#2f8fc8] shadow-soft">
+          <FileText className="h-5 w-5" />
+        </span>
+        <div className="flex-1">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2f6760]">
+            Nova tela de exame
+          </p>
+          <h2 className="mt-2 font-sans text-2xl font-semibold">
+            Veja a prévia do relatório interpretado
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[#536b68]">
+            Abre a experiência completa com comparação populacional, evolução dos biomarcadores,
+            plano de 90 dias, nota médica e próximo exame recomendado.
+          </p>
+          <Button asChild className="mt-4 min-h-12 rounded-full bg-[#10201f]">
+            <Link to="/exame-resultado/$id" params={{ id: "demo" }}>
+              Ver prévia do relatório
+            </Link>
+          </Button>
+        </div>
+      </div>
     </Card>
   );
 }
