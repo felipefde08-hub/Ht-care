@@ -1,6 +1,6 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
-import { CheckCircle2, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ShieldCheck, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -61,6 +61,7 @@ function CheckInPage() {
   const navigate = useNavigate();
   const [data, setData] = useState<CheckInData>(initialData);
   const [completed, setCompleted] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const canSave =
     Boolean(data.feeling) &&
     (data.measuredBloodPressure === "nao" ||
@@ -90,7 +91,6 @@ function CheckInPage() {
 
   async function save() {
     if (!canSave) return;
-    setCompleted(true);
     window.navigator.vibrate?.(35);
     const rawHistory = window.localStorage.getItem("htcare:score-history");
     const history = rawHistory
@@ -116,7 +116,22 @@ function CheckInPage() {
     window.localStorage.setItem("htcare:last-check-in", JSON.stringify(point));
     const { data: authData } = await supabase.auth.getUser();
     const user = authData.user;
+    let previousCheckin: {
+      pressao_sistolica: number | null;
+      pressao_diastolica: number | null;
+      glicemia: number | null;
+      peso_kg: number | null;
+      created_at: string;
+    } | null = null;
     if (user) {
+      const { data: previousData } = await supabase
+        .from("checkins")
+        .select("pressao_sistolica,pressao_diastolica,glicemia,peso_kg,created_at")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      previousCheckin = previousData ?? null;
+
       const { error: checkinError } = await supabase.from("checkins").insert({
         user_id: user.id,
         humor: normalizeFeeling(data.feeling),
@@ -146,7 +161,10 @@ function CheckInPage() {
       }
       void recordUserActivity(user.id, "checkin");
     }
-    window.setTimeout(() => navigate({ to: "/painel", replace: true }), 850);
+    const nextFeedback = buildInlineFeedback(data, previousCheckin);
+    setFeedback(nextFeedback);
+    setCompleted(true);
+    window.setTimeout(() => navigate({ to: "/painel", replace: true }), 5200);
   }
 
   return (
@@ -166,29 +184,6 @@ function CheckInPage() {
           transition={{ duration: 0.5, ease: "easeOut" }}
           className="relative w-full overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-4 shadow-soft sm:p-10"
         >
-          <AnimatePresence>
-            {completed && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 z-20 grid place-items-center bg-white/92 backdrop-blur-sm"
-              >
-                <motion.div
-                  initial={{ y: 20, scale: 0.92 }}
-                  animate={{ y: 0, scale: 1 }}
-                  className="text-center"
-                >
-                  <Carelito className="mx-auto h-28 w-28" expression="confident" />
-                  <h2 className="mt-3 font-sans text-3xl font-semibold">Registrado.</h2>
-                  <p className="mx-auto mt-2 max-w-xs font-semibold leading-6 text-[#536b68]">
-                    Seu histórico foi atualizado e o score será acompanhado com esses dados.
-                  </p>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           <div className="flex items-center gap-3">
             <Carelito className="h-20 w-20 shrink-0 sm:h-24 sm:w-24" expression="happy" />
             <div>
@@ -329,11 +324,98 @@ function CheckInPage() {
           >
             Finalizar check-in <CheckCircle2 className="h-5 w-5" />
           </Button>
+
+          <AnimatePresence>
+            {feedback && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                className="mt-4 flex items-start gap-3 rounded-[1.4rem] border border-[#10201f]/8 bg-[#e8f5ef] p-4 text-[#2f6760]"
+              >
+                <Carelito className="h-14 w-14 shrink-0" expression="confident" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-black uppercase tracking-[0.16em]">
+                    Interpretação do Carelito
+                  </p>
+                  <p className="mt-1 text-sm font-semibold leading-5">{feedback}</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Fechar feedback"
+                  onClick={() => setFeedback(null)}
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/70"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </section>
       <MobileAppNav />
     </main>
   );
+}
+
+function buildInlineFeedback(
+  data: CheckInData,
+  previous: {
+    pressao_sistolica: number | null;
+    pressao_diastolica: number | null;
+    glicemia: number | null;
+    peso_kg: number | null;
+    created_at: string;
+  } | null,
+) {
+  const messages: string[] = [];
+  const systolic = Number(data.systolic);
+  const diastolic = Number(data.diastolic);
+  if (data.measuredBloodPressure === "sim" && systolic > 0 && diastolic > 0) {
+    if (systolic >= 150 || diastolic >= 100) {
+      messages.push(
+        `${systolic}/${diastolic} — Atenção. Pressão elevada. Se persistir, consulte seu médico.`,
+      );
+    } else if (systolic >= 130 || diastolic >= 85) {
+      const repeated =
+        (previous?.pressao_sistolica ?? 0) >= 130 || (previous?.pressao_diastolica ?? 0) >= 85;
+      messages.push(
+        `${systolic}/${diastolic} — Acima do ideal.${repeated ? " Isso também apareceu no último registro." : ""} Considere reduzir sal hoje.`,
+      );
+    } else {
+      messages.push(`${systolic}/${diastolic} — Ótimo! Dentro do normal.`);
+    }
+  }
+
+  const weight = Number(data.weight);
+  if (weight > 0 && previous?.peso_kg) {
+    const delta = Number((weight - previous.peso_kg).toFixed(1));
+    const date = new Date(previous.created_at).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+    });
+    if (delta < 0)
+      messages.push(`Você perdeu ${Math.abs(delta)} kg desde ${date}. Continue assim.`);
+    if (delta > 0)
+      messages.push(
+        `Seu peso subiu ${delta} kg desde ${date}. Pequenas mudanças na alimentação fazem diferença.`,
+      );
+  }
+
+  const glucose = Number(data.glucose);
+  if (data.measuredGlucose === "sim" && glucose > 0) {
+    if (glucose < 100) messages.push(`${glucose} mg/dL — Normal. Dentro da faixa ideal em jejum.`);
+    else if (glucose < 126)
+      messages.push(`${glucose} mg/dL — Faixa de atenção. Vale acompanhar a tendência.`);
+    else
+      messages.push(
+        `${glucose} mg/dL — Elevada em jejum. Se esse padrão persistir, converse com seu médico.`,
+      );
+  }
+
+  return messages.length
+    ? messages.join(" ")
+    : "Registrado. Seu histórico foi atualizado e vai ajudar a personalizar suas próximas recomendações.";
 }
 
 function normalizeFeeling(value: Feeling): "bem" | "cansado" | "mal" {

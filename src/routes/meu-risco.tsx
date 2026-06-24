@@ -13,7 +13,15 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
 import { MobileAppNav } from "@/components/MobileAppNav";
@@ -67,6 +75,14 @@ interface ExamRequest {
   updated_at: string;
 }
 
+interface ClinicalCheckin {
+  created_at: string;
+  pressao_sistolica: number | null;
+  pressao_diastolica: number | null;
+  glicemia: number | null;
+  peso_kg: number | null;
+}
+
 interface DynamicQueryBuilder {
   eq: (column: string, value: string) => DynamicQueryBuilder;
   order: (column: string, options?: { ascending?: boolean }) => DynamicQueryBuilder;
@@ -97,6 +113,8 @@ const DEFAULT_LAB = {
 function MeuRiscoPage() {
   const { user } = Route.useRouteContext();
   const [history, setHistory] = useState<HubScorePoint[]>([]);
+  const [checkins, setCheckins] = useState<ClinicalCheckin[]>([]);
+  const [period, setPeriod] = useState<"week" | "month" | "quarter">("month");
   const [examRequest, setExamRequest] = useState<ExamRequest | null>(null);
   const [stored] = useState(() => readStoredHubData());
 
@@ -119,6 +137,11 @@ function MeuRiscoPage() {
           })),
         );
       }
+      const { data: checkinData } = await supabase
+        .from("checkins")
+        .select("created_at,pressao_sistolica,pressao_diastolica,glicemia,peso_kg")
+        .order("created_at", { ascending: true });
+      setCheckins(checkinData ?? []);
     }
     void load();
   }, []);
@@ -141,6 +164,7 @@ function MeuRiscoPage() {
       })),
     [history],
   );
+  const clinicalData = useMemo(() => buildClinicalCharts(checkins, period), [checkins, period]);
 
   return (
     <main className="min-h-screen bg-[#fbfcfc] px-4 pb-28 pt-4 text-[#10201f] sm:px-5 sm:py-6">
@@ -194,6 +218,55 @@ function MeuRiscoPage() {
                 {factor}
               </div>
             ))}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <SectionTitle icon={ChartLine} title="Tendência dos indicadores" />
+            <div className="grid grid-cols-3 gap-1 rounded-full bg-[#f7faf9] p-1 text-xs font-bold">
+              {[
+                ["week", "Semana"],
+                ["month", "Mês"],
+                ["quarter", "3 meses"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setPeriod(value as typeof period)}
+                  className={`rounded-full px-3 py-2 ${
+                    period === value ? "bg-white text-[#10201f] shadow-soft" : "text-[#78908d]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4">
+            <ClinicalChart
+              title="Pressão arterial"
+              data={clinicalData.pressure}
+              lines={[
+                { key: "sistolica", color: "#2f8fc8", label: "Sistólica" },
+                { key: "diastolica", color: "#49c7ae", label: "Diastólica" },
+              ]}
+              reference={130}
+              empty="Registre pressão no check-in para ver a tendência."
+            />
+            <ClinicalChart
+              title="Peso"
+              data={clinicalData.weight}
+              lines={[{ key: "peso", color: "#2f6760", label: "Peso" }]}
+              empty="Registre peso no check-in para ver a tendência."
+            />
+            <ClinicalChart
+              title="Glicemia"
+              data={clinicalData.glucose}
+              lines={[{ key: "glicemia", color: "#d89a1d", label: "Glicemia" }]}
+              reference={100}
+              empty="Registre glicemia no check-in para ver a tendência."
+            />
           </div>
         </Card>
 
@@ -488,6 +561,102 @@ function StatusBlock({
       </div>
     </div>
   );
+}
+
+function ClinicalChart({
+  title,
+  data,
+  lines,
+  reference,
+  empty,
+}: {
+  title: string;
+  data: Array<Record<string, number | string>>;
+  lines: Array<{ key: string; color: string; label: string }>;
+  reference?: number;
+  empty: string;
+}) {
+  return (
+    <div className="rounded-[1.25rem] bg-[#f7faf9] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-sans text-lg font-semibold">{title}</h2>
+        <div className="flex gap-2">
+          {lines.map((line) => (
+            <span
+              key={line.key}
+              className="inline-flex items-center gap-1 text-[0.68rem] font-bold text-[#78908d]"
+            >
+              <span className="h-2 w-2 rounded-full" style={{ background: line.color }} />
+              {line.label}
+            </span>
+          ))}
+        </div>
+      </div>
+      {data.length >= 2 ? (
+        <div className="mt-3 h-44">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data}>
+              <XAxis dataKey="date" axisLine={false} tickLine={false} />
+              <YAxis axisLine={false} tickLine={false} width={32} />
+              <Tooltip />
+              {reference && (
+                <ReferenceLine
+                  y={reference}
+                  stroke="#dc3f35"
+                  strokeDasharray="5 5"
+                  strokeOpacity={0.7}
+                />
+              )}
+              {lines.map((line) => (
+                <Line
+                  key={line.key}
+                  type="monotone"
+                  dataKey={line.key}
+                  stroke={line.color}
+                  strokeWidth={3}
+                  dot={{ r: 3 }}
+                  connectNulls
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <p className="mt-3 rounded-2xl bg-white p-4 text-sm leading-6 text-[#536b68]">{empty}</p>
+      )}
+    </div>
+  );
+}
+
+function buildClinicalCharts(checkins: ClinicalCheckin[], period: "week" | "month" | "quarter") {
+  const days = period === "week" ? 7 : period === "month" ? 30 : 90;
+  const since = Date.now() - days * 86_400_000;
+  const filtered = checkins.filter((item) => new Date(item.created_at).getTime() >= since);
+  return {
+    pressure: filtered
+      .filter((item) => item.pressao_sistolica || item.pressao_diastolica)
+      .map((item) => ({
+        date: formatShortDate(item.created_at),
+        sistolica: item.pressao_sistolica ?? undefined,
+        diastolica: item.pressao_diastolica ?? undefined,
+      })),
+    weight: filtered
+      .filter((item) => item.peso_kg)
+      .map((item) => ({
+        date: formatShortDate(item.created_at),
+        peso: item.peso_kg ?? undefined,
+      })),
+    glucose: filtered
+      .filter((item) => item.glicemia)
+      .map((item) => ({
+        date: formatShortDate(item.created_at),
+        glicemia: item.glicemia ?? undefined,
+      })),
+  };
+}
+
+function formatShortDate(value: string) {
+  return new Date(value).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
 function InfoLine({

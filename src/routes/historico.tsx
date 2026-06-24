@@ -66,6 +66,11 @@ interface ScorePoint {
   source: string;
 }
 
+interface ExamTimelineItem {
+  status: string;
+  created_at: string;
+}
+
 interface LocalScorePoint extends ScorePoint {
   checkIn?: {
     systolic?: string;
@@ -83,6 +88,7 @@ function HistoryPage() {
   const [checkins, setCheckins] = useState<CheckInData[]>([]);
   const [activeDaysThisMonth, setActiveDaysThisMonth] = useState(0);
   const [activityEvents, setActivityEvents] = useState<UserActivityEvent[]>([]);
+  const [examTimeline, setExamTimeline] = useState<ExamTimelineItem[]>([]);
   const [activeTab, setActiveTab] = useState<HistoryTab>("overview");
 
   useEffect(() => {
@@ -107,6 +113,7 @@ function HistoryPage() {
       const [
         { data: assessments, error: assessmentsError },
         { data: remoteCheckins, error: checkinsError },
+        { data: examRequests },
       ] = await Promise.all([
         supabase
           .from("assessments")
@@ -115,6 +122,21 @@ function HistoryPage() {
         supabase
           .from("checkins")
           .select("created_at,humor,sintomas,pressao_sistolica,pressao_diastolica,glicemia,peso_kg")
+          .order("created_at", { ascending: true }),
+        (
+          supabase as unknown as {
+            from: (table: string) => {
+              select: (columns: string) => {
+                order: (
+                  column: string,
+                  options?: { ascending?: boolean },
+                ) => Promise<{ data: ExamTimelineItem[] | null; error: unknown }>;
+              };
+            };
+          }
+        )
+          .from("exam_requests")
+          .select("status,created_at")
           .order("created_at", { ascending: true }),
       ]);
 
@@ -143,6 +165,7 @@ function HistoryPage() {
           })),
         );
       }
+      setExamTimeline(examRequests ?? []);
 
       await recordUserActivity(user.id, "app_open");
       setActiveDaysThisMonth(await getActiveDaysThisMonth(user.id));
@@ -199,6 +222,10 @@ function HistoryPage() {
   const achievements = buildAchievements(challengeStats, activityEvents, onboardingState);
   const unlockedAchievements = achievements.filter((achievement) => achievement.unlocked);
   const scoreEvolution = getScoreEvolution(sortedHistory);
+  const timelineItems = useMemo(
+    () => buildHealthTimeline(sortedHistory, sortedCheckins, activityEvents, examTimeline),
+    [sortedHistory, sortedCheckins, activityEvents, examTimeline],
+  );
 
   return (
     <main className="min-h-screen bg-[#fbfcfc] px-4 pb-28 pt-4 text-[#10201f] sm:px-5 sm:py-6">
@@ -366,6 +393,10 @@ function HistoryPage() {
               <ActivityFeed events={activityEvents} />
             </MobileCard>
 
+            <MobileCard title="Linha do tempo da saúde">
+              <HealthTimeline items={timelineItems} />
+            </MobileCard>
+
             <MobileCard title="Conquistas recentes">
               <AchievementList achievements={unlockedAchievements} />
             </MobileCard>
@@ -460,6 +491,19 @@ function HistoryPage() {
           <SecondaryChart title="Glicemia" unit="mg/dL" data={glucoseData} dataKey="glicemia" />
           <PressureChart data={pressureData} />
         </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="mt-5 rounded-[2rem] border border-[#10201f]/8 bg-white p-7 shadow-soft"
+        >
+          <h2 className="font-sans text-2xl font-semibold">Linha do tempo da saúde</h2>
+          <div className="mt-5">
+            <HealthTimeline items={timelineItems} />
+          </div>
+        </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -703,6 +747,147 @@ function ActivityFeed({ events }: { events: UserActivityEvent[] }) {
         );
       })}
     </div>
+  );
+}
+
+interface HealthTimelineItem {
+  id: string;
+  date: string;
+  title: string;
+  detail: string;
+  icon: LucideIcon;
+  tone: "blue" | "green" | "gold" | "dark";
+}
+
+function HealthTimeline({ items }: { items: HealthTimelineItem[] }) {
+  if (!items.length) {
+    return (
+      <div className="rounded-[1.4rem] bg-[#f7faf9] p-4 text-sm leading-5 text-[#78908d]">
+        Sua linha do tempo aparece conforme você calcula score, registra medidas e solicita exames.
+      </div>
+    );
+  }
+
+  const toneClasses = {
+    blue: "bg-[#e9f4fb] text-[#2f8fc8]",
+    green: "bg-[#e8f5ef] text-[#2f6760]",
+    gold: "bg-[#fff7dc] text-[#9a5b12]",
+    dark: "bg-[#10201f] text-white",
+  };
+
+  return (
+    <div className="space-y-3">
+      {items.slice(0, 12).map((item) => {
+        const Icon = item.icon;
+        return (
+          <div key={item.id} className="flex gap-3 rounded-[1.25rem] bg-[#f7faf9] p-3">
+            <span
+              className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${toneClasses[item.tone]}`}
+            >
+              <Icon className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">{item.title}</p>
+              <p className="mt-0.5 text-xs leading-5 text-[#78908d]">{item.detail}</p>
+            </div>
+            <p className="shrink-0 text-xs font-bold text-[#78908d]">{item.date}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function buildHealthTimeline(
+  scores: ScorePoint[],
+  checkins: CheckInData[],
+  events: UserActivityEvent[],
+  exams: ExamTimelineItem[],
+): HealthTimelineItem[] {
+  const scoreItems = scores.map((item) => ({
+    id: `score-${item.createdAt}`,
+    date: formatShortDate(item.createdAt),
+    title: `Score calculado: ${item.score}/100`,
+    detail:
+      item.source === "onboarding"
+        ? "Avaliação inicial registrada."
+        : "Score atualizado por check-in.",
+    icon: HeartPulse,
+    tone: "blue" as const,
+    timestamp: +new Date(item.createdAt),
+  }));
+  const measureItems = checkins.flatMap((item) => {
+    const date = formatShortDate(item.createdAt);
+    const timestamp = +new Date(item.createdAt);
+    return [
+      item.systolic && item.diastolic
+        ? {
+            id: `pressure-${item.createdAt}`,
+            date,
+            title: `Pressão registrada: ${item.systolic}/${item.diastolic}`,
+            detail:
+              item.systolic >= 130 || item.diastolic >= 85
+                ? "Acima do ideal."
+                : "Dentro de uma faixa melhor.",
+            icon: HeartPulse,
+            tone:
+              item.systolic >= 130 || item.diastolic >= 85 ? ("gold" as const) : ("green" as const),
+            timestamp,
+          }
+        : null,
+      item.glucose
+        ? {
+            id: `glucose-${item.createdAt}`,
+            date,
+            title: `Glicemia registrada: ${item.glucose} mg/dL`,
+            detail:
+              item.glucose >= 126 ? "Valor elevado para jejum." : "Registro salvo no histórico.",
+            icon: Activity,
+            tone: item.glucose >= 126 ? ("gold" as const) : ("green" as const),
+            timestamp,
+          }
+        : null,
+      item.weight
+        ? {
+            id: `weight-${item.createdAt}`,
+            date,
+            title: `Peso registrado: ${item.weight} kg`,
+            detail: "Registro adicionado à tendência de peso.",
+            icon: Ruler,
+            tone: "green" as const,
+            timestamp,
+          }
+        : null,
+    ].filter(Boolean) as Array<HealthTimelineItem & { timestamp: number }>;
+  });
+  const activityItems = events
+    .filter((event) => event.type === "checkin" || event.type === "mission")
+    .map((event) => ({
+      id: `event-${event.id}`,
+      date: formatShortDate(event.createdAt),
+      title: event.type === "checkin" ? "Check-in diário completo" : event.title,
+      detail: "Ação registrada no acompanhamento.",
+      icon: event.type === "checkin" ? CheckCircle2 : Dumbbell,
+      tone: "dark" as const,
+      timestamp: +new Date(event.createdAt),
+    }));
+  const examItems = exams.map((exam) => ({
+    id: `exam-${exam.created_at}-${exam.status}`,
+    date: formatShortDate(exam.created_at),
+    title:
+      exam.status === "autorizado"
+        ? "Exame autorizado pelo Dr. Danilo"
+        : exam.status === "resultado_recebido"
+          ? "Resultado de exame recebido"
+          : "Exame solicitado ao Dr. Danilo",
+    detail: "Fluxo de laboratório parceiro HTCare.",
+    icon: FileText,
+    tone: "blue" as const,
+    timestamp: +new Date(exam.created_at),
+  }));
+
+  return [...scoreItems, ...measureItems, ...activityItems, ...examItems].sort(
+    (a, b) => b.timestamp - a.timestamp,
   );
 }
 

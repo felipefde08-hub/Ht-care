@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CarelitoChat } from "@/components/CarelitoChat";
 import { Carelito } from "@/components/HeartMascot";
@@ -99,6 +100,7 @@ interface DynamicQueryBuilder {
 
 interface DynamicSupabaseTable {
   select: (columns: string) => DynamicQueryBuilder;
+  insert?: (values: Record<string, unknown>) => Promise<{ error: unknown }>;
 }
 
 interface DynamicSupabaseClient {
@@ -116,6 +118,7 @@ function PanelPage() {
   const [history, setHistory] = useState<ScorePoint[]>([]);
   const [examRequest, setExamRequest] = useState<ExamRequest | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [dailyCheckinDone, setDailyCheckinDone] = useState(() => isDailyCheckinDoneToday());
 
   useEffect(() => {
     async function loadData() {
@@ -189,7 +192,13 @@ function PanelPage() {
   );
   const lastCheckIn = readLastCheckIn();
   const mobileHealthData = buildMobileHealthData(stored, lastCheckIn);
-  const recommendedAction = getRecommendedAction(currentScore, latest?.createdAt ?? null);
+  const recommendedAction = getRecommendedAction(
+    currentScore,
+    previous?.score ?? null,
+    latest?.createdAt ?? null,
+    stored?.result?.factors ?? latest?.factors ?? [],
+    lastCheckIn,
+  );
   const insight = buildCarelitoInsight(stored, lastCheckIn, trend, currentScore);
   const initials = getInitials(firstName);
 
@@ -311,6 +320,15 @@ function PanelPage() {
               <CompactClinicalShortcut key={item.label} {...item} />
             ))}
           </section>
+
+          {!dailyCheckinDone && (
+            <DailyQuickCheckin
+              userId={user.id}
+              onDone={() => {
+                setDailyCheckinDone(true);
+              }}
+            />
+          )}
 
           <section className="mt-3 flex items-center gap-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
             <div className="min-w-0 flex-1">
@@ -556,6 +574,152 @@ function ExamStatusCard({ request, compact = false }: { request: ExamRequest; co
         </div>
       </div>
     </section>
+  );
+}
+
+function DailyQuickCheckin({ userId, onDone }: { userId: string; onDone: () => void }) {
+  const [answers, setAnswers] = useState({
+    meds: null as boolean | null,
+    water: null as boolean | null,
+    movement: null as boolean | null,
+    mood: "" as "feliz" | "neutro" | "triste" | "",
+  });
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const canSave =
+    answers.meds !== null &&
+    answers.water !== null &&
+    answers.movement !== null &&
+    Boolean(answers.mood);
+
+  async function save() {
+    if (!canSave) return;
+    const positives = [answers.meds, answers.water, answers.movement].filter(Boolean).length;
+    const message =
+      positives >= 3
+        ? "Ótimo! Três de três hoje. Seu coração agradece."
+        : positives >= 1
+          ? "Bom começo. Escolha mais uma ação pequena antes de dormir."
+          : "Tudo bem, amanhã é um novo dia. Que tal beber um copo d'água agora?";
+
+    const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+    const insert = dynamicSupabase.from("daily_checkins").insert;
+    if (insert) {
+      const { error } = await insert({
+        user_id: userId,
+        tomou_medicamentos: answers.meds,
+        bebeu_agua: answers.water,
+        movimentou: answers.movement,
+        humor: answers.mood,
+        feedback: message,
+      });
+      if (error) {
+        console.error(error);
+        toast.error("Não foi possível salvar o check-in diário.");
+        return;
+      }
+    }
+    window.localStorage.setItem("htcare:daily-checkin-date", todayKey());
+    setFeedback(message);
+    onDone();
+  }
+
+  return (
+    <section className="mt-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
+      <div className="flex items-start gap-3">
+        <Carelito className="h-14 w-14 shrink-0" expression="happy" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#2f8fc8]">
+            Check-in diário
+          </p>
+          <h2 className="mt-1 font-sans text-xl font-semibold">Como foi hoje?</h2>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2">
+        <DailyBooleanRow
+          label="Tomou seus medicamentos?"
+          value={answers.meds}
+          onChange={(meds) => setAnswers((current) => ({ ...current, meds }))}
+        />
+        <DailyBooleanRow
+          label="Bebeu água suficiente?"
+          value={answers.water}
+          onChange={(water) => setAnswers((current) => ({ ...current, water }))}
+        />
+        <DailyBooleanRow
+          label="Se movimentou pelo menos um pouco?"
+          value={answers.movement}
+          onChange={(movement) => setAnswers((current) => ({ ...current, movement }))}
+        />
+      </div>
+      <div className="mt-3 flex gap-2">
+        {[
+          ["feliz", "😊"],
+          ["neutro", "😐"],
+          ["triste", "😔"],
+        ].map(([mood, emoji]) => (
+          <button
+            key={mood}
+            type="button"
+            onClick={() =>
+              setAnswers((current) => ({ ...current, mood: mood as typeof answers.mood }))
+            }
+            className={`min-h-11 flex-1 rounded-2xl border text-xl transition active:scale-95 ${
+              answers.mood === mood
+                ? "border-[#49c7ae] bg-[#e8f5ef]"
+                : "border-[#10201f]/8 bg-[#f7faf9]"
+            }`}
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
+      {feedback && (
+        <p className="mt-3 text-sm font-semibold leading-5 text-[#2f6760]">{feedback}</p>
+      )}
+      <Button
+        className="mt-4 min-h-12 w-full rounded-full bg-[#10201f] font-semibold"
+        disabled={!canSave}
+        onClick={() => void save()}
+      >
+        Salvar check-in rápido
+      </Button>
+    </section>
+  );
+}
+
+function DailyBooleanRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean | null;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-2xl bg-[#f7faf9] p-3">
+      <span className="text-sm font-semibold text-[#536b68]">{label}</span>
+      <div className="flex gap-1.5">
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`rounded-full px-3 py-1.5 text-xs font-black ${
+            value === true ? "bg-[#2f6760] text-white" : "bg-white text-[#78908d]"
+          }`}
+        >
+          Sim
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`rounded-full px-3 py-1.5 text-xs font-black ${
+            value === false ? "bg-[#10201f] text-white" : "bg-white text-[#78908d]"
+          }`}
+        >
+          Não
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1084,34 +1248,102 @@ function TrendBadge({ trend }: { trend: ReturnType<typeof getTrend> }) {
   );
 }
 
-function getRecommendedAction(score: number | null, lastCheckIn: string | null) {
+function isDailyCheckinDoneToday() {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem("htcare:daily-checkin-date") === todayKey();
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getRecommendedAction(
+  score: number | null,
+  previousScore: number | null,
+  lastAssessment: string | null,
+  factors: string[],
+  lastCheckIn: LastCheckIn | null,
+) {
+  const normalizedFactors = factors.join(" ").toLowerCase();
+  const weekday = new Date().getDay();
+  const pressure = getLatestPressure(null, lastCheckIn);
+  const hasHypertension =
+    normalizedFactors.includes("pressão") ||
+    normalizedFactors.includes("hipertensão") ||
+    pressure.tone === "risk" ||
+    pressure.tone === "attention";
+  const sedentary =
+    normalizedFactors.includes("sedent") || normalizedFactors.includes("atividade física");
+  const diabetes = normalizedFactors.includes("diabetes") || normalizedFactors.includes("glicemia");
+  const pressureDays = lastCheckIn?.createdAt
+    ? Math.floor((Date.now() - new Date(lastCheckIn.createdAt).getTime()) / 86_400_000)
+    : 999;
+
   if (score == null) {
     return {
       title: "Complete sua avaliação",
       text: "Responda o questionário para gerar seu primeiro score cardiovascular.",
     };
   }
-  if (!lastCheckIn) {
+
+  if (previousScore != null && score < previousScore - 2) {
+    return {
+      title: `Seu score caiu ${previousScore - score} pontos`,
+      text: "Faça um check-in agora para entender o que mudou e ajustar o próximo passo.",
+    };
+  }
+
+  if (hasHypertension && pressureDays > 2) {
+    return {
+      title: `Você não mede sua pressão há ${pressureDays} dias`,
+      text: "Leva 2 minutos. Registre uma medida em repouso para comparar com os últimos dados.",
+    };
+  }
+
+  if (hasHypertension && weekday === 2) {
+    return {
+      title: "Registre sua pressão de hoje",
+      text: "Compare com o último valor e veja se a tendência está estável.",
+    };
+  }
+
+  if (sedentary && weekday === 3) {
+    return {
+      title: "10 minutos de caminhada hoje",
+      text: "Você não se moveu muito esta semana. Uma ação pequena já conta.",
+    };
+  }
+
+  if (diabetes && weekday === 2) {
+    return {
+      title: "Registre sua glicemia hoje",
+      text: "Um valor manual ajuda a enxergar tendência ao longo do tempo.",
+    };
+  }
+
+  if (weekday === 1) {
+    return {
+      title: "Comece a semana com uma troca simples",
+      text: "Troque o refrigerante por água no almoço hoje. Só isso.",
+    };
+  }
+
+  if (weekday === 5) {
+    return {
+      title: "Final de semana chegando",
+      text: "Reduza o sal hoje e mantenha sua pressão mais previsível.",
+    };
+  }
+
+  if (!lastAssessment) {
     return {
       title: "Registre sua pressão de hoje",
       text: "Uma medida simples ajuda a manter seu acompanhamento mais preciso.",
     };
   }
-  const days = Math.floor((Date.now() - new Date(lastCheckIn).getTime()) / 86_400_000);
-  if (days >= 30) {
-    return {
-      title: "Há 30 dias sem check-in",
-      text: "Atualize seus dados para manter seu score mais próximo da sua realidade atual.",
-    };
-  }
-  if (days >= 7) {
-    return {
-      title: "Registre sua pressão de hoje",
-      text: "Já passou uma semana desde sua última atualização. Leva menos de um minuto.",
-    };
-  }
+
   return {
-    title: "Seu acompanhamento está em dia",
-    text: "Volte quando houver mudanças relevantes ou faça um novo check-in na próxima semana.",
+    title: "Atualize um indicador hoje",
+    text: "Pressão, peso, glicemia ou sono: um registro pequeno deixa seu relatório mais útil.",
   };
 }
