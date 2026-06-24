@@ -5,6 +5,7 @@ import {
   ChartLine,
   CheckCircle2,
   Clock3,
+  FileText,
   FileUp,
   FlaskConical,
   HeartPulse,
@@ -29,6 +30,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  buildExamInterpretation,
+  calculateHomaIr,
+  parseExamNumber,
+  type ExamBiomarkers,
+} from "@/lib/exam-interpretation";
 import {
   populationReference,
   readStoredHubData,
@@ -83,7 +90,7 @@ interface ClinicalCheckin {
   peso_kg: number | null;
 }
 
-interface DynamicQueryBuilder {
+interface DynamicQueryBuilder extends PromiseLike<{ data: unknown; error: unknown }> {
   eq: (column: string, value: string) => DynamicQueryBuilder;
   order: (column: string, options?: { ascending?: boolean }) => DynamicQueryBuilder;
   limit: (count: number) => DynamicQueryBuilder;
@@ -94,14 +101,36 @@ interface DynamicUpdateBuilder {
   eq: (column: string, value: string) => Promise<{ error: unknown }>;
 }
 
+interface DynamicInsertReturningBuilder {
+  select: (columns: string) => {
+    single: () => Promise<{ data: unknown; error: unknown }>;
+  };
+}
+
 interface DynamicSupabaseTable {
   select: (columns: string) => DynamicQueryBuilder;
-  insert: (values: Record<string, unknown>) => Promise<{ error: unknown }>;
+  insert: (
+    values: Record<string, unknown>,
+  ) => Promise<{ error: unknown }> | DynamicInsertReturningBuilder;
   update: (values: Record<string, unknown>) => DynamicUpdateBuilder;
 }
 
 interface DynamicSupabaseClient {
   from: (table: string) => DynamicSupabaseTable;
+}
+
+interface ExamResultSummary {
+  id: string;
+  exam_request_id: string | null;
+}
+
+interface ExamResultListItem {
+  id: string;
+  laboratorio_nome: string | null;
+  data_exame: string;
+  score_estimado: number | null;
+  score_calculado: number;
+  categoria_risco: "baixo" | "moderado" | "alto";
 }
 
 const DEFAULT_LAB = {
@@ -116,6 +145,7 @@ function MeuRiscoPage() {
   const [checkins, setCheckins] = useState<ClinicalCheckin[]>([]);
   const [period, setPeriod] = useState<"week" | "month" | "quarter">("month");
   const [examRequest, setExamRequest] = useState<ExamRequest | null>(null);
+  const [examResults, setExamResults] = useState<ExamResultListItem[]>([]);
   const [stored] = useState(() => readStoredHubData());
 
   useEffect(() => {
@@ -148,6 +178,7 @@ function MeuRiscoPage() {
 
   useEffect(() => {
     void loadLatestExamRequest(user.id, setExamRequest);
+    void loadExamResults(user.id, setExamResults);
   }, [user.id]);
 
   const latest = history.at(-1);
@@ -270,7 +301,17 @@ function MeuRiscoPage() {
           </div>
         </Card>
 
-        <ExamRequestCard userId={user.id} request={examRequest} onRequestChange={setExamRequest} />
+        <ExamRequestCard
+          userId={user.id}
+          request={examRequest}
+          estimatedScore={score}
+          onRequestChange={(nextRequest) => {
+            setExamRequest(nextRequest);
+            void loadExamResults(user.id, setExamResults);
+          }}
+        />
+
+        <ExamResultsHistoryCard results={examResults} />
 
         <Card>
           <SectionTitle icon={ShieldCheck} title="O que fazer para reduzir 10% do risco" />
@@ -318,30 +359,104 @@ async function loadLatestExamRequest(
   setExamRequest(isExamRequest(data) ? data : null);
 }
 
+async function loadExamResults(
+  userId: string,
+  setExamResults: (results: ExamResultListItem[]) => void,
+) {
+  const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+  const { data, error } = await dynamicSupabase
+    .from("exam_results")
+    .select("id,laboratorio_nome,data_exame,score_estimado,score_calculado,categoria_risco")
+    .eq("user_id", userId)
+    .order("data_exame", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+  setExamResults(Array.isArray(data) ? data.filter(isExamResultListItem) : []);
+}
+
 function isExamRequest(data: unknown): data is ExamRequest {
   if (!data || typeof data !== "object") return false;
   const record = data as Partial<ExamRequest>;
   return typeof record.id === "string" && typeof record.status === "string";
 }
 
+function isExamResultListItem(data: unknown): data is ExamResultListItem {
+  if (!data || typeof data !== "object") return false;
+  const record = data as Partial<ExamResultListItem>;
+  return (
+    typeof record.id === "string" &&
+    typeof record.data_exame === "string" &&
+    typeof record.score_calculado === "number"
+  );
+}
+
 function ExamRequestCard({
   userId,
   request,
+  estimatedScore,
   onRequestChange,
 }: {
   userId: string;
   request: ExamRequest | null;
+  estimatedScore: number | null;
   onRequestChange: (request: ExamRequest | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [savingBiomarkers, setSavingBiomarkers] = useState(false);
+  const [examResultId, setExamResultId] = useState<string | null>(null);
+  const [biomarkerForm, setBiomarkerForm] = useState({
+    examDate: new Date().toISOString().slice(0, 10),
+    labName: request?.laboratorio_nome ?? DEFAULT_LAB.name,
+    apob: "",
+    ldl: "",
+    hdl: "",
+    triglicerideos: "",
+    hba1c: "",
+    glicemiaJejum: "",
+    insulinaJejum: "",
+    pcrUs: "",
+  });
   const [form, setForm] = useState({
     phone: request?.telefone_whatsapp ?? "",
     city: request?.cidade ?? "",
     healthPlan: request?.plano_saude ?? "",
   });
   const requestStatus = request?.status;
+
+  useEffect(() => {
+    setBiomarkerForm((current) => ({
+      ...current,
+      labName: request?.laboratorio_nome ?? current.labName ?? DEFAULT_LAB.name,
+    }));
+  }, [request?.laboratorio_nome]);
+
+  useEffect(() => {
+    async function loadExamResult() {
+      if (!request?.id) {
+        setExamResultId(null);
+        return;
+      }
+      const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+      const { data, error } = await dynamicSupabase
+        .from("exam_results")
+        .select("id,exam_request_id")
+        .eq("exam_request_id", request.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) {
+        console.error(error);
+        return;
+      }
+      setExamResultId(isExamResultSummary(data) ? data.id : null);
+    }
+    void loadExamResult();
+  }, [request?.id]);
 
   async function submit() {
     if (!form.phone.trim() || !form.city.trim() || !form.healthPlan.trim()) {
@@ -406,6 +521,81 @@ function ExamRequestCard({
     }
     toast.success("Recebemos seu resultado! O Carelito vai interpretar em breve.");
     await loadLatestExamRequest(userId, onRequestChange);
+  }
+
+  async function saveBiomarkers() {
+    if (!request) return;
+    const biomarkers: ExamBiomarkers = {
+      apob: parseExamNumber(biomarkerForm.apob),
+      ldl: parseExamNumber(biomarkerForm.ldl),
+      hdl: parseExamNumber(biomarkerForm.hdl),
+      triglicerideos: parseExamNumber(biomarkerForm.triglicerideos),
+      hba1c: parseExamNumber(biomarkerForm.hba1c),
+      glicemiaJejum: parseExamNumber(biomarkerForm.glicemiaJejum),
+      insulinaJejum: parseExamNumber(biomarkerForm.insulinaJejum),
+      pcrUs: parseExamNumber(biomarkerForm.pcrUs),
+    };
+    const hasAnyValue = Object.values(biomarkers).some((value) => value != null);
+    if (!hasAnyValue) {
+      toast.error("Preencha pelo menos um biomarcador do exame.");
+      return;
+    }
+    const homaIr = calculateHomaIr(biomarkers.glicemiaJejum, biomarkers.insulinaJejum);
+    const interpretation = buildExamInterpretation(
+      { ...biomarkers, homaIr },
+      estimatedScore,
+      "você",
+    );
+    setSavingBiomarkers(true);
+    const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+    const insertBuilder = dynamicSupabase.from("exam_results").insert({
+      user_id: userId,
+      exam_request_id: request.id,
+      laboratorio_nome:
+        biomarkerForm.labName.trim() || request.laboratorio_nome || DEFAULT_LAB.name,
+      data_exame: biomarkerForm.examDate || new Date().toISOString().slice(0, 10),
+      arquivo_url: request.resultado_url,
+      apob: biomarkers.apob,
+      ldl: biomarkers.ldl,
+      hdl: biomarkers.hdl,
+      triglicerideos: biomarkers.triglicerideos,
+      hba1c: biomarkers.hba1c,
+      glicemia_jejum: biomarkers.glicemiaJejum,
+      insulina_jejum: biomarkers.insulinaJejum,
+      homa_ir: homaIr,
+      pcr_us: biomarkers.pcrUs,
+      score_estimado: estimatedScore,
+      score_calculado: interpretation.score,
+      categoria_risco: interpretation.category,
+      interpretacao_gerada: {
+        cards: interpretation.cards,
+        factors: interpretation.factors,
+        score: interpretation.score,
+        category: interpretation.category,
+      },
+      resumo_carelito: interpretation.summary,
+    }) as DynamicInsertReturningBuilder;
+    const { data, error } = await insertBuilder.select("id").single();
+
+    if (error) {
+      setSavingBiomarkers(false);
+      toast.error("Não foi possível salvar a interpretação. Verifique a tabela exam_results.");
+      console.error(error);
+      return;
+    }
+
+    await dynamicSupabase
+      .from("exam_requests")
+      .update({ status: "concluido", updated_at: new Date().toISOString() })
+      .eq("id", request.id);
+    setSavingBiomarkers(false);
+
+    if (isExamResultSummary(data)) {
+      setExamResultId(data.id);
+      toast.success("Interpretação pronta. Seu score foi atualizado com os exames reais.");
+      await loadLatestExamRequest(userId, onRequestChange);
+      window.location.assign(`/exame-resultado/${data.id}`);
+    }
   }
 
   return (
@@ -526,13 +716,226 @@ function ExamRequestCard({
       )}
 
       {requestStatus === "resultado_recebido" && (
-        <StatusBlock
-          icon={CheckCircle2}
-          title="Resultado recebido"
-          text="Recebemos seu resultado! O Carelito vai interpretar em breve."
-          tone="success"
-        />
+        <div className="mt-4 space-y-4">
+          <StatusBlock
+            icon={CheckCircle2}
+            title="Resultado recebido"
+            text="Agora digite os valores principais do exame para o Carelito interpretar com dados reais."
+            tone="success"
+          />
+          {examResultId ? (
+            <Button asChild className="min-h-12 w-full rounded-full bg-[#10201f]">
+              <Link to="/exame-resultado/$id" params={{ id: examResultId }}>
+                <FileText className="mr-2 h-4 w-4" />
+                Ver interpretação do exame
+              </Link>
+            </Button>
+          ) : (
+            <BiomarkerForm
+              form={biomarkerForm}
+              saving={savingBiomarkers}
+              onChange={(field, value) =>
+                setBiomarkerForm((current) => ({ ...current, [field]: value }))
+              }
+              onSubmit={() => void saveBiomarkers()}
+            />
+          )}
+        </div>
       )}
+
+      {requestStatus === "concluido" && (
+        <div className="mt-4 space-y-4">
+          <StatusBlock
+            icon={CheckCircle2}
+            title="Exame interpretado"
+            text="Seu relatório com biomarcadores reais já está disponível."
+            tone="success"
+          />
+          {examResultId && (
+            <Button asChild className="min-h-12 w-full rounded-full bg-[#10201f]">
+              <Link to="/exame-resultado/$id" params={{ id: examResultId }}>
+                <FileText className="mr-2 h-4 w-4" />
+                Ver interpretação do exame
+              </Link>
+            </Button>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function isExamResultSummary(data: unknown): data is ExamResultSummary {
+  if (!data || typeof data !== "object") return false;
+  const record = data as Partial<ExamResultSummary>;
+  return typeof record.id === "string";
+}
+
+function BiomarkerForm({
+  form,
+  saving,
+  onChange,
+  onSubmit,
+}: {
+  form: {
+    examDate: string;
+    labName: string;
+    apob: string;
+    ldl: string;
+    hdl: string;
+    triglicerideos: string;
+    hba1c: string;
+    glicemiaJejum: string;
+    insulinaJejum: string;
+    pcrUs: string;
+  };
+  saving: boolean;
+  onChange: (field: keyof typeof form, value: string) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div className="space-y-4 rounded-[1.25rem] bg-[#f7faf9] p-4">
+      <p className="text-sm leading-6 text-[#536b68]">
+        A leitura automática do PDF vem depois. Por enquanto, envie o arquivo e digite os valores
+        abaixo para gerar a interpretação.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <ExamInput
+          label="Data do exame"
+          value={form.examDate}
+          type="date"
+          onChange={(value) => onChange("examDate", value)}
+        />
+        <ExamInput
+          label="Laboratório"
+          value={form.labName}
+          onChange={(value) => onChange("labName", value)}
+          placeholder="Laboratório parceiro HTCare"
+        />
+        <ExamInput
+          label="ApoB (mg/dL)"
+          value={form.apob}
+          onChange={(value) => onChange("apob", value)}
+        />
+        <ExamInput
+          label="LDL (mg/dL)"
+          value={form.ldl}
+          onChange={(value) => onChange("ldl", value)}
+        />
+        <ExamInput
+          label="HDL (mg/dL)"
+          value={form.hdl}
+          onChange={(value) => onChange("hdl", value)}
+        />
+        <ExamInput
+          label="Triglicerídeos (mg/dL)"
+          value={form.triglicerideos}
+          onChange={(value) => onChange("triglicerideos", value)}
+        />
+        <ExamInput
+          label="HbA1c (%)"
+          value={form.hba1c}
+          onChange={(value) => onChange("hba1c", value)}
+        />
+        <ExamInput
+          label="Glicemia de jejum (mg/dL)"
+          value={form.glicemiaJejum}
+          onChange={(value) => onChange("glicemiaJejum", value)}
+        />
+        <ExamInput
+          label="Insulina de jejum"
+          value={form.insulinaJejum}
+          onChange={(value) => onChange("insulinaJejum", value)}
+        />
+        <ExamInput
+          label="PCR-us (mg/L)"
+          value={form.pcrUs}
+          onChange={(value) => onChange("pcrUs", value)}
+        />
+      </div>
+      <Button
+        className="min-h-12 w-full rounded-full bg-[#10201f]"
+        disabled={saving}
+        onClick={onSubmit}
+      >
+        {saving ? "Gerando interpretação..." : "Gerar interpretação do Carelito"}
+      </Button>
+    </div>
+  );
+}
+
+function ExamInput({
+  label,
+  value,
+  onChange,
+  placeholder = "Digite o valor",
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+}) {
+  return (
+    <div>
+      <Label className="text-xs font-bold uppercase tracking-[0.12em] text-[#78908d]">
+        {label}
+      </Label>
+      <Input
+        type={type}
+        inputMode={type === "date" ? undefined : "decimal"}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="mt-2 h-12 rounded-2xl bg-white"
+      />
+    </div>
+  );
+}
+
+function ExamResultsHistoryCard({ results }: { results: ExamResultListItem[] }) {
+  if (!results.length) return null;
+  return (
+    <Card>
+      <SectionTitle icon={FileText} title="Exames interpretados" />
+      <div className="mt-4 grid gap-3">
+        {results.map((result) => {
+          const difference =
+            result.score_estimado == null ? null : result.score_calculado - result.score_estimado;
+          return (
+            <Link
+              key={result.id}
+              to="/exame-resultado/$id"
+              params={{ id: result.id }}
+              className="rounded-[1.25rem] bg-[#f7faf9] p-4 transition hover:-translate-y-0.5 hover:bg-[#eef7f5]"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#78908d]">
+                    {formatShortDate(result.data_exame)} ·{" "}
+                    {result.laboratorio_nome ?? "Laboratório parceiro"}
+                  </p>
+                  <p className="mt-1 font-sans text-xl font-semibold">
+                    Score real: {result.score_calculado}/100
+                  </p>
+                  {difference != null && (
+                    <p className="mt-1 text-sm text-[#536b68]">
+                      Estimado: {result.score_estimado}/100 · {difference > 0 ? "+" : ""}
+                      {difference} pontos com biomarcadores reais
+                    </p>
+                  )}
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${riskToneFromScore(result.score_calculado)}`}
+                >
+                  {riskLabelFromScore(result.score_calculado)}
+                </span>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
     </Card>
   );
 }

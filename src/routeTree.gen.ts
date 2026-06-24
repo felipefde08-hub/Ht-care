@@ -32,6 +32,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PerfilSectionRouteImport } from './routes/perfil.$section'
+import { Route as ExameResultadoIdRouteImport } from './routes/exame-resultado.$id'
 import { Route as AuthenticatedProfissionaisRouteImport } from './routes/_authenticated/profissionais'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedPacientesIndexRouteImport } from './routes/_authenticated/pacientes.index'
@@ -153,6 +154,11 @@ const PerfilSectionRoute = PerfilSectionRouteImport.update({
   path: '/$section',
   getParentRoute: () => PerfilRoute,
 } as any)
+const ExameResultadoIdRoute = ExameResultadoIdRouteImport.update({
+  id: '/exame-resultado/$id',
+  path: '/exame-resultado/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedProfissionaisRoute =
   AuthenticatedProfissionaisRouteImport.update({
     id: '/profissionais',
@@ -213,6 +219,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profissionais': typeof AuthenticatedProfissionaisRoute
+  '/exame-resultado/$id': typeof ExameResultadoIdRoute
   '/perfil/$section': typeof PerfilSectionRoute
   '/checkin/$patientId': typeof AuthenticatedCheckinPatientIdRoute
   '/paciente-dashboard/$id': typeof AuthenticatedPacienteDashboardIdRoute
@@ -243,6 +250,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profissionais': typeof AuthenticatedProfissionaisRoute
+  '/exame-resultado/$id': typeof ExameResultadoIdRoute
   '/perfil/$section': typeof PerfilSectionRoute
   '/checkin/$patientId': typeof AuthenticatedCheckinPatientIdRoute
   '/paciente-dashboard/$id': typeof AuthenticatedPacienteDashboardIdRoute
@@ -275,6 +283,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/profissionais': typeof AuthenticatedProfissionaisRoute
+  '/exame-resultado/$id': typeof ExameResultadoIdRoute
   '/perfil/$section': typeof PerfilSectionRoute
   '/_authenticated/checkin/$patientId': typeof AuthenticatedCheckinPatientIdRoute
   '/_authenticated/paciente-dashboard/$id': typeof AuthenticatedPacienteDashboardIdRoute
@@ -307,6 +316,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/dashboard'
     | '/profissionais'
+    | '/exame-resultado/$id'
     | '/perfil/$section'
     | '/checkin/$patientId'
     | '/paciente-dashboard/$id'
@@ -337,6 +347,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/dashboard'
     | '/profissionais'
+    | '/exame-resultado/$id'
     | '/perfil/$section'
     | '/checkin/$patientId'
     | '/paciente-dashboard/$id'
@@ -368,6 +379,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/_authenticated/dashboard'
     | '/_authenticated/profissionais'
+    | '/exame-resultado/$id'
     | '/perfil/$section'
     | '/_authenticated/checkin/$patientId'
     | '/_authenticated/paciente-dashboard/$id'
@@ -398,6 +410,7 @@ export interface RootRouteChildren {
   PrivacidadeRoute: typeof PrivacidadeRoute
   RelatorioRoute: typeof RelatorioRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ExameResultadoIdRoute: typeof ExameResultadoIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -563,6 +576,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PerfilSectionRouteImport
       parentRoute: typeof PerfilRoute
     }
+    '/exame-resultado/$id': {
+      id: '/exame-resultado/$id'
+      path: '/exame-resultado/$id'
+      fullPath: '/exame-resultado/$id'
+      preLoaderRoute: typeof ExameResultadoIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/profissionais': {
       id: '/_authenticated/profissionais'
       path: '/profissionais'
@@ -663,6 +683,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacidadeRoute: PrivacidadeRoute,
   RelatorioRoute: RelatorioRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ExameResultadoIdRoute: ExameResultadoIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
