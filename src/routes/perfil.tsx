@@ -1,4 +1,11 @@
-import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  redirect,
+  useLocation,
+  useNavigate,
+} from "@tanstack/react-router";
 import { motion } from "motion/react";
 import {
   Bell,
@@ -134,6 +141,7 @@ const reasons = [
 
 function ProfilePage() {
   const { user } = Route.useRouteContext();
+  const location = useLocation();
   const navigate = useNavigate();
   const [data, setData] = useState<OnboardingData>(initialData);
   const [reminders, setReminders] = useState<ReminderSettings>({ weeklyEmail: false });
@@ -232,6 +240,10 @@ function ProfilePage() {
 
     void loadData();
   }, [user.id]);
+
+  if (location.pathname !== "/perfil") {
+    return <Outlet />;
+  }
 
   function update<K extends keyof OnboardingData>(key: K, value: OnboardingData[K]) {
     setData((current) => ({ ...current, [key]: value }));
