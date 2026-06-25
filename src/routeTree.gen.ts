@@ -31,6 +31,7 @@ import { Route as CheckInRouteImport } from './routes/check-in'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as Protocolo90DiasIdRouteImport } from './routes/protocolo-90-dias.$id'
 import { Route as PerfilSectionRouteImport } from './routes/perfil.$section'
 import { Route as ExameResultadoIdRouteImport } from './routes/exame-resultado.$id'
 import { Route as AuthenticatedProfissionaisRouteImport } from './routes/_authenticated/profissionais'
@@ -149,6 +150,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Protocolo90DiasIdRoute = Protocolo90DiasIdRouteImport.update({
+  id: '/protocolo-90-dias/$id',
+  path: '/protocolo-90-dias/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PerfilSectionRoute = PerfilSectionRouteImport.update({
   id: '/$section',
   path: '/$section',
@@ -221,6 +227,7 @@ export interface FileRoutesByFullPath {
   '/profissionais': typeof AuthenticatedProfissionaisRoute
   '/exame-resultado/$id': typeof ExameResultadoIdRoute
   '/perfil/$section': typeof PerfilSectionRoute
+  '/protocolo-90-dias/$id': typeof Protocolo90DiasIdRoute
   '/checkin/$patientId': typeof AuthenticatedCheckinPatientIdRoute
   '/paciente-dashboard/$id': typeof AuthenticatedPacienteDashboardIdRoute
   '/pacientes/$id': typeof AuthenticatedPacientesIdRoute
@@ -252,6 +259,7 @@ export interface FileRoutesByTo {
   '/profissionais': typeof AuthenticatedProfissionaisRoute
   '/exame-resultado/$id': typeof ExameResultadoIdRoute
   '/perfil/$section': typeof PerfilSectionRoute
+  '/protocolo-90-dias/$id': typeof Protocolo90DiasIdRoute
   '/checkin/$patientId': typeof AuthenticatedCheckinPatientIdRoute
   '/paciente-dashboard/$id': typeof AuthenticatedPacienteDashboardIdRoute
   '/pacientes/$id': typeof AuthenticatedPacientesIdRoute
@@ -285,6 +293,7 @@ export interface FileRoutesById {
   '/_authenticated/profissionais': typeof AuthenticatedProfissionaisRoute
   '/exame-resultado/$id': typeof ExameResultadoIdRoute
   '/perfil/$section': typeof PerfilSectionRoute
+  '/protocolo-90-dias/$id': typeof Protocolo90DiasIdRoute
   '/_authenticated/checkin/$patientId': typeof AuthenticatedCheckinPatientIdRoute
   '/_authenticated/paciente-dashboard/$id': typeof AuthenticatedPacienteDashboardIdRoute
   '/_authenticated/pacientes/$id': typeof AuthenticatedPacientesIdRoute
@@ -318,6 +327,7 @@ export interface FileRouteTypes {
     | '/profissionais'
     | '/exame-resultado/$id'
     | '/perfil/$section'
+    | '/protocolo-90-dias/$id'
     | '/checkin/$patientId'
     | '/paciente-dashboard/$id'
     | '/pacientes/$id'
@@ -349,6 +359,7 @@ export interface FileRouteTypes {
     | '/profissionais'
     | '/exame-resultado/$id'
     | '/perfil/$section'
+    | '/protocolo-90-dias/$id'
     | '/checkin/$patientId'
     | '/paciente-dashboard/$id'
     | '/pacientes/$id'
@@ -381,6 +392,7 @@ export interface FileRouteTypes {
     | '/_authenticated/profissionais'
     | '/exame-resultado/$id'
     | '/perfil/$section'
+    | '/protocolo-90-dias/$id'
     | '/_authenticated/checkin/$patientId'
     | '/_authenticated/paciente-dashboard/$id'
     | '/_authenticated/pacientes/$id'
@@ -411,6 +423,7 @@ export interface RootRouteChildren {
   RelatorioRoute: typeof RelatorioRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ExameResultadoIdRoute: typeof ExameResultadoIdRoute
+  Protocolo90DiasIdRoute: typeof Protocolo90DiasIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -569,6 +582,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/protocolo-90-dias/$id': {
+      id: '/protocolo-90-dias/$id'
+      path: '/protocolo-90-dias/$id'
+      fullPath: '/protocolo-90-dias/$id'
+      preLoaderRoute: typeof Protocolo90DiasIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/perfil/$section': {
       id: '/perfil/$section'
       path: '/$section'
@@ -684,6 +704,7 @@ const rootRouteChildren: RootRouteChildren = {
   RelatorioRoute: RelatorioRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ExameResultadoIdRoute: ExameResultadoIdRoute,
+  Protocolo90DiasIdRoute: Protocolo90DiasIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

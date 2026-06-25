@@ -296,7 +296,12 @@ function ExamResultPage() {
         <NextExamCard recommendation={nextExam} resultId={result.id} />
 
         <Card className="print:hidden">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Button asChild className="min-h-12 rounded-full bg-[#2563EB]">
+              <Link to="/protocolo-90-dias/$id" params={{ id: result.id }}>
+                Ver protocolo de 90 dias
+              </Link>
+            </Button>
             <Button className="min-h-12 rounded-full bg-[#10201f]" onClick={() => window.print()}>
               <Share2 className="mr-2 h-4 w-4" />
               Gerar relatório completo em PDF

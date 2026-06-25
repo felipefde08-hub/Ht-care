@@ -1,12 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { Bell, Check, ChevronLeft, HeartPulse, Sparkles, Users } from "lucide-react";
+import { Check, ChevronLeft, Star } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
-import { MobileAppNav } from "@/components/MobileAppNav";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 export const Route = createFileRoute("/planos")({
   ssr: false,
@@ -16,198 +14,132 @@ export const Route = createFileRoute("/planos")({
 
 const plans = [
   {
-    name: "Free",
-    price: "Grátis",
-    description: "Para começar a entender seu risco e acompanhar o básico.",
-    icon: HeartPulse,
-    available: true,
-    tone: "from-[#e9f4fb] to-[#e8f5ef]",
-    features: [
-      ["Score + Relatório", true],
-      ["Carelito IA", false],
-      ["Histórico completo", false],
-      ["PDF para médico", false],
-      ["Upload de exames", false],
-      ["Múltiplos perfis", false],
-    ],
+    name: "Gratuito",
+    price: "R$0",
+    detail: "Score inicial e registros básicos.",
+    selected: false,
   },
   {
     name: "Plus",
     price: "R$19,90/mês",
-    description: "Mais acompanhamento, histórico e recursos inteligentes.",
-    icon: Sparkles,
-    available: false,
-    tone: "from-[#e9f4fb] to-[#f1ecff]",
-    features: [
-      ["Score + Relatório", true],
-      ["Carelito IA", true],
-      ["Histórico completo", true],
-      ["PDF para médico", true],
-      ["Upload de exames", true],
-      ["Múltiplos perfis", false],
-    ],
+    detail: "Protocolo, relatórios e acompanhamento completo.",
+    selected: true,
+    badge: "Mais popular",
   },
   {
     name: "Família",
     price: "R$34,90/mês",
-    description: "Acompanhe até 4 pessoas com uma visão familiar.",
-    icon: Users,
-    available: false,
-    tone: "from-[#e8f5ef] to-[#fff7dc]",
-    features: [
-      ["Score + Relatório", true],
-      ["Carelito IA", true],
-      ["Histórico completo", true],
-      ["PDF para médico", true],
-      ["Upload de exames", true],
-      ["Múltiplos perfis", true],
-    ],
+    detail: "Até 4 perfis acompanhando juntos.",
+    selected: false,
   },
 ];
 
 function PlansPage() {
-  const [email, setEmail] = useState("");
+  const [selected, setSelected] = useState("Plus");
 
-  function notifyInterest(planName: string) {
-    const normalized = email.trim();
-    if (!normalized || !normalized.includes("@")) {
-      toast.error("Informe um e-mail válido para receber o aviso.");
-      return;
-    }
-    const existing = JSON.parse(
-      window.localStorage.getItem("htcare:plan-interest") || "[]",
-    ) as Array<{ email: string; plan: string; createdAt: string }>;
-    window.localStorage.setItem(
-      "htcare:plan-interest",
-      JSON.stringify([
-        ...existing,
-        { email: normalized, plan: planName, createdAt: new Date().toISOString() },
-      ]),
-    );
-    toast.success("Pronto. Vamos te avisar quando esse plano estiver disponível.");
-    setEmail("");
+  function continuePlan() {
+    toast.success(`${selected} selecionado. Pagamento entra em breve.`);
   }
 
   return (
-    <main className="min-h-screen bg-[#fbfcfc] px-4 pb-28 pt-4 text-[#10201f] sm:px-5 sm:pb-10 sm:pt-6">
-      <header className="mx-auto flex max-w-6xl items-center justify-between">
-        <Link to="/">
-          <Logo />
-        </Link>
-        <Button variant="ghost" className="rounded-full" asChild>
-          <Link to="/perfil">
-            <ChevronLeft className="h-4 w-4" />
-            Voltar
+    <main className="min-h-screen bg-[#111827] text-white">
+      <section className="relative min-h-[44vh] overflow-hidden px-4 pb-20 pt-5">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(37,99,235,0.36),transparent_42%)]" />
+        <header className="relative z-10 mx-auto flex max-w-md items-center justify-between">
+          <Link
+            to="/perfil"
+            className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white"
+            aria-label="Voltar"
+          >
+            <ChevronLeft className="h-5 w-5" />
           </Link>
-        </Button>
-      </header>
+          <Logo />
+          <div className="h-10 w-10" />
+        </header>
 
-      <section className="mx-auto mt-8 max-w-6xl sm:mt-14">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: "easeOut" }}
-          className="max-w-3xl"
+          className="relative z-10 mx-auto mt-12 max-w-md"
         >
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#78908d]">
-            Planos HTCare
-          </p>
-          <h1 className="mt-3 font-sans text-4xl font-semibold leading-tight sm:text-7xl">
-            Escolha como quer acompanhar seu coração.
-          </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-[#536b68] sm:text-base sm:leading-7">
-            O plano gratuito continua disponível. Plus e Família entram em breve, com recursos
-            extras para acompanhamento, exames e relatórios.
+          <div className="flex gap-1 text-[#FACC15]">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Star key={index} className="h-5 w-5 fill-current" />
+            ))}
+          </div>
+          <blockquote className="mt-5 text-[28px] font-bold leading-tight tracking-[-0.02em]">
+            “Finalmente entendi meus exames sem me perder em números.”
+          </blockquote>
+          <p className="mt-4 text-sm leading-6 text-white/68">
+            João, 48 anos · acompanhando pressão, ApoB e resistência à insulina com a HTCare.
           </p>
         </motion.div>
-
-        <div className="mt-7 grid gap-4 lg:grid-cols-3">
-          {plans.map((plan, index) => {
-            const Icon = plan.icon;
-            return (
-              <motion.article
-                key={plan.name}
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, ease: "easeOut", delay: 0.06 * index }}
-                className={`rounded-[2rem] border border-[#10201f]/8 bg-gradient-to-br ${plan.tone} p-5 shadow-soft sm:p-6`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="grid h-12 w-12 place-items-center rounded-full bg-white/78 text-[#2f6760] shadow-soft">
-                    <Icon className="h-6 w-6" />
-                  </span>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-bold ${
-                      plan.available ? "bg-[#10201f] text-white" : "bg-white/78 text-[#536b68]"
-                    }`}
-                  >
-                    {plan.available ? "Atual" : "Em breve"}
-                  </span>
-                </div>
-                <h2 className="mt-5 font-sans text-2xl font-semibold">{plan.name}</h2>
-                <p className="mt-2 font-sans text-3xl font-semibold">{plan.price}</p>
-                <p className="mt-3 min-h-12 text-sm leading-6 text-[#536b68]">{plan.description}</p>
-                <div className="mt-5 space-y-2">
-                  {plan.features.map(([feature, enabled]) => (
-                    <div
-                      key={feature}
-                      className={`flex items-center gap-2 rounded-2xl bg-white/62 px-3 py-2 text-sm font-semibold ${
-                        enabled ? "text-[#10201f]" : "text-[#9aa8a5]"
-                      }`}
-                    >
-                      <Check className={`h-4 w-4 ${enabled ? "text-[#2f6760]" : "opacity-20"}`} />
-                      {feature}
-                    </div>
-                  ))}
-                </div>
-                {plan.available ? (
-                  <Button className="mt-5 w-full rounded-full bg-[#10201f]" asChild>
-                    <Link to="/painel">Continuar no Free</Link>
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="mt-5 w-full rounded-full border-white/80 bg-white/72"
-                    onClick={() => notifyInterest(plan.name)}
-                  >
-                    <Bell className="h-4 w-4" />
-                    Avise-me
-                  </Button>
-                )}
-              </motion.article>
-            );
-          })}
-        </div>
-
-        <section className="mt-5 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft sm:mt-8 sm:p-6">
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-            <div>
-              <h2 className="font-sans text-xl font-semibold">Receba o aviso de lançamento</h2>
-              <p className="mt-1 text-sm leading-6 text-[#536b68]">
-                Deixe seu melhor e-mail para avisarmos quando Plus e Família estiverem disponíveis.
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="seu@email.com"
-                className="h-12 min-w-0 rounded-full sm:w-72"
-              />
-              <Button
-                type="button"
-                className="h-12 rounded-full bg-[#10201f]"
-                onClick={() => notifyInterest("geral")}
-              >
-                Enviar
-              </Button>
-            </div>
-          </div>
-        </section>
       </section>
-      <MobileAppNav />
+
+      <section className="-mt-10 min-h-[62vh] rounded-t-[2rem] bg-white px-4 pb-9 pt-5 text-[#111827] shadow-[0_-20px_70px_-44px_rgba(0,0,0,0.6)]">
+        <div className="mx-auto max-w-md">
+          <div className="mx-auto mb-5 h-1.5 w-12 rounded-full bg-[#E5E7EB]" />
+          <h1 className="text-[22px] font-bold">Escolha seu plano</h1>
+          <p className="mt-2 text-sm leading-6 text-[#6B7280]">
+            Comece grátis. Evolua quando quiser para relatórios e protocolos completos.
+          </p>
+
+          <div className="mt-5 space-y-3">
+            {plans.map((plan) => {
+              const active = selected === plan.name;
+              return (
+                <button
+                  key={plan.name}
+                  type="button"
+                  onClick={() => setSelected(plan.name)}
+                  className={`w-full rounded-2xl border bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition ${
+                    active ? "border-[#2563EB] ring-2 ring-[#2563EB]/12" : "border-[#E5E7EB]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-base font-semibold">{plan.name}</h2>
+                        {plan.badge && (
+                          <span className="rounded-full bg-[#EFF6FF] px-2.5 py-1 text-xs font-semibold text-[#2563EB]">
+                            {plan.badge}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-sm text-[#6B7280]">{plan.detail}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-base font-bold">{plan.price}</p>
+                      <span
+                        className={`mt-2 inline-grid h-6 w-6 place-items-center rounded-full border ${
+                          active ? "border-[#2563EB] bg-[#2563EB] text-white" : "border-[#D1D5DB]"
+                        }`}
+                      >
+                        {active && <Check className="h-4 w-4" />}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <Button
+            type="button"
+            className="mt-5 min-h-12 w-full rounded-xl bg-[#2563EB] text-base font-semibold"
+            onClick={continuePlan}
+          >
+            Continuar
+          </Button>
+          <Link
+            to="/perfil"
+            className="mx-auto mt-4 block w-fit text-sm font-semibold text-[#6B7280]"
+          >
+            Voltar
+          </Link>
+        </div>
+      </section>
     </main>
   );
 }
