@@ -5,14 +5,19 @@ import {
   Bell,
   Check,
   FileText,
+  FileUp,
+  FlaskConical,
   HeartPulse,
   Languages,
   Lock,
+  LogOut,
   Moon,
   Pill,
   Save,
+  Settings,
   ShieldCheck,
   Stethoscope,
+  Target,
   Trash2,
   UserRound,
 } from "lucide-react";
@@ -118,8 +123,18 @@ const sectionMeta = {
     tone: "bg-[#f1ecff] text-[#6f55c8]",
   },
   "exames-resultados": {
-    title: "Exames e resultados",
+    title: "Exames e documentos",
     icon: FileText,
+    tone: "bg-[#eef3f1] text-[#536b68]",
+  },
+  "metas-saude": {
+    title: "Metas de saúde",
+    icon: Target,
+    tone: "bg-[#fff7dc] text-[#9a5b12]",
+  },
+  configuracoes: {
+    title: "Configurações",
+    icon: Settings,
     tone: "bg-[#eef3f1] text-[#536b68]",
   },
   notificacoes: {
@@ -365,6 +380,11 @@ function ProfileSectionPage() {
     else toast.success("Enviamos um link de alteração de senha para seu e-mail.");
   }
 
+  async function logout() {
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", replace: true });
+  }
+
   return (
     <main className="min-h-screen bg-[#fbfcfc] px-4 pb-10 pt-4 text-[#10201f] sm:px-5 sm:py-6">
       <div className="mx-auto flex max-w-3xl items-center justify-between">
@@ -588,7 +608,98 @@ function ProfileSectionPage() {
           )}
 
           {key === "exames-resultados" && (
-            <EmptyState text="Nenhum exame registrado ainda. Em breve você poderá conectar resultados de laboratórios parceiros." />
+            <div className="space-y-3">
+              <div className="rounded-2xl bg-[#f7faf9] p-5">
+                <div className="flex items-start gap-3">
+                  <FlaskConical className="mt-1 h-5 w-5 text-[#2f8fc8]" />
+                  <div>
+                    <p className="font-semibold">Envie ou consulte seus exames</p>
+                    <p className="mt-1 text-sm leading-6 text-[#536b68]">
+                      Guarde PDFs, imagens e observações. Quando houver laboratório parceiro, os
+                      resultados também aparecerão aqui.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <Button className="min-h-12 w-full rounded-full bg-[#10201f]" asChild>
+                <Link to="/exames">
+                  <FileUp className="h-4 w-4" />
+                  Abrir upload e lista de exames
+                </Link>
+              </Button>
+              <Button variant="outline" className="min-h-12 w-full rounded-full" asChild>
+                <Link to="/meu-risco">Solicitar exame de sangue</Link>
+              </Button>
+            </div>
+          )}
+
+          {key === "metas-saude" && (
+            <div className="space-y-3">
+              <InfoCard
+                title="Protocolo de 90 dias"
+                text="Suas metas principais são definidas a partir dos biomarcadores e do score mais recente."
+              />
+              <div className="grid gap-3">
+                {[
+                  ["Caminhar 30 min após o almoço", "Ajuda resistência à insulina e pressão."],
+                  [
+                    "Registrar pressão 3x por semana",
+                    "Mostra tendência real, não uma foto isolada.",
+                  ],
+                  [
+                    "Repetir exame no prazo recomendado",
+                    "Confirma se o plano está mudando seus biomarcadores.",
+                  ],
+                ].map(([title, text]) => (
+                  <div key={title} className="rounded-2xl bg-[#f7faf9] p-4">
+                    <p className="font-semibold">{title}</p>
+                    <p className="mt-1 text-sm leading-6 text-[#536b68]">{text}</p>
+                  </div>
+                ))}
+              </div>
+              <Button className="min-h-12 w-full rounded-full bg-[#10201f]" asChild>
+                <Link to="/protocolo-90-dias/$id" params={{ id: "demo" }}>
+                  Ver protocolo de 90 dias
+                </Link>
+              </Button>
+            </div>
+          )}
+
+          {key === "configuracoes" && (
+            <div className="space-y-3">
+              <ConfigLink
+                icon={<Bell className="h-5 w-5" />}
+                title="Notificações"
+                text="Lembretes, resumo semanal e novas missões."
+                section="notificacoes"
+              />
+              <ConfigLink
+                icon={<Lock className="h-5 w-5" />}
+                title="Privacidade e segurança"
+                text="Senha, proteção da conta e política de privacidade."
+                section="privacidade-seguranca"
+              />
+              <ConfigLink
+                icon={<Languages className="h-5 w-5" />}
+                title="Idioma"
+                text="Português Brasil."
+                section="idioma"
+              />
+              <ConfigLink
+                icon={<Moon className="h-5 w-5" />}
+                title="Aparência"
+                text="Modo claro por enquanto."
+                section="aparencia"
+              />
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className="flex min-h-14 w-full items-center gap-3 rounded-2xl bg-[#f7faf9] p-4 text-left font-semibold text-[#536b68]"
+              >
+                <LogOut className="h-5 w-5" />
+                Sair da conta
+              </button>
+            </div>
           )}
 
           {key === "notificacoes" && (
@@ -767,9 +878,31 @@ function PreferenceRow({
   );
 }
 
-function EmptyState({ text }: { text: string }) {
+function ConfigLink({
+  icon,
+  title,
+  text,
+  section,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+  section: SectionKey;
+}) {
   return (
-    <div className="rounded-2xl bg-[#f7faf9] p-5 text-sm leading-6 text-[#536b68]">{text}</div>
+    <Link
+      to="/perfil/$section"
+      params={{ section }}
+      className="flex min-h-16 items-center gap-3 rounded-2xl bg-[#f7faf9] p-4"
+    >
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-[#2f8fc8]">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold">{title}</span>
+        <span className="mt-0.5 block text-sm leading-5 text-[#536b68]">{text}</span>
+      </span>
+    </Link>
   );
 }
 

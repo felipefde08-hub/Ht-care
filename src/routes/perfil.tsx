@@ -7,10 +7,7 @@ import {
   FileText,
   Globe2,
   HeartPulse,
-  Languages,
-  Lock,
   LogOut,
-  Moon,
   Pill,
   Save,
   Settings,
@@ -348,7 +345,7 @@ function ProfilePage() {
           </Link>
           <Link
             to="/perfil/$section"
-            params={{ section: "privacidade-seguranca" }}
+            params={{ section: "configuracoes" }}
             className="grid h-11 w-11 place-items-center rounded-full border border-[#10201f]/8 bg-white text-[#10201f] shadow-soft"
             aria-label="Configurações"
           >
@@ -357,8 +354,8 @@ function ProfilePage() {
         </div>
         <nav className="hidden items-center gap-2 sm:flex">
           <Button variant="ghost" asChild>
-            <Link to="/perfil/$section" params={{ section: "notificacoes" }}>
-              Notificações
+            <Link to="/perfil/$section" params={{ section: "configuracoes" }}>
+              Configurações
             </Link>
           </Button>
           <Button variant="ghost" asChild>
@@ -440,6 +437,14 @@ function ProfilePage() {
               params={{ section: "exames-resultados" }}
             />
             <CompactPreferenceItem
+              icon={<HeartPulse className="h-5 w-5" />}
+              title="Dados de saúde"
+              detail={formatHealthSummary(data)}
+              tone="bg-[#DCFCE7] text-[#16A34A]"
+              to="/perfil/$section"
+              params={{ section: "dados-saude" }}
+            />
+            <CompactPreferenceItem
               icon={<Pill className="h-5 w-5" />}
               title="Medicamentos"
               detail={formatMedicationSummary(data)}
@@ -450,10 +455,10 @@ function ProfilePage() {
             <CompactPreferenceItem
               icon={<HeartPulse className="h-5 w-5" />}
               title="Metas de saúde"
-              detail={formatHealthSummary(data)}
+              detail="Protocolo, pressão e próximos passos"
               tone="bg-[#FEF3C7] text-[#92400E]"
               to="/perfil/$section"
-              params={{ section: "dados-saude" }}
+              params={{ section: "metas-saude" }}
             />
             <CompactPreferenceItem
               icon={<Settings className="h-5 w-5" />}
@@ -461,7 +466,7 @@ function ProfilePage() {
               detail={reminders.weeklyEmail ? "Notificações ativas" : "Notificações inativas"}
               tone="bg-[#F3F4F6] text-[#6B7280]"
               to="/perfil/$section"
-              params={{ section: "notificacoes" }}
+              params={{ section: "configuracoes" }}
             />
           </div>
         </MobileProfileCard>
@@ -557,32 +562,18 @@ function ProfilePage() {
             section="exames-resultados"
           />
           <DesktopProfileItem
-            icon={<Bell className="h-5 w-5" />}
-            title="Notificações"
-            detail="Lembretes e e-mails"
-            tone="bg-[#e9f4fb] text-[#2f8fc8]"
-            section="notificacoes"
-          />
-          <DesktopProfileItem
-            icon={<Lock className="h-5 w-5" />}
-            title="Privacidade"
-            detail="Senha, segurança e conta"
-            tone="bg-[#e8f5ef] text-[#2f6760]"
-            section="privacidade-seguranca"
-          />
-          <DesktopProfileItem
-            icon={<Languages className="h-5 w-5" />}
-            title="Idioma"
-            detail="Português Brasil"
+            icon={<HeartPulse className="h-5 w-5" />}
+            title="Metas de saúde"
+            detail="Protocolo e próximos passos"
             tone="bg-[#fff7dc] text-[#9a5b12]"
-            section="idioma"
+            section="metas-saude"
           />
           <DesktopProfileItem
-            icon={<Moon className="h-5 w-5" />}
-            title="Aparência"
-            detail="Modo claro"
+            icon={<Settings className="h-5 w-5" />}
+            title="Configurações"
+            detail="Notificações, privacidade e conta"
             tone="bg-[#eef3f1] text-[#536b68]"
-            section="aparencia"
+            section="configuracoes"
           />
           <DesktopProfileItem
             icon={<Globe2 className="h-5 w-5" />}

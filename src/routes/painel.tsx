@@ -123,6 +123,7 @@ function PanelPage() {
   const [examRequest, setExamRequest] = useState<ExamRequest | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [dailyCheckinDone, setDailyCheckinDone] = useState(() => isDailyCheckinDoneToday());
+  const [daysAway] = useState(() => getDaysSinceLastOpen(user.id));
 
   useEffect(() => {
     async function loadData() {
@@ -210,6 +211,12 @@ function PanelPage() {
     day: "2-digit",
     month: "short",
   }).format(new Date());
+  const todayCards = buildTodayCards({
+    examRequest,
+    dailyCheckinDone,
+    daysAway,
+    insightText: insight.text,
+  });
 
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,#EBF5FF_0%,#F0FDF4_100%)] px-4 pb-28 pt-4 text-[#10201f] sm:bg-[#fbfcfc] sm:px-5 sm:py-6">
@@ -321,25 +328,9 @@ function PanelPage() {
           <section className="mt-8">
             <p className="text-sm font-bold text-[#111827]">Hoje · {todayLabel}</p>
             <div className="-mx-4 mt-3 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
-              <TodayFeedCard
-                icon={<HeartPulse className="h-5 w-5" />}
-                title="Registrar pressão"
-                text="Atualize sua medida em menos de 30 segundos."
-                to="/check-in"
-              />
-              <TodayFeedCard
-                icon={<CheckCircle2 className="h-5 w-5" />}
-                title="Protocolo de hoje"
-                text="Veja a próxima ação do seu plano de 90 dias."
-                to="/protocolo-90-dias/$id"
-                params={{ id: "demo" }}
-              />
-              <TodayFeedCard
-                icon={<Bell className="h-5 w-5" />}
-                title="Insight do Carelito"
-                text={insight.text}
-                to="/meu-risco"
-              />
+              {todayCards.map((card) => (
+                <TodayFeedCard key={card.title} {...card} />
+              ))}
             </div>
           </section>
 
@@ -622,6 +613,87 @@ function ExamReportPreviewCard({ compact = false }: { compact?: boolean }) {
   );
 }
 
+interface TodayCardConfig {
+  icon: ReactNode;
+  title: string;
+  text: string;
+  to: "/check-in" | "/meu-risco" | "/historico" | "/protocolo-90-dias/$id";
+  params?: { id: string };
+}
+
+function buildTodayCards({
+  examRequest,
+  dailyCheckinDone,
+  daysAway,
+  insightText,
+}: {
+  examRequest: ExamRequest | null;
+  dailyCheckinDone: boolean;
+  daysAway: number | null;
+  insightText: string;
+}): TodayCardConfig[] {
+  const cards: TodayCardConfig[] = [];
+
+  if (!examRequest) {
+    cards.push({
+      icon: <FlaskConical className="h-5 w-5" />,
+      title: "Fazer exame",
+      text: "Aprofunde seu score com biomarcadores reais.",
+      to: "/meu-risco",
+    });
+  } else if (examRequest.status === "concluido" || examRequest.status === "resultado_recebido") {
+    cards.push({
+      icon: <CheckCircle2 className="h-5 w-5" />,
+      title: "Protocolo ativo",
+      text: "Siga o plano de 90 dias e acompanhe sua evolução.",
+      to: "/protocolo-90-dias/$id",
+      params: { id: "demo" },
+    });
+  } else if (dailyCheckinDone) {
+    cards.push({
+      icon: <CheckCircle2 className="h-5 w-5" />,
+      title: "Resumo do dia",
+      text: "Check-in registrado. Seu histórico foi atualizado.",
+      to: "/historico",
+    });
+  } else if (daysAway != null && daysAway > 3) {
+    cards.push({
+      icon: <Bell className="h-5 w-5" />,
+      title: "Bem-vindo de volta",
+      text: "Carelito separou uma ação simples para retomar hoje.",
+      to: "/check-in",
+    });
+  }
+
+  const fallback: TodayCardConfig[] = [
+    {
+      icon: <HeartPulse className="h-5 w-5" />,
+      title: "Registrar pressão",
+      text: "Atualize sua medida em menos de 30 segundos.",
+      to: "/check-in",
+    },
+    {
+      icon: <CheckCircle2 className="h-5 w-5" />,
+      title: "Protocolo de hoje",
+      text: "Veja a próxima ação do seu plano de 90 dias.",
+      to: "/protocolo-90-dias/$id",
+      params: { id: "demo" },
+    },
+    {
+      icon: <Bell className="h-5 w-5" />,
+      title: "Insight do Carelito",
+      text: insightText,
+      to: "/meu-risco",
+    },
+  ];
+
+  for (const card of fallback) {
+    if (!cards.some((item) => item.title === card.title)) cards.push(card);
+  }
+
+  return cards.slice(0, 3);
+}
+
 function FloatingActionCircle({
   icon,
   label,
@@ -657,7 +729,7 @@ function TodayFeedCard({
   icon: ReactNode;
   title: string;
   text: string;
-  to: "/check-in" | "/meu-risco" | "/protocolo-90-dias/$id";
+  to: "/check-in" | "/meu-risco" | "/historico" | "/protocolo-90-dias/$id";
   params?: { id: string };
 }) {
   return (
@@ -1355,6 +1427,21 @@ function isDailyCheckinDoneToday() {
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function getDaysSinceLastOpen(userId: string) {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(`htcare:activity-days:${userId}`);
+    const days = raw ? Object.keys(JSON.parse(raw) as Record<string, unknown>) : [];
+    const previousDays = days.filter((day) => day !== todayKey()).sort();
+    const lastPreviousDay = previousDays.at(-1);
+    if (!lastPreviousDay) return null;
+    const lastOpenAt = new Date(`${lastPreviousDay}T12:00:00`).getTime();
+    return Math.floor((Date.now() - lastOpenAt) / 86_400_000);
+  } catch {
+    return null;
+  }
 }
 
 function getRecommendedAction(
