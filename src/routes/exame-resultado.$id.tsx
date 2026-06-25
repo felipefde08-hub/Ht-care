@@ -134,10 +134,10 @@ function ExamResultPage() {
       if (currentResult?.exam_request_id) {
         const { data: requestData } = await dynamicSupabase
           .from("exam_requests")
-          .select("observacao_medico")
+          .select("nota_medico")
           .eq("id", currentResult.exam_request_id)
           .maybeSingle();
-        setDoctorNote(isDoctorNote(requestData) ? requestData.observacao_medico : null);
+        setDoctorNote(isDoctorNote(requestData) ? requestData.nota_medico : null);
       }
       setLoading(false);
     }
@@ -829,8 +829,8 @@ function formatShortDate(value: string) {
   });
 }
 
-function isDoctorNote(data: unknown): data is { observacao_medico: string | null } {
-  return Boolean(data && typeof data === "object" && "observacao_medico" in data);
+function isDoctorNote(data: unknown): data is { nota_medico: string | null } {
+  return Boolean(data && typeof data === "object" && "nota_medico" in data);
 }
 
 function Header() {

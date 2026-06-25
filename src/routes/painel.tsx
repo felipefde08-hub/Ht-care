@@ -81,6 +81,7 @@ interface LastCheckIn {
 
 type ExamRequestStatus =
   | "aguardando_autorizacao"
+  | "aguardando_medico"
   | "autorizado"
   | "recusado"
   | "resultado_recebido"
@@ -93,6 +94,8 @@ interface ExamRequest {
   laboratorio_nome: string | null;
   laboratorio_endereco: string | null;
   laboratorio_telefone: string | null;
+  requisicao_url: string | null;
+  resultado_url: string | null;
 }
 
 interface DynamicQueryBuilder {
@@ -524,7 +527,7 @@ async function loadExamRequest(
   const { data, error } = await dynamicSupabase
     .from("exam_requests")
     .select(
-      "id,status,observacao_medico,laboratorio_nome,laboratorio_endereco,laboratorio_telefone",
+      "id,status,observacao_medico,laboratorio_nome,laboratorio_endereco,laboratorio_telefone,requisicao_url,resultado_url",
     )
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
@@ -562,8 +565,22 @@ function ExamStatusCard({ request, compact = false }: { request: ExamRequest; co
           <p className="font-sans text-lg font-semibold">{content.title}</p>
           <p className="mt-1 text-sm leading-6 text-[#536b68]">{content.text}</p>
           {request.status === "autorizado" && (
-            <Button className="mt-4 rounded-full bg-[#10201f] font-semibold" asChild>
-              <Link to="/meu-risco">Ver instruções de agendamento</Link>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              {request.requisicao_url && (
+                <Button className="rounded-full bg-[#2563EB] font-semibold" asChild>
+                  <a href={request.requisicao_url} target="_blank" rel="noreferrer">
+                    Baixar requisição (PDF)
+                  </a>
+                </Button>
+              )}
+              <Button variant="outline" className="rounded-full font-semibold" asChild>
+                <Link to="/meu-risco">Ver laboratório parceiro</Link>
+              </Button>
+            </div>
+          )}
+          {request.status === "concluido" && (
+            <Button className="mt-4 rounded-full bg-[#2563EB] font-semibold" asChild>
+              <Link to="/meu-risco">Ver interpretação completa</Link>
             </Button>
           )}
         </div>
@@ -641,13 +658,26 @@ function buildTodayCards({
       text: "Aprofunde seu score com biomarcadores reais.",
       to: "/meu-risco",
     });
-  } else if (examRequest.status === "concluido" || examRequest.status === "resultado_recebido") {
+  } else if (examRequest.status === "concluido") {
     cards.push({
-      icon: <CheckCircle2 className="h-5 w-5" />,
-      title: "Protocolo ativo",
-      text: "Siga o plano de 90 dias e acompanhe sua evolução.",
-      to: "/protocolo-90-dias/$id",
-      params: { id: "demo" },
+      icon: <FlaskConical className="h-5 w-5" />,
+      title: "Resultado liberado",
+      text: "Veja a interpretação completa do seu exame.",
+      to: "/meu-risco",
+    });
+  } else if (examRequest.status === "resultado_recebido") {
+    cards.push({
+      icon: <Clock3 className="h-5 w-5" />,
+      title: "Resultado em análise",
+      text: "O médico parceiro vai liberar a nota final.",
+      to: "/meu-risco",
+    });
+  } else if (examRequest.status === "autorizado") {
+    cards.push({
+      icon: <Download className="h-5 w-5" />,
+      title: "Baixar requisição",
+      text: "Leve o PDF ao laboratório em jejum de 12 horas.",
+      to: "/meu-risco",
     });
   } else if (dailyCheckinDone) {
     cards.push({
@@ -900,8 +930,8 @@ function getExamStatusContent(request: ExamRequest) {
     return {
       icon: CheckCircle2,
       tone: "bg-[#e8f5ef] text-[#2f6760]",
-      title: "Exame autorizado!",
-      text: "Agende agora no laboratório parceiro.",
+      title: "Requisição pronta ✅",
+      text: "Seu médico aprovou. Baixe a requisição e leve ao laboratório em jejum de 12 horas.",
     };
   }
   if (request.status === "resultado_recebido") {
@@ -910,6 +940,14 @@ function getExamStatusContent(request: ExamRequest) {
       tone: "bg-[#e8f5ef] text-[#2f6760]",
       title: "Resultado recebido",
       text: "Seu resultado foi enviado. A interpretação clínica será atualizada em breve.",
+    };
+  }
+  if (request.status === "concluido") {
+    return {
+      icon: FlaskConical,
+      tone: "bg-[#2563EB] text-white",
+      title: "Seu resultado chegou 🔬",
+      text: "O Carelito e o médico parceiro já liberaram sua interpretação completa.",
     };
   }
   if (request.status === "recusado") {
@@ -926,7 +964,7 @@ function getExamStatusContent(request: ExamRequest) {
     icon: FlaskConical,
     tone: "bg-[#e9f4fb] text-[#2f8fc8]",
     title: "Seu exame está sendo analisado pelo Dr. Danilo",
-    text: "Você receberá a autorização e as instruções pelo WhatsApp em até 24 horas.",
+    text: "Você receberá a autorização remota e as instruções em até 2 horas.",
   };
 }
 

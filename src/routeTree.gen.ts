@@ -34,6 +34,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as Protocolo90DiasIdRouteImport } from './routes/protocolo-90-dias.$id'
 import { Route as PerfilSectionRouteImport } from './routes/perfil.$section'
 import { Route as ExameResultadoIdRouteImport } from './routes/exame-resultado.$id'
+import { Route as AdminMedicoRouteImport } from './routes/admin.medico'
 import { Route as AuthenticatedProfissionaisRouteImport } from './routes/_authenticated/profissionais'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedPacientesIndexRouteImport } from './routes/_authenticated/pacientes.index'
@@ -165,6 +166,11 @@ const ExameResultadoIdRoute = ExameResultadoIdRouteImport.update({
   path: '/exame-resultado/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminMedicoRoute = AdminMedicoRouteImport.update({
+  id: '/admin/medico',
+  path: '/admin/medico',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedProfissionaisRoute =
   AuthenticatedProfissionaisRouteImport.update({
     id: '/profissionais',
@@ -225,6 +231,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profissionais': typeof AuthenticatedProfissionaisRoute
+  '/admin/medico': typeof AdminMedicoRoute
   '/exame-resultado/$id': typeof ExameResultadoIdRoute
   '/perfil/$section': typeof PerfilSectionRoute
   '/protocolo-90-dias/$id': typeof Protocolo90DiasIdRoute
@@ -257,6 +264,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profissionais': typeof AuthenticatedProfissionaisRoute
+  '/admin/medico': typeof AdminMedicoRoute
   '/exame-resultado/$id': typeof ExameResultadoIdRoute
   '/perfil/$section': typeof PerfilSectionRoute
   '/protocolo-90-dias/$id': typeof Protocolo90DiasIdRoute
@@ -291,6 +299,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/profissionais': typeof AuthenticatedProfissionaisRoute
+  '/admin/medico': typeof AdminMedicoRoute
   '/exame-resultado/$id': typeof ExameResultadoIdRoute
   '/perfil/$section': typeof PerfilSectionRoute
   '/protocolo-90-dias/$id': typeof Protocolo90DiasIdRoute
@@ -325,6 +334,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/dashboard'
     | '/profissionais'
+    | '/admin/medico'
     | '/exame-resultado/$id'
     | '/perfil/$section'
     | '/protocolo-90-dias/$id'
@@ -357,6 +367,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/dashboard'
     | '/profissionais'
+    | '/admin/medico'
     | '/exame-resultado/$id'
     | '/perfil/$section'
     | '/protocolo-90-dias/$id'
@@ -390,6 +401,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/_authenticated/dashboard'
     | '/_authenticated/profissionais'
+    | '/admin/medico'
     | '/exame-resultado/$id'
     | '/perfil/$section'
     | '/protocolo-90-dias/$id'
@@ -422,6 +434,7 @@ export interface RootRouteChildren {
   PrivacidadeRoute: typeof PrivacidadeRoute
   RelatorioRoute: typeof RelatorioRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  AdminMedicoRoute: typeof AdminMedicoRoute
   ExameResultadoIdRoute: typeof ExameResultadoIdRoute
   Protocolo90DiasIdRoute: typeof Protocolo90DiasIdRoute
 }
@@ -603,6 +616,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExameResultadoIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/medico': {
+      id: '/admin/medico'
+      path: '/admin/medico'
+      fullPath: '/admin/medico'
+      preLoaderRoute: typeof AdminMedicoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/profissionais': {
       id: '/_authenticated/profissionais'
       path: '/profissionais'
@@ -703,6 +723,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacidadeRoute: PrivacidadeRoute,
   RelatorioRoute: RelatorioRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  AdminMedicoRoute: AdminMedicoRoute,
   ExameResultadoIdRoute: ExameResultadoIdRoute,
   Protocolo90DiasIdRoute: Protocolo90DiasIdRoute,
 }

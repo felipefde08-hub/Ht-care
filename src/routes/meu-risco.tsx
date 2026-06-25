@@ -64,6 +64,7 @@ export const Route = createFileRoute("/meu-risco")({
 
 type ExamRequestStatus =
   | "aguardando_autorizacao"
+  | "aguardando_medico"
   | "autorizado"
   | "recusado"
   | "resultado_recebido"
@@ -73,16 +74,23 @@ interface ExamRequest {
   id: string;
   user_id: string;
   status: ExamRequestStatus;
+  nome: string | null;
   cidade: string;
   telefone_whatsapp: string;
   plano_saude: string | null;
+  score_atual: number | null;
+  fatores_risco: string[] | null;
   medico_id: string | null;
   observacao_medico: string | null;
+  requisicao_url: string | null;
   resultado_url: string | null;
   resultado_path: string | null;
+  nota_medico: string | null;
   laboratorio_nome: string | null;
   laboratorio_endereco: string | null;
   laboratorio_telefone: string | null;
+  authorized_at: string | null;
+  resultado_received_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -336,6 +344,7 @@ function MeuRiscoPage() {
               userId={user.id}
               request={examRequest}
               estimatedScore={score}
+              factors={factors}
               onRequestChange={(nextRequest) => {
                 setExamRequest(nextRequest);
                 void loadExamResults(user.id, setExamResults);
@@ -507,11 +516,13 @@ function ExamRequestCard({
   userId,
   request,
   estimatedScore,
+  factors,
   onRequestChange,
 }: {
   userId: string;
   request: ExamRequest | null;
   estimatedScore: number | null;
+  factors: string[];
   onRequestChange: (request: ExamRequest | null) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -532,11 +543,30 @@ function ExamRequestCard({
     pcrUs: "",
   });
   const [form, setForm] = useState({
+    name: request?.nome ?? "",
     phone: request?.telefone_whatsapp ?? "",
     city: request?.cidade ?? "",
     healthPlan: request?.plano_saude ?? "",
   });
   const requestStatus = request?.status;
+
+  useEffect(() => {
+    async function loadProfileDefaults() {
+      if (request || form.name || form.phone || form.city) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("nome,telefone,cidade")
+        .eq("id", userId)
+        .maybeSingle();
+      setForm((current) => ({
+        ...current,
+        name: current.name || data?.nome || "",
+        phone: current.phone || data?.telefone || "",
+        city: current.city || data?.cidade || "",
+      }));
+    }
+    void loadProfileDefaults();
+  }, [form.city, form.name, form.phone, request, userId]);
 
   useEffect(() => {
     setBiomarkerForm((current) => ({
@@ -569,18 +599,21 @@ function ExamRequestCard({
   }, [request?.id]);
 
   async function submit() {
-    if (!form.phone.trim() || !form.city.trim() || !form.healthPlan.trim()) {
-      toast.error("Preencha cidade, WhatsApp e plano de saúde.");
+    if (!form.name.trim() || !form.phone.trim() || !form.city.trim()) {
+      toast.error("Preencha nome, WhatsApp e cidade.");
       return;
     }
     setSaving(true);
     const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
     const { error } = await dynamicSupabase.from("exam_requests").insert({
       user_id: userId,
+      nome: form.name.trim(),
       cidade: form.city.trim(),
       telefone_whatsapp: form.phone.trim(),
-      plano_saude: form.healthPlan.trim(),
-      status: "aguardando_autorizacao",
+      plano_saude: form.healthPlan.trim() || null,
+      score_atual: estimatedScore,
+      fatores_risco: factors,
+      status: "aguardando_medico",
     });
     setSaving(false);
     if (error) {
@@ -589,7 +622,7 @@ function ExamRequestCard({
       return;
     }
     toast.success(
-      "Solicitação enviada! O médico parceiro vai analisar seu perfil e você receberá a autorização em até 24 horas pelo WhatsApp.",
+      "Solicitação enviada! O médico parceiro vai revisar seu perfil e emitir a requisição em até 2 horas.",
     );
     setOpen(false);
     await loadLatestExamRequest(userId, onRequestChange);
@@ -600,10 +633,12 @@ function ExamRequestCard({
     setUploading(true);
     const safeName = file.name.replace(/[^\w.-]+/g, "-");
     const filePath = `${userId}/exam-request-${request.id}-${Date.now()}-${safeName}`;
-    const { error: uploadError } = await supabase.storage.from("exams").upload(filePath, file, {
-      cacheControl: "3600",
-      upsert: true,
-    });
+    const { error: uploadError } = await supabase.storage
+      .from("resultados_exames")
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: true,
+      });
     if (uploadError) {
       toast.error("Não foi possível enviar o resultado.");
       console.error(uploadError);
@@ -611,7 +646,8 @@ function ExamRequestCard({
       return;
     }
 
-    const publicUrl = supabase.storage.from("exams").getPublicUrl(filePath).data.publicUrl;
+    const publicUrl = supabase.storage.from("resultados_exames").getPublicUrl(filePath)
+      .data.publicUrl;
     const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
     const { error } = await dynamicSupabase
       .from("exam_requests")
@@ -619,6 +655,7 @@ function ExamRequestCard({
         status: "resultado_recebido",
         resultado_url: publicUrl,
         resultado_path: filePath,
+        resultado_received_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", request.id);
@@ -696,15 +733,14 @@ function ExamRequestCard({
 
     await dynamicSupabase
       .from("exam_requests")
-      .update({ status: "concluido", updated_at: new Date().toISOString() })
+      .update({ status: "resultado_recebido", updated_at: new Date().toISOString() })
       .eq("id", request.id);
     setSavingBiomarkers(false);
 
     if (isExamResultSummary(data)) {
       setExamResultId(data.id);
-      toast.success("Interpretação pronta. Seu score foi atualizado com os exames reais.");
+      toast.success("Valores salvos. O médico parceiro vai revisar e liberar seu relatório.");
       await loadLatestExamRequest(userId, onRequestChange);
-      window.location.assign(`/exame-resultado/${data.id}`);
     }
   }
 
@@ -713,13 +749,15 @@ function ExamRequestCard({
       <SectionTitle icon={ShieldCheck} title="Próximo passo" />
       {!request || requestStatus === "recusado" ? (
         <>
-          <h2 className="mt-4 font-sans text-2xl font-semibold">
-            Aprofunde sua avaliação com exame de sangue
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[#6B7280]">
-            Com seus biomarcadores reais (ApoB, resistência à insulina, inflamação), seu score fica
-            muito mais preciso.
-          </p>
+          <div className="mt-4 rounded-[1.5rem] bg-[#2563EB] p-5 text-white">
+            <FlaskConical className="h-7 w-7" />
+            <h2 className="mt-4 font-sans text-2xl font-semibold">
+              Descubra seus biomarcadores reais
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-white/82">
+              Resultado em 48h · Sem consulta presencial · Médico parceiro revisa seu perfil.
+            </p>
+          </div>
           {requestStatus === "recusado" && request?.observacao_medico && (
             <div className="mt-4 rounded-2xl bg-[#FEF3C7] p-4 text-sm leading-6 text-[#92400E]">
               Recado médico: {request.observacao_medico}
@@ -735,9 +773,15 @@ function ExamRequestCard({
           ) : (
             <div className="mt-4 space-y-3 rounded-2xl bg-[#F9FAFB] p-3">
               <p className="rounded-2xl bg-white p-4 text-sm leading-6 text-[#6B7280]">
-                Vamos solicitar autorização médica para o seu exame. Assim que o médico aprovar,
-                você receberá as instruções para agendar no laboratório parceiro.
+                Um médico parceiro vai revisar seu perfil de risco e emitir a requisição em até 2
+                horas. Você receberá uma notificação quando estiver pronta.
               </p>
+              <FormField
+                label="Nome"
+                value={form.name}
+                onChange={(name) => setForm((current) => ({ ...current, name }))}
+                placeholder="Seu nome completo"
+              />
               <FormField
                 label="Cidade"
                 value={form.city}
@@ -751,7 +795,7 @@ function ExamRequestCard({
                 placeholder="(11) 99999-9999"
               />
               <FormField
-                label="Plano de saúde"
+                label="Plano de saúde (opcional)"
                 value={form.healthPlan}
                 onChange={(healthPlan) => setForm((current) => ({ ...current, healthPlan }))}
                 placeholder="Ex: Unimed, Bradesco, SulAmérica ou Particular"
@@ -762,7 +806,7 @@ function ExamRequestCard({
                   disabled={saving}
                   onClick={() => void submit()}
                 >
-                  {saving ? "Enviando..." : "Enviar solicitação"}
+                  {saving ? "Enviando..." : "Confirmar solicitação"}
                 </Button>
                 <Button
                   variant="outline"
@@ -777,11 +821,11 @@ function ExamRequestCard({
         </>
       ) : null}
 
-      {requestStatus === "aguardando_autorizacao" && (
+      {(requestStatus === "aguardando_autorizacao" || requestStatus === "aguardando_medico") && (
         <StatusBlock
           icon={Clock3}
-          title="Solicitação enviada"
-          text="O médico parceiro vai analisar seu perfil e você receberá a autorização em até 24 horas pelo WhatsApp."
+          title="Solicitação enviada ✓"
+          text="Seu médico parceiro está revisando seu perfil. Você será notificado em até 2 horas."
           tone="warning"
         />
       )}
@@ -794,6 +838,13 @@ function ExamRequestCard({
             text="Agende agora no laboratório parceiro e informe que vem pela HTCare."
             tone="success"
           />
+          {request.requisicao_url && (
+            <Button asChild className="min-h-12 w-full rounded-full bg-[#2563EB]">
+              <a href={request.requisicao_url} target="_blank" rel="noreferrer">
+                Baixar requisição (PDF)
+              </a>
+            </Button>
+          )}
           <div className="grid gap-3 rounded-[1.25rem] bg-[#f7faf9] p-4 text-sm">
             <InfoLine
               icon={FlaskConical}
@@ -833,14 +884,14 @@ function ExamRequestCard({
           <StatusBlock
             icon={CheckCircle2}
             title="Resultado recebido"
-            text="Agora digite os valores principais do exame para o Carelito interpretar com dados reais."
+            text="Digite os valores principais do exame. O médico parceiro revisa a nota final antes de liberar o relatório."
             tone="success"
           />
           {examResultId ? (
             <Button asChild className="min-h-12 w-full rounded-full bg-[#10201f]">
               <Link to="/exame-resultado/$id" params={{ id: examResultId }}>
                 <FileText className="mr-2 h-4 w-4" />
-                Ver interpretação do exame
+                Aguardando liberação médica
               </Link>
             </Button>
           ) : (

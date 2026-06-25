@@ -1,6 +1,14 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { ArrowLeft, CheckCircle2, Clock3, FlaskConical, ShieldAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Clock3,
+  Download,
+  FileText,
+  FlaskConical,
+  ShieldAlert,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
@@ -21,6 +29,7 @@ export const Route = createFileRoute("/medico")({
 
 type ExamRequestStatus =
   | "aguardando_autorizacao"
+  | "aguardando_medico"
   | "autorizado"
   | "recusado"
   | "resultado_recebido"
@@ -30,12 +39,20 @@ interface ExamRequest {
   id: string;
   user_id: string;
   status: ExamRequestStatus;
+  nome: string | null;
   cidade: string;
   telefone_whatsapp: string;
   plano_saude: string | null;
+  score_atual: number | null;
+  fatores_risco: string[] | null;
   medico_id: string | null;
   observacao_medico: string | null;
+  requisicao_url: string | null;
+  requisicao_path: string | null;
   resultado_url: string | null;
+  nota_medico: string | null;
+  authorized_at: string | null;
+  resultado_received_at: string | null;
   created_at: string;
 }
 
@@ -49,6 +66,8 @@ interface PatientProfile {
   id: string;
   nome: string | null;
   email: string | null;
+  idade: number | null;
+  sexo: string | null;
   cidade: string | null;
   telefone: string | null;
 }
@@ -98,6 +117,7 @@ function MedicoPage() {
   const [rows, setRows] = useState<ExamRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [doctorNotes, setDoctorNotes] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
   const loadRequests = useCallback(async () => {
@@ -159,7 +179,7 @@ function MedicoPage() {
     const [{ data: patientData }, { data: assessmentData }] = await Promise.all([
       dynamicSupabase
         .from("profiles")
-        .select("id,nome,email,cidade,telefone")
+        .select("id,nome,email,idade,sexo,cidade,telefone")
         .eq("id", request.user_id)
         .maybeSingle(),
       dynamicSupabase
@@ -180,17 +200,39 @@ function MedicoPage() {
 
   async function authorize(requestId: string) {
     if (!doctor) return;
+    const row = rows.find((item) => item.request.id === requestId);
+    if (!row) return;
     setSavingId(requestId);
+    const pdfBlob = createRequisitionPdfBlob(row, doctor);
+    const pdfPath = `${requestId}/requisicao-${Date.now()}.pdf`;
+    const { error: uploadError } = await supabase.storage
+      .from("requisicoes")
+      .upload(pdfPath, pdfBlob, {
+        cacheControl: "3600",
+        contentType: "application/pdf",
+        upsert: true,
+      });
+    if (uploadError) {
+      setSavingId(null);
+      console.error(uploadError);
+      toast.error("Não foi possível gerar a requisição médica.");
+      return;
+    }
+    const requisitionUrl = supabase.storage.from("requisicoes").getPublicUrl(pdfPath)
+      .data.publicUrl;
     const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
     const { error } = await dynamicSupabase
       .from("exam_requests")
       .update({
         status: "autorizado",
         medico_id: doctor.id,
+        requisicao_url: requisitionUrl,
+        requisicao_path: pdfPath,
         laboratorio_nome: DEFAULT_LAB.name,
         laboratorio_endereco: DEFAULT_LAB.address,
         laboratorio_telefone: DEFAULT_LAB.phone,
         observacao_medico: null,
+        authorized_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", requestId);
@@ -202,7 +244,7 @@ function MedicoPage() {
       return;
     }
 
-    toast.success("Exame autorizado. Avise o paciente pelo WhatsApp.");
+    toast.success("Requisição emitida. O paciente já pode baixar o PDF.");
     await loadRequests();
   }
 
@@ -237,8 +279,44 @@ function MedicoPage() {
     await loadRequests();
   }
 
+  async function releaseResult(requestId: string) {
+    if (!doctor) return;
+    const note = doctorNotes[requestId]?.trim();
+    if (!note) {
+      toast.error("Escreva uma nota curta para liberar ao paciente.");
+      return;
+    }
+
+    setSavingId(requestId);
+    const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+    const { error } = await dynamicSupabase
+      .from("exam_requests")
+      .update({
+        status: "concluido",
+        medico_id: doctor.id,
+        nota_medico: note,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", requestId);
+    setSavingId(null);
+
+    if (error) {
+      console.error(error);
+      toast.error("Não foi possível liberar o resultado.");
+      return;
+    }
+
+    toast.success("Resultado liberado para o paciente.");
+    await loadRequests();
+  }
+
   const pendingRows = useMemo(
-    () => rows.filter((row) => row.request.status === "aguardando_autorizacao"),
+    () =>
+      rows.filter(
+        (row) =>
+          row.request.status === "aguardando_autorizacao" ||
+          row.request.status === "aguardando_medico",
+      ),
     [rows],
   );
   const otherRows = useMemo(
@@ -298,6 +376,11 @@ function MedicoPage() {
                       }
                       onAuthorize={() => void authorize(row.request.id)}
                       onRefuse={() => void refuse(row.request.id)}
+                      doctorNote={doctorNotes[row.request.id] ?? ""}
+                      onDoctorNoteChange={(note) =>
+                        setDoctorNotes((current) => ({ ...current, [row.request.id]: note }))
+                      }
+                      onReleaseResult={() => void releaseResult(row.request.id)}
                     />
                   ))
                 ) : (
@@ -322,6 +405,11 @@ function MedicoPage() {
                       }
                       onAuthorize={() => void authorize(row.request.id)}
                       onRefuse={() => void refuse(row.request.id)}
+                      doctorNote={doctorNotes[row.request.id] ?? row.request.nota_medico ?? ""}
+                      onDoctorNoteChange={(note) =>
+                        setDoctorNotes((current) => ({ ...current, [row.request.id]: note }))
+                      }
+                      onReleaseResult={() => void releaseResult(row.request.id)}
                     />
                   ))}
                 </div>
@@ -337,21 +425,28 @@ function MedicoPage() {
 function RequestCard({
   row,
   note,
+  doctorNote,
   saving,
   readonly = false,
   onNoteChange,
+  onDoctorNoteChange,
   onAuthorize,
   onRefuse,
+  onReleaseResult,
 }: {
   row: ExamRequestRow;
   note: string;
+  doctorNote: string;
   saving: boolean;
   readonly?: boolean;
   onNoteChange: (note: string) => void;
+  onDoctorNoteChange: (note: string) => void;
   onAuthorize: () => void;
   onRefuse: () => void;
+  onReleaseResult: () => void;
 }) {
-  const factors = row.assessment?.fatores_que_pesaram ?? [];
+  const factors = row.request.fatores_risco ?? row.assessment?.fatores_que_pesaram ?? [];
+  const score = row.request.score_atual ?? row.assessment?.score ?? null;
   return (
     <motion.article
       initial={{ opacity: 0, y: 12 }}
@@ -367,7 +462,7 @@ function RequestCard({
             </p>
           </div>
           <h3 className="mt-3 font-sans text-2xl font-semibold">
-            {row.patient?.nome ?? "Paciente sem nome"}
+            {row.request.nome ?? row.patient?.nome ?? "Paciente sem nome"}
           </h3>
           <p className="mt-1 text-sm text-[#536b68]">
             {row.patient?.email ?? "E-mail não informado"}
@@ -376,7 +471,8 @@ function RequestCard({
 
         <div className="rounded-2xl bg-[#f7faf9] px-4 py-3 text-center">
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#78908d]">Score</p>
-          <p className="mt-1 font-sans text-3xl font-semibold">{row.assessment?.score ?? "—"}</p>
+          <p className="mt-1 font-sans text-3xl font-semibold">{score ?? "—"}</p>
+          <p className="mt-1 text-xs font-bold text-[#78908d]">{riskLabel(score)}</p>
         </div>
       </div>
 
@@ -386,7 +482,12 @@ function RequestCard({
           label="WhatsApp"
           value={row.request.telefone_whatsapp || row.patient?.telefone || "Não informado"}
         />
+        <Info
+          label="Idade e sexo"
+          value={`${row.patient?.idade ?? "—"} anos · ${formatSex(row.patient?.sexo)}`}
+        />
         <Info label="Plano de saúde" value={row.request.plano_saude ?? "Não informado"} />
+        <Info label="Tempo" value={relativeTime(row.request.created_at)} />
       </div>
 
       <div className="mt-5">
@@ -412,17 +513,44 @@ function RequestCard({
       </div>
 
       {row.request.resultado_url && (
-        <a
-          href={row.request.resultado_url}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-5 inline-flex font-bold text-[#2f8fc8]"
-        >
-          Ver resultado enviado
-        </a>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Button asChild variant="outline" className="rounded-full">
+            <a href={row.request.resultado_url} target="_blank" rel="noreferrer">
+              <FileText className="mr-2 h-4 w-4" />
+              Ver resultado enviado
+            </a>
+          </Button>
+          {row.request.requisicao_url && (
+            <Button asChild variant="outline" className="rounded-full">
+              <a href={row.request.requisicao_url} target="_blank" rel="noreferrer">
+                <Download className="mr-2 h-4 w-4" />
+                Requisição emitida
+              </a>
+            </Button>
+          )}
+        </div>
       )}
 
-      {!readonly && (
+      {row.request.status === "resultado_recebido" && (
+        <div className="mt-5 space-y-3 rounded-[1.25rem] bg-[#f7faf9] p-3">
+          <p className="text-sm font-bold text-[#10201f]">Nota para o paciente</p>
+          <Textarea
+            value={doctorNote}
+            onChange={(event) => onDoctorNoteChange(event.target.value)}
+            placeholder="Ex: Resultado liberado. Sugiro focar nos marcadores de resistência à insulina e repetir o exame em 90 dias."
+            className="min-h-28 rounded-2xl bg-white"
+          />
+          <Button
+            className="min-h-12 w-full rounded-full bg-[#10201f]"
+            disabled={saving}
+            onClick={onReleaseResult}
+          >
+            Salvar nota e liberar para o paciente
+          </Button>
+        </div>
+      )}
+
+      {!readonly && row.request.status !== "resultado_recebido" && (
         <div className="mt-5 space-y-3 rounded-[1.25rem] bg-[#f7faf9] p-3">
           <Textarea
             value={note}
@@ -436,7 +564,7 @@ function RequestCard({
               disabled={saving}
               onClick={onAuthorize}
             >
-              Autorizar exame
+              Aprovar e emitir requisição
             </Button>
             <Button
               variant="outline"
@@ -457,6 +585,11 @@ function StatusPill({ status }: { status: ExamRequestStatus }) {
   const map = {
     aguardando_autorizacao: {
       label: "Aguardando autorização",
+      className: "bg-[#e9f4fb] text-[#2f8fc8]",
+      icon: Clock3,
+    },
+    aguardando_medico: {
+      label: "Aguardando médico",
       className: "bg-[#e9f4fb] text-[#2f8fc8]",
       icon: Clock3,
     },
@@ -491,6 +624,108 @@ function StatusPill({ status }: { status: ExamRequestStatus }) {
       {item.label}
     </span>
   );
+}
+
+function riskLabel(score: number | null) {
+  if (score == null) return "Risco não calculado";
+  if (score >= 80) return "Risco baixo";
+  if (score >= 50) return "Risco moderado";
+  return "Risco alto";
+}
+
+function relativeTime(isoDate: string) {
+  const diffMinutes = Math.max(0, Math.round((Date.now() - new Date(isoDate).getTime()) / 60000));
+  if (diffMinutes < 60) return `há ${diffMinutes || 1} minutos`;
+  const hours = Math.round(diffMinutes / 60);
+  if (hours < 24) return `há ${hours} horas`;
+  const days = Math.round(hours / 24);
+  return `há ${days} dias`;
+}
+
+function formatSex(value: string | null | undefined) {
+  if (value === "feminino") return "Feminino";
+  if (value === "masculino") return "Masculino";
+  return "Sexo não informado";
+}
+
+function createRequisitionPdfBlob(row: ExamRequestRow, doctor: MedicoProfile) {
+  const patientName = row.request.nome ?? row.patient?.nome ?? "Paciente HTCare";
+  const patientAge = row.patient?.idade
+    ? `Idade: ${row.patient.idade} anos · Sexo: ${formatSex(row.patient.sexo)}`
+    : "Data de nascimento / idade: conforme cadastro HTCare";
+  const today = new Date().toLocaleDateString("pt-BR");
+  const lines = [
+    "HTCare",
+    "Requisição Médica Digital",
+    "",
+    `Médico parceiro: ${doctor.nome}`,
+    `CRM: ${doctor.crm ?? "CRM a confirmar"}`,
+    `Data de emissão: ${today}`,
+    "",
+    `Paciente: ${patientName}`,
+    patientAge,
+    "",
+    "Exames solicitados:",
+    "ApoB (Apolipoproteína B)",
+    "LDL Colesterol",
+    "HDL Colesterol",
+    "Triglicerídeos",
+    "Colesterol Total",
+    "Glicemia de jejum",
+    "Insulina de jejum",
+    "HbA1c (Hemoglobina Glicada)",
+    "PCR-us (Proteína C Reativa ultrassensível)",
+    "HOMA-IR (calculado a partir de glicemia + insulina)",
+    "",
+    "Este exame foi solicitado via plataforma HTCare de medicina preventiva.",
+    "Resultado deve ser enviado ao paciente e à plataforma HTCare.",
+    "Esta requisição é válida por 30 dias.",
+    "",
+    "HTCare • medicina preventiva cardiovascular",
+  ].filter(Boolean);
+
+  return new Blob([buildSimplePdf(lines)], { type: "application/pdf" });
+}
+
+function buildSimplePdf(lines: string[]) {
+  const escapedLines = lines.map(escapePdfText);
+  const content = [
+    "BT",
+    "/F1 20 Tf",
+    "50 790 Td",
+    "(HTCare) Tj",
+    "/F1 10 Tf",
+    "360 22 Td",
+    "(WATERMARK HTCare) Tj",
+    "/F1 12 Tf",
+    "-360 -42 Td",
+    ...escapedLines.map((line, index) => `${index === 0 ? "" : "0 -22 Td"}(${line}) Tj`),
+    "ET",
+  ].join("\n");
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+  ];
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefAt = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefAt}\n%%EOF`;
+  return pdf;
+}
+
+function escapePdfText(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 }
 
 function Info({ label, value }: { label: string; value: string }) {

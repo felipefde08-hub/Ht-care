@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { ArrowLeft, FileUp, FlaskConical, Sparkles, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Logo } from "@/components/Logo";
 import { MobileAppNav } from "@/components/MobileAppNav";
@@ -32,18 +32,42 @@ interface Exam {
   created_at: string;
 }
 
+interface AuthorizedExamRequest {
+  id: string;
+  status: string;
+  resultado_url: string | null;
+}
+
+interface DynamicQueryBuilder {
+  eq: (column: string, value: string) => DynamicQueryBuilder;
+  order: (column: string, options?: { ascending?: boolean }) => DynamicQueryBuilder;
+  limit: (count: number) => DynamicQueryBuilder;
+  maybeSingle: () => Promise<{ data: unknown; error: unknown }>;
+}
+
+interface DynamicUpdateBuilder {
+  eq: (column: string, value: string) => Promise<{ error: unknown }>;
+}
+
+interface DynamicSupabaseTable {
+  select: (columns: string) => DynamicQueryBuilder;
+  update: (values: Record<string, unknown>) => DynamicUpdateBuilder;
+}
+
+interface DynamicSupabaseClient {
+  from: (table: string) => DynamicSupabaseTable;
+}
+
 function ExamsPage() {
   const { user } = Route.useRouteContext();
   const [exams, setExams] = useState<Exam[]>([]);
   const [form, setForm] = useState({ name: "", examDate: "", notes: "" });
   const [file, setFile] = useState<File | null>(null);
+  const [authorizedRequest, setAuthorizedRequest] = useState<AuthorizedExamRequest | null>(null);
+  const [uploadingResult, setUploadingResult] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    void loadExams();
-  }, []);
-
-  async function loadExams() {
+  const loadExams = useCallback(async () => {
     const { data, error } = await supabase
       .from("exams")
       .select("id,name,exam_date,notes,file_url,file_path,file_type,created_at")
@@ -53,7 +77,28 @@ function ExamsPage() {
       return;
     }
     setExams(data ?? []);
-  }
+  }, []);
+
+  const loadAuthorizedRequest = useCallback(async () => {
+    const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+    const { data, error } = await dynamicSupabase
+      .from("exam_requests")
+      .select("id,status,resultado_url")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      console.error(error);
+      return;
+    }
+    setAuthorizedRequest(isAuthorizedExamRequest(data) ? data : null);
+  }, [user.id]);
+
+  useEffect(() => {
+    void loadExams();
+    void loadAuthorizedRequest();
+  }, [loadAuthorizedRequest, loadExams]);
 
   async function addExam() {
     if (!form.name.trim()) return;
@@ -104,6 +149,48 @@ function ExamsPage() {
     setExams((current) => current.filter((item) => item.id !== id));
   }
 
+  async function uploadExamResult(file: File | null) {
+    if (!file || !authorizedRequest) return;
+    setUploadingResult(true);
+    const safeName = file.name.replace(/[^\w.-]+/g, "-");
+    const filePath = `${user.id}/exam-request-${authorizedRequest.id}-${Date.now()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage
+      .from("resultados_exames")
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: true,
+      });
+    if (uploadError) {
+      setUploadingResult(false);
+      toast.error("Não foi possível enviar o resultado.");
+      console.error(uploadError);
+      return;
+    }
+
+    const publicUrl = supabase.storage.from("resultados_exames").getPublicUrl(filePath)
+      .data.publicUrl;
+    const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
+    const { error } = await dynamicSupabase
+      .from("exam_requests")
+      .update({
+        status: "resultado_recebido",
+        resultado_url: publicUrl,
+        resultado_path: filePath,
+        resultado_received_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", authorizedRequest.id);
+    setUploadingResult(false);
+
+    if (error) {
+      toast.error("Arquivo enviado, mas não foi possível atualizar o status.");
+      console.error(error);
+      return;
+    }
+    toast.success("Resultado enviado. O médico parceiro será avisado para revisar.");
+    await loadAuthorizedRequest();
+  }
+
   return (
     <main className="min-h-screen bg-[#fbfcfc] px-4 pb-28 pt-4 text-[#10201f] sm:px-5 sm:py-6">
       <Header />
@@ -119,6 +206,42 @@ function ExamsPage() {
             </div>
           </div>
         </Card>
+
+        {authorizedRequest?.status === "autorizado" && (
+          <Card>
+            <div className="flex items-start gap-3">
+              <span className="grid h-12 w-12 place-items-center rounded-full bg-[#e8f5ef] text-[#2f6760]">
+                <FileUp className="h-6 w-6" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="font-sans text-xl font-semibold">Enviar resultado do exame</h2>
+                <p className="mt-1 text-sm leading-6 text-[#78908d]">
+                  Após receber o resultado do laboratório, envie aqui para o Carelito interpretar.
+                </p>
+                <label className="mt-4 flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-full bg-[#10201f] px-5 text-sm font-bold text-white">
+                  <FileUp className="h-4 w-4" />
+                  {uploadingResult ? "Enviando..." : "Enviar resultado"}
+                  <input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    disabled={uploadingResult}
+                    className="sr-only"
+                    onChange={(event) => void uploadExamResult(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {authorizedRequest?.status === "resultado_recebido" && (
+          <Card>
+            <p className="text-sm leading-6 text-[#536b68]">
+              Resultado recebido. O médico parceiro vai revisar e deixar uma nota antes de liberar
+              sua interpretação.
+            </p>
+          </Card>
+        )}
 
         <Card>
           <div className="grid gap-4">
@@ -215,6 +338,12 @@ function ExamsPage() {
       <MobileAppNav />
     </main>
   );
+}
+
+function isAuthorizedExamRequest(data: unknown): data is AuthorizedExamRequest {
+  if (!data || typeof data !== "object") return false;
+  const record = data as Partial<AuthorizedExamRequest>;
+  return typeof record.id === "string" && typeof record.status === "string";
 }
 
 function Header() {
