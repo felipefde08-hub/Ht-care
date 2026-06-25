@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Bell,
   Check,
+  CreditCard,
   FileText,
   FileUp,
   FlaskConical,
@@ -125,6 +126,16 @@ const emptyForm: ProfileForm = {
 };
 
 const sectionMeta = {
+  conta: {
+    title: "Conta e acesso",
+    icon: ShieldCheck,
+    tone: "bg-[#eef3f1] text-[#536b68]",
+  },
+  planos: {
+    title: "Planos",
+    icon: CreditCard,
+    tone: "bg-[#e8f5ef] text-[#2f6760]",
+  },
   "informacoes-pessoais": {
     title: "Informações pessoais",
     icon: UserRound,
@@ -822,22 +833,54 @@ function ProfileSectionPage() {
 
           {key === "configuracoes" && (
             <div className="space-y-3">
-              <PreferenceRow
-                label="Notificações ativas"
-                checked={
-                  preferences.weekly_checkin ||
-                  preferences.weekly_summary_email ||
-                  preferences.new_mission ||
-                  preferences.achievement_unlocked
-                }
-                onChange={(checked) =>
-                  void savePreferences({
-                    weekly_checkin: checked,
-                    weekly_summary_email: checked,
-                    new_mission: checked,
-                    achievement_unlocked: checked,
-                  })
-                }
+              <ConfigLink
+                icon={<Bell className="h-5 w-5" />}
+                title="Notificações"
+                text="Check-ins, resumo semanal, missões e conquistas."
+                section="notificacoes"
+              />
+              <ConfigLink
+                icon={<Lock className="h-5 w-5" />}
+                title="Privacidade e segurança"
+                text="Senha, proteção da conta e política de privacidade."
+                section="privacidade-seguranca"
+              />
+              <ConfigLink
+                icon={<Languages className="h-5 w-5" />}
+                title="Idioma"
+                text="Português (Brasil) e futuros idiomas."
+                section="idioma"
+              />
+              <ConfigLink
+                icon={<Moon className="h-5 w-5" />}
+                title="Aparência"
+                text="Modo claro hoje; modo escuro em breve."
+                section="aparencia"
+              />
+              <ConfigLink
+                icon={<ShieldCheck className="h-5 w-5" />}
+                title="Conta e acesso"
+                text="E-mail, senha, sessão e exclusão de conta."
+                section="conta"
+              />
+              <ConfigLink
+                icon={<CreditCard className="h-5 w-5" />}
+                title="Planos"
+                text="Veja o plano atual e opções futuras."
+                section="planos"
+              />
+            </div>
+          )}
+
+          {key === "conta" && (
+            <div className="space-y-3">
+              <InfoCard
+                title="E-mail da conta"
+                text={user.email ?? "E-mail não disponível neste login."}
+              />
+              <InfoCard
+                title="Conta protegida"
+                text="Seu acesso é autenticado com Supabase Auth. Nunca compartilhe sua senha."
               />
               <Button
                 variant="outline"
@@ -853,12 +896,6 @@ function ProfileSectionPage() {
               >
                 {deleteConfirm ? "Confirmar exclusão da conta" : "Excluir conta"}
               </Button>
-              <a
-                href="/privacidade"
-                className="block rounded-2xl bg-[#f7faf9] p-4 font-semibold text-[#2f8fc8]"
-              >
-                Política de privacidade
-              </a>
               <button
                 type="button"
                 onClick={() => void logout()}
@@ -870,8 +907,83 @@ function ProfileSectionPage() {
             </div>
           )}
 
+          {key === "planos" && (
+            <div className="space-y-3">
+              <div className="rounded-2xl bg-[#f7faf9] p-5">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#78908d]">
+                  Plano atual
+                </p>
+                <h2 className="mt-2 font-sans text-2xl font-semibold">Gratuito</h2>
+                <p className="mt-2 text-sm leading-6 text-[#536b68]">
+                  Inclui avaliação inicial, score cardiovascular e registros básicos.
+                </p>
+              </div>
+              {[
+                ["Gratuito", "R$0", "Score inicial e registros básicos."],
+                ["Plus", "R$19,90/mês", "Protocolo, relatórios e acompanhamento completo."],
+                ["Família", "R$34,90/mês", "Até 4 perfis acompanhando juntos."],
+              ].map(([name, price, detail]) => (
+                <div key={name} className="rounded-2xl border border-[#10201f]/8 bg-white p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">{name}</p>
+                      <p className="mt-1 text-sm leading-6 text-[#536b68]">{detail}</p>
+                    </div>
+                    <p className="shrink-0 text-sm font-bold text-[#10201f]">{price}</p>
+                  </div>
+                </div>
+              ))}
+              <Button className="min-h-12 w-full rounded-full bg-[#10201f]" asChild>
+                <Link to="/planos">Ver planos</Link>
+              </Button>
+            </div>
+          )}
+
           {key === "notificacoes" && (
             <div className="space-y-3">
+              <PreferenceRow
+                label="Lembrete semanal de check-in"
+                checked={preferences.weekly_checkin}
+                onChange={(checked) =>
+                  void savePreferences({
+                    ...preferences,
+                    weekly_checkin: checked,
+                  })
+                }
+              />
+              <PreferenceRow
+                label="E-mail semanal de resumo"
+                checked={preferences.weekly_summary_email}
+                onChange={(checked) =>
+                  void savePreferences({
+                    ...preferences,
+                    weekly_summary_email: checked,
+                  })
+                }
+              />
+              <PreferenceRow
+                label="Nova missão disponível"
+                checked={preferences.new_mission}
+                onChange={(checked) =>
+                  void savePreferences({
+                    ...preferences,
+                    new_mission: checked,
+                  })
+                }
+              />
+              <PreferenceRow
+                label="Conquista desbloqueada"
+                checked={preferences.achievement_unlocked}
+                onChange={(checked) =>
+                  void savePreferences({
+                    ...preferences,
+                    achievement_unlocked: checked,
+                  })
+                }
+              />
+              <div className="pt-2">
+                <p className="mb-2 text-sm font-semibold text-[#536b68]">Recentes</p>
+              </div>
               {notifications.length ? (
                 notifications.map((notification) => (
                   <div key={notification.id} className="rounded-2xl bg-[#f7faf9] p-4">

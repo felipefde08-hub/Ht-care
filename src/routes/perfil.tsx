@@ -4,6 +4,7 @@ import {
   Bell,
   Camera,
   ChevronRight,
+  CreditCard,
   FileText,
   Globe2,
   HeartPulse,
@@ -421,6 +422,22 @@ function ProfilePage() {
         <MobileProfileCard title="Conta" className="mt-3">
           <div className="divide-y divide-[#E5E7EB]">
             <CompactPreferenceItem
+              icon={<ShieldCheck className="h-5 w-5" />}
+              title="Conta e acesso"
+              detail={user.email ?? "Login e segurança"}
+              tone="bg-[#EFF6FF] text-[#2563EB]"
+              to="/perfil/$section"
+              params={{ section: "conta" }}
+            />
+            <CompactPreferenceItem
+              icon={<CreditCard className="h-5 w-5" />}
+              title="Planos"
+              detail="Plano gratuito, Plus e Família"
+              tone="bg-[#DCFCE7] text-[#16A34A]"
+              to="/perfil/$section"
+              params={{ section: "planos" }}
+            />
+            <CompactPreferenceItem
               icon={<UserRound className="h-5 w-5" />}
               title="Dados pessoais"
               detail={formatPersonalSummary(data)}
@@ -445,6 +462,14 @@ function ProfilePage() {
               params={{ section: "dados-saude" }}
             />
             <CompactPreferenceItem
+              icon={<Stethoscope className="h-5 w-5" />}
+              title="Histórico médico"
+              detail={formatMedicalSummary(data)}
+              tone="bg-[#FEF3C7] text-[#92400E]"
+              to="/perfil/$section"
+              params={{ section: "historico-medico" }}
+            />
+            <CompactPreferenceItem
               icon={<Pill className="h-5 w-5" />}
               title="Medicamentos"
               detail={formatMedicationSummary(data)}
@@ -460,13 +485,42 @@ function ProfilePage() {
               to="/perfil/$section"
               params={{ section: "metas-saude" }}
             />
+          </div>
+        </MobileProfileCard>
+
+        <MobileProfileCard title="Configurações" className="mt-3">
+          <div className="divide-y divide-[#E5E7EB]">
+            <CompactPreferenceItem
+              icon={<Bell className="h-5 w-5" />}
+              title="Notificações"
+              detail="Check-ins, exames e lembretes"
+              tone="bg-[#EFF6FF] text-[#2563EB]"
+              to="/perfil/$section"
+              params={{ section: "notificacoes" }}
+            />
+            <CompactPreferenceItem
+              icon={<ShieldCheck className="h-5 w-5" />}
+              title="Privacidade e segurança"
+              detail="Senha, dados e política"
+              tone="bg-[#DCFCE7] text-[#16A34A]"
+              to="/perfil/$section"
+              params={{ section: "privacidade-seguranca" }}
+            />
+            <CompactPreferenceItem
+              icon={<Globe2 className="h-5 w-5" />}
+              title="Idioma"
+              detail="Português (Brasil)"
+              tone="bg-[#FEF3C7] text-[#92400E]"
+              to="/perfil/$section"
+              params={{ section: "idioma" }}
+            />
             <CompactPreferenceItem
               icon={<Settings className="h-5 w-5" />}
-              title="Configurações"
-              detail={reminders.weeklyEmail ? "Notificações ativas" : "Notificações inativas"}
+              title="Aparência"
+              detail="Modo claro"
               tone="bg-[#F3F4F6] text-[#6B7280]"
               to="/perfil/$section"
-              params={{ section: "configuracoes" }}
+              params={{ section: "aparencia" }}
             />
           </div>
         </MobileProfileCard>
@@ -527,6 +581,20 @@ function ProfilePage() {
 
         <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <DesktopProfileItem
+            icon={<ShieldCheck className="h-5 w-5" />}
+            title="Conta e acesso"
+            detail="E-mail, senha e sessão"
+            tone="bg-[#eef3f1] text-[#536b68]"
+            section="conta"
+          />
+          <DesktopProfileItem
+            icon={<CreditCard className="h-5 w-5" />}
+            title="Planos"
+            detail="Gratuito, Plus e Família"
+            tone="bg-[#e8f5ef] text-[#2f6760]"
+            section="planos"
+          />
+          <DesktopProfileItem
             icon={<UserRound className="h-5 w-5" />}
             title="Informações pessoais"
             detail="Nome, idade e sexo"
@@ -571,9 +639,37 @@ function ProfilePage() {
           <DesktopProfileItem
             icon={<Settings className="h-5 w-5" />}
             title="Configurações"
-            detail="Notificações, privacidade e conta"
+            detail="Atalhos de preferências"
             tone="bg-[#eef3f1] text-[#536b68]"
             section="configuracoes"
+          />
+          <DesktopProfileItem
+            icon={<Bell className="h-5 w-5" />}
+            title="Notificações"
+            detail="Check-ins e avisos"
+            tone="bg-[#e9f4fb] text-[#2f8fc8]"
+            section="notificacoes"
+          />
+          <DesktopProfileItem
+            icon={<ShieldCheck className="h-5 w-5" />}
+            title="Privacidade"
+            detail="Segurança e política"
+            tone="bg-[#e8f5ef] text-[#2f6760]"
+            section="privacidade-seguranca"
+          />
+          <DesktopProfileItem
+            icon={<Globe2 className="h-5 w-5" />}
+            title="Idioma"
+            detail="Português (Brasil)"
+            tone="bg-[#fff7dc] text-[#9a5b12]"
+            section="idioma"
+          />
+          <DesktopProfileItem
+            icon={<Settings className="h-5 w-5" />}
+            title="Aparência"
+            detail="Modo claro"
+            tone="bg-[#eef3f1] text-[#536b68]"
+            section="aparencia"
           />
           <DesktopProfileItem
             icon={<Globe2 className="h-5 w-5" />}
