@@ -119,8 +119,8 @@ export function MobileAppNav() {
           </div>
         </div>
       )}
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-[#10201f]/8 bg-white/88 px-3 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 shadow-[0_-18px_70px_-48px_rgba(16,32,31,0.55)] backdrop-blur-2xl sm:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-5 gap-1 rounded-2xl bg-[#F9FAFB] p-1">
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-[#111827]/10 bg-white/72 px-3 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 shadow-[0_-14px_48px_-36px_rgba(17,24,39,0.35)] backdrop-blur-2xl sm:hidden">
+        <div className="mx-auto grid max-w-md grid-cols-5 gap-1 rounded-2xl bg-white/35 p-1">
           {items.map((item) => {
             const active =
               location.pathname === item.to ||

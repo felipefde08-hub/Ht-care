@@ -6,6 +6,8 @@ import {
   ArrowRight,
   ArrowUp,
   Bell,
+  CalendarDays,
+  ChartLine,
   CheckCircle2,
   ChevronRight,
   Clock3,
@@ -16,6 +18,7 @@ import {
   Minus,
   Moon,
   Scale,
+  Syringe,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -202,32 +205,45 @@ function PanelPage() {
   );
   const insight = buildCarelitoInsight(stored, lastCheckIn, trend, currentScore);
   const initials = getInitials(firstName);
+  const todayLabel = new Intl.DateTimeFormat("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  }).format(new Date());
 
   return (
-    <main className="min-h-screen bg-[#fbfcfc] px-4 pb-28 pt-4 text-[#10201f] sm:px-5 sm:py-6">
-      <div className="mx-auto flex max-w-6xl items-center justify-between">
-        <Link to="/">
-          <Logo />
-        </Link>
-        <div className="flex items-center gap-2 sm:hidden">
-          <button
-            type="button"
-            className="relative grid h-11 w-11 place-items-center rounded-full border border-[#10201f]/8 bg-white text-[#10201f] shadow-soft"
-            aria-label="Notificações"
-          >
-            <Bell className="h-5 w-5" />
-            {examRequest && (
-              <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-[#49c7ae]" />
-            )}
-          </button>
-          <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-full border border-white bg-[#e8f5ef] text-sm font-black text-[#2f6760] shadow-soft">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#EBF5FF_0%,#F0FDF4_100%)] px-4 pb-28 pt-4 text-[#10201f] sm:bg-[#fbfcfc] sm:px-5 sm:py-6">
+      <div className="mx-auto grid max-w-md grid-cols-3 items-center sm:hidden">
+        <div className="relative h-11 w-11">
+          <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-white/72 text-sm font-black text-[#2563EB] shadow-[0_2px_8px_rgba(0,0,0,0.06)] backdrop-blur-md">
             {avatarUrl ? (
               <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
             ) : (
               initials
             )}
           </div>
+          {examRequest && (
+            <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#16A34A] px-1 text-[0.62rem] font-bold text-white">
+              1
+            </span>
+          )}
         </div>
+        <Link to="/" className="justify-self-center">
+          <Logo />
+        </Link>
+        <button
+          type="button"
+          className="grid h-11 w-11 place-items-center justify-self-end rounded-full bg-white/58 text-[#111827] shadow-[0_2px_8px_rgba(0,0,0,0.06)] backdrop-blur-md"
+          aria-label="Calendário"
+        >
+          <CalendarDays className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className="mx-auto hidden max-w-6xl items-center justify-between sm:flex">
+        <Link to="/">
+          <Logo />
+        </Link>
         <nav className="hidden items-center gap-1 sm:flex sm:gap-2">
           <Button variant="ghost" asChild>
             <Link to="/historico">Histórico</Link>
@@ -267,60 +283,67 @@ function PanelPage() {
           transition={{ duration: 0.45, ease: "easeOut" }}
           className="mx-auto max-w-md sm:hidden"
         >
-          <div className="relative min-h-24">
-            <div className="pr-24">
-              <p className="text-[1.75rem] font-semibold leading-tight">Bom dia, {firstName}! 👋</p>
-              <p className="mt-1 text-sm font-semibold leading-5 text-[#536b68]">
-                Que tal cuidar do seu coração hoje?
+          <section className="relative pt-3 text-center">
+            <p className="text-base font-semibold text-[#111827]">Bom dia, {firstName}</p>
+            <div className="relative mx-auto mt-3 max-w-xs">
+              <Carelito className="absolute -right-2 -top-2 h-16 w-16" expression="confident" />
+              <div className="absolute right-10 top-9 rounded-2xl rounded-tr-md bg-white/84 px-3 py-2 text-[0.68rem] font-bold text-[#16A34A] shadow-[0_2px_8px_rgba(0,0,0,0.06)] backdrop-blur-md">
+                {trend.mobileLabel || insight.speech}
+              </div>
+              <p className="font-sans text-[88px] font-bold leading-none tracking-[-0.06em] text-[#111827]">
+                {currentScore ?? "—"}
               </p>
             </div>
-            <Carelito className="absolute right-0 top-0 h-20 w-20" expression="confident" />
-            <div className="absolute right-14 top-16 max-w-[13rem] rounded-2xl rounded-tr-md bg-white px-3 py-2 text-[0.72rem] font-bold leading-4 text-[#2f6760] shadow-soft">
-              {insight.speech}
-            </div>
-          </div>
+            <p className="mt-2 text-sm font-semibold text-[#6B7280]">
+              Score cardiovascular · {scoreRiskLabel(currentScore)}.
+            </p>
+          </section>
 
-          <section className="mt-5 overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-white p-5 shadow-[0_26px_90px_-62px_rgba(16,32,31,0.62)]">
-            <div className="flex items-center justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="grid h-9 w-9 place-items-center rounded-full bg-[#ffece7] text-[#dc3f35]">
-                    <HeartPulse className="h-5 w-5" fill="currentColor" />
-                  </span>
-                  <p className="font-sans text-lg font-semibold">Seu coração hoje</p>
-                </div>
-                <div className="mt-5 flex items-end gap-2">
-                  <span className="font-sans text-6xl font-semibold leading-none">
-                    {currentScore ?? "—"}
-                  </span>
-                  <span className="pb-1 text-lg font-semibold text-[#78908d]">/100</span>
-                </div>
-                <p
-                  className={`mt-3 inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${scoreRiskClass(currentScore)}`}
-                >
-                  {scoreRiskLabel(currentScore)}
-                </p>
-                <p className={`mt-3 text-sm font-bold ${trend.textClass}`}>{trend.mobileLabel}</p>
-                <Link
-                  to="/meu-risco"
-                  className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#2f8fc8]"
-                >
-                  Ver evolução <ArrowRight className="h-4 w-4" />
-                </Link>
-              </div>
-              <div className="w-32 shrink-0 text-center">
-                <ScoreGauge score={currentScore} />
-                <p className="mt-3 text-sm font-bold text-[#10201f]">{trend.status}</p>
-                <p className="mt-1 text-[0.72rem] leading-4 text-[#78908d]">{trend.healthText} ⓘ</p>
-              </div>
+          <section className="mt-7 grid grid-cols-3 gap-4">
+            <FloatingActionCircle
+              icon={<HeartPulse className="h-7 w-7" />}
+              label="Check-in"
+              to="/check-in"
+              active
+            />
+            <FloatingActionCircle
+              icon={<Syringe className="h-7 w-7" />}
+              label="Exame"
+              to="/meu-risco"
+            />
+            <FloatingActionCircle
+              icon={<ChartLine className="h-7 w-7" />}
+              label="Evolução"
+              to="/meu-risco"
+            />
+          </section>
+
+          <section className="mt-8">
+            <p className="text-sm font-bold text-[#111827]">Hoje · {todayLabel}</p>
+            <div className="-mx-4 mt-3 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
+              <TodayFeedCard
+                icon={<HeartPulse className="h-5 w-5" />}
+                title="Registrar pressão"
+                text="Atualize sua medida em menos de 30 segundos."
+                to="/check-in"
+              />
+              <TodayFeedCard
+                icon={<CheckCircle2 className="h-5 w-5" />}
+                title="Protocolo de hoje"
+                text="Veja a próxima ação do seu plano de 90 dias."
+                to="/protocolo-90-dias/$id"
+                params={{ id: "demo" }}
+              />
+              <TodayFeedCard
+                icon={<Bell className="h-5 w-5" />}
+                title="Insight do Carelito"
+                text={insight.text}
+                to="/meu-risco"
+              />
             </div>
           </section>
 
-          <section className="-mx-4 mt-3 flex snap-x gap-2 overflow-x-auto px-4 pb-1">
-            {mobileHealthData.map((item) => (
-              <CompactClinicalShortcut key={item.label} {...item} />
-            ))}
-          </section>
+          {examRequest && <ExamStatusCard request={examRequest} compact />}
 
           {!dailyCheckinDone && (
             <DailyQuickCheckin
@@ -330,30 +353,6 @@ function PanelPage() {
               }}
             />
           )}
-
-          <section className="mt-3 flex items-center gap-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-[#2f6760]">
-                Insight do Carelito
-              </p>
-              <p className="mt-2 text-sm font-semibold leading-5 text-[#536b68]">{insight.text}</p>
-            </div>
-            <Carelito className="h-16 w-16 shrink-0" expression={insight.expression} />
-          </section>
-
-          {examRequest && <ExamStatusCard request={examRequest} compact />}
-
-          <Button
-            size="xl"
-            className="mt-3 min-h-14 w-full rounded-[1.25rem] bg-[#10201f] text-base font-semibold text-white shadow-[0_20px_60px_-36px_rgba(16,32,31,0.75)]"
-            asChild
-          >
-            <Link to="/check-in">
-              Registrar agora <ArrowRight className="h-5 w-5" />
-            </Link>
-          </Button>
-
-          <ExamReportPreviewCard compact />
 
           <p className="sr-only">{recommendedAction.title}</p>
         </motion.div>
@@ -620,6 +619,61 @@ function ExamReportPreviewCard({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
     </motion.section>
+  );
+}
+
+function FloatingActionCircle({
+  icon,
+  label,
+  to,
+  active = false,
+}: {
+  icon: ReactNode;
+  label: string;
+  to: "/check-in" | "/meu-risco";
+  active?: boolean;
+}) {
+  return (
+    <Link to={to} className="group flex flex-col items-center gap-2">
+      <span
+        className={`grid h-[82px] w-[82px] place-items-center rounded-full shadow-[0_16px_44px_-28px_rgba(17,24,39,0.45)] backdrop-blur-md transition active:scale-95 ${
+          active ? "bg-[#2563EB] text-white" : "bg-white/58 text-[#2563EB]"
+        }`}
+      >
+        {icon}
+      </span>
+      <span className="text-xs font-bold text-[#111827]">{label}</span>
+    </Link>
+  );
+}
+
+function TodayFeedCard({
+  icon,
+  title,
+  text,
+  to,
+  params,
+}: {
+  icon: ReactNode;
+  title: string;
+  text: string;
+  to: "/check-in" | "/meu-risco" | "/protocolo-90-dias/$id";
+  params?: { id: string };
+}) {
+  return (
+    <Link
+      to={to}
+      params={params}
+      className="flex h-[120px] w-[60vw] shrink-0 snap-start flex-col justify-between rounded-3xl bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+    >
+      <span className="grid h-10 w-10 place-items-center rounded-2xl bg-[#EFF6FF] text-[#2563EB]">
+        {icon}
+      </span>
+      <span>
+        <span className="block text-base font-semibold leading-tight text-[#111827]">{title}</span>
+        <span className="mt-1 line-clamp-2 block text-xs leading-4 text-[#6B7280]">{text}</span>
+      </span>
+    </Link>
   );
 }
 
