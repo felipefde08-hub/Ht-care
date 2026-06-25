@@ -3,13 +3,12 @@ import { AnimatePresence, motion, useScroll, useTransform } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
+  Brain,
+  FileText,
+  FlaskConical,
   HeartPulse,
   Plus,
-  Repeat2,
   ShieldCheck,
-  Stethoscope,
-  TrendingUp,
-  UserRound,
 } from "lucide-react";
 import htcareLogo from "@/assets/brand/htcare-logo.png";
 import heroReportBg from "@/assets/brand/htcare-hero-report-bg.png";
@@ -21,19 +20,20 @@ import { supabase } from "@/integrations/supabase/client";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "HTCare — Risco cardiovascular e metabólico" },
+      { title: "HTCare — Exames certos e interpretação cardiovascular" },
       {
         name: "description",
         content:
-          "Acompanhe seu risco cardiovascular e metabólico com base em diretrizes da OMS e da Sociedade Brasileira de Cardiologia.",
+          "Descubra seu risco cardiovascular, faça o exame certo e entenda cada resultado com Carelito IA e médico parceiro no loop.",
       },
       {
         property: "og:title",
-        content: "HTCare — Acompanhe seu risco cardiovascular e metabólico",
+        content: "HTCare — Descubra seu risco, faça o exame certo e entenda cada resultado",
       },
       {
         property: "og:description",
-        content: "Baseado em diretrizes da OMS e da Sociedade Brasileira de Cardiologia.",
+        content:
+          "A HTCare indica os exames certos e interpreta seus resultados em linguagem simples.",
       },
     ],
   }),
@@ -66,76 +66,79 @@ const facts = [
 const steps = [
   {
     eyebrow: "Passo 1",
-    title: "Responda em poucos minutos",
-    text: "Um questionário rápido sobre seus hábitos, histórico familiar e saúde atual. Sem precisar de exame nenhum pra começar.",
+    title: "Descubra seu risco",
+    text: "Responda um questionário de 5 minutos com o Carelito. Receba um score de risco cardiovascular claro, com explicação de cada fator que pesou no resultado.",
   },
   {
     eyebrow: "Passo 2",
-    title: "Receba seu score de risco",
-    text: "Baseado em diretrizes da OMS e da Sociedade Brasileira de Cardiologia, você vê exatamente onde está e o que está pesando no seu resultado.",
+    title: "Faça o exame certo",
+    text: "Com base no seu perfil, o app recomenda o painel de exames avançados ideal para você — ApoB, resistência à insulina, inflamação. Agende direto pelo app com laboratório parceiro.",
   },
   {
     eyebrow: "Passo 3",
-    title: "Acompanhe sua evolução",
-    text: "Acompanhe sua evolução ao longo do tempo, em vez de descobrir tudo de uma vez só. Seu score muda conforme você muda — e você vê isso acontecer.",
+    title: "Médico parceiro no loop",
+    text: "Um médico parceiro revisa seu perfil remotamente e autoriza os exames. Sem consulta presencial, sem fila, sem burocracia.",
+  },
+  {
+    eyebrow: "Passo 4",
+    title: "Entenda cada resultado",
+    text: "O Carelito interpreta cada biomarcador em linguagem simples. Você entende o que aquele número significa para a sua saúde — não só o valor de referência frio.",
+  },
+  {
+    eyebrow: "Passo 5",
+    title: "Receba seu protocolo e acompanhe",
+    text: "Com base nos seus resultados, receba um plano de 90 dias com ações concretas. Acompanhe a evolução dos seus indicadores ao longo do tempo.",
   },
 ];
 
-const differentiators = [
+const biomarkerExamples = [
   {
-    icon: ShieldCheck,
-    title: "Baseado em diretrizes reais",
-    text: "Cada cálculo de risco segue critérios oficiais usados por cardiologistas — não é uma fórmula inventada por nós.",
+    icon: HeartPulse,
+    title: "ApoB 128",
+    text: "Acima do ideal. O que isso significa e o que fazer.",
   },
   {
-    icon: UserRound,
-    title: "Você não é uma média",
-    text: "Cada pessoa tem fatores de risco únicos. Metas de população não servem pra gerenciar o risco individual de cada um.",
+    icon: Brain,
+    title: "HOMA-IR 2.8",
+    text: "Resistência à insulina no limite.",
   },
   {
-    icon: Repeat2,
-    title: "Acompanhamento, não só uma foto",
-    text: "Risco não é estático. Você refaz sua avaliação com o tempo e vê se está melhorando, estável ou piorando.",
+    icon: FlaskConical,
+    title: "PCR-us 3.2",
+    text: "Inflamação moderada detectada.",
   },
 ];
 
 const faqs = [
   {
-    question: "O que diferencia a HTCare de um teste de risco qualquer?",
-    answer:
-      "Não usamos uma fórmula genérica. Cruzamos seu histórico, hábitos e sintomas com diretrizes oficiais de risco cardiovascular pra te dar um resultado personalizado, não uma média de população.",
+    question: "Preciso ir ao médico antes de fazer o exame?",
+    answer: "Não. O médico parceiro revisa seu perfil remotamente e autoriza os exames pelo app.",
+  },
+  {
+    question: "O Carelito consegue ler qualquer exame?",
+    answer: "Sim. Exames de laboratório particular ou do SUS, em PDF ou foto.",
   },
   {
     question: "Isso substitui consulta médica?",
     answer:
-      "Não. A HTCare é uma ferramenta de triagem e acompanhamento, não um diagnóstico. Se seu risco aparecer moderado ou alto, recomendamos buscar avaliação com um cardiologista.",
+      "Não. É uma ferramenta de triagem e acompanhamento. Quando necessário, conectamos você com um cardiologista parceiro.",
   },
   {
-    question: "Preciso fazer exame de sangue pra começar?",
+    question: "Quanto custa?",
     answer:
-      "Não. Você pode começar sua avaliação só respondendo o questionário. Se fizer sentido, depois te ajudamos a entender se vale a pena fazer exames complementares.",
-  },
-  {
-    question: "É realmente gratuito?",
-    answer:
-      "Sim, a avaliação inicial e o acompanhamento básico são gratuitos. No futuro, oferecemos recursos extras opcionais para quem quiser um acompanhamento mais completo.",
+      "A avaliação inicial é gratuita. Os exames têm custo do laboratório parceiro. Em breve, planos de acompanhamento contínuo.",
   },
   {
     question: "Para quem é a HTCare?",
     answer:
-      "Para qualquer adulto que queira entender seu risco cardiovascular e metabólico — principalmente quem tem histórico familiar, já foi diagnosticado com pré-diabetes/diabetes, ou só quer acompanhar a própria saúde de forma preventiva.",
-  },
-  {
-    question: "O resultado vai me dizer exatamente o que fazer?",
-    answer:
-      "Você recebe um relatório claro com os fatores que mais pesam no seu risco e o que normalmente é recomendado para reduzir cada um deles — sempre como ponto de partida para conversar com seu médico, não como prescrição.",
+      "Para qualquer pessoa que quer entender sua saúde cardiovascular sem esperar meses por consulta.",
   },
 ];
 
 const navItems = [
-  { label: "Sobre", href: "#sobre" },
-  { label: "Para pacientes", href: "/para-pacientes" },
-  { label: "Para profissionais de saúde", href: "/para-profissionais" },
+  { label: "Como funciona", href: "#como-funciona" },
+  { label: "Carelito IA", href: "#carelito" },
+  { label: "Para profissionais", href: "#profissionais" },
   { label: "FAQ", href: "#faq" },
 ];
 
@@ -169,14 +172,6 @@ function Landing() {
   const heroBgScale = useTransform(heroProgress, [0, 1], [1, 1.18]);
   const heroContentY = useTransform(heroProgress, [0, 1], [0, 140]);
   const heroContentOpacity = useTransform(heroProgress, [0, 1], [1, 0]);
-
-  const omsRef = useRef(null);
-  const { scrollYProgress: omsProgress } = useScroll({
-    target: omsRef,
-    offset: ["start end", "end start"],
-  });
-  const omsCardY = useTransform(omsProgress, [0, 1], [60, -60]);
-  const omsTextY = useTransform(omsProgress, [0, 1], [30, -30]);
 
   const { scrollYProgress: pageProgress } = useScroll();
   const progressWidth = useTransform(pageProgress, [0, 1], ["0%", "100%"]);
@@ -266,19 +261,20 @@ function Landing() {
               className="text-center"
             >
               <p className="mb-6 inline-flex rounded-full border border-[#10201f]/10 bg-white/70 px-3 py-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.22em] text-[#486461] shadow-soft backdrop-blur">
-                Baseado em diretrizes médicas
+                Risco cardiovascular, exames e interpretação
               </p>
-              <h1 className="mx-auto max-w-4xl font-sans text-[clamp(3.2rem,7.2vw,7rem)] font-semibold leading-[0.94] tracking-normal text-[#10201f]">
-                Monitore sua saúde com inteligência.
+              <h1 className="mx-auto max-w-5xl font-sans text-[clamp(3rem,6.8vw,6.6rem)] font-semibold leading-[0.94] tracking-normal text-[#10201f]">
+                Descubra o risco do seu coração. Faça o exame certo. Entenda cada resultado.
               </h1>
-              <p className="mx-auto mt-7 max-w-2xl text-lg leading-8 text-[#536b68] sm:text-xl">
-                Dados organizados, acompanhamento contínuo e análises baseadas em evidências para
-                ajudar você a tomar melhores decisões sobre sua saúde.
+              <p className="mx-auto mt-7 max-w-3xl text-lg leading-8 text-[#536b68] sm:text-xl">
+                A HTCare descobre seu risco cardiovascular, indica os exames certos, e explica o que
+                cada resultado significa — com médico parceiro no loop e Carelito IA interpretando
+                tudo em linguagem simples.
               </p>
               <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
                 <Button size="xl" className="rounded-full bg-[#10201f] px-7 font-semibold" asChild>
                   <a href="/auth?mode=signup">
-                    Criar conta gratuita <ArrowRight className="h-4 w-4" />
+                    Começar agora — é gratuito <ArrowRight className="h-4 w-4" />
                   </a>
                 </Button>
                 <Button
@@ -287,123 +283,19 @@ function Landing() {
                   className="rounded-full border-[#10201f]/12 bg-white/60 px-7 font-semibold text-[#10201f] shadow-soft backdrop-blur hover:bg-white"
                   asChild
                 >
-                  <a href="#pacientes">Ver demonstração</a>
-                </Button>
-                <Button
-                  size="xl"
-                  variant="outline"
-                  className="rounded-full border-[#10201f]/12 bg-white/60 px-7 font-semibold text-[#10201f] shadow-soft backdrop-blur hover:bg-white"
-                  asChild
-                >
-                  <Link to="/relatorio">Ver meu score</Link>
+                  <a href="#como-funciona">Ver como funciona</a>
                 </Button>
               </div>
               <div className="mt-10 flex flex-wrap justify-center gap-3 text-sm text-[#536b68]">
-                <TrustPill icon={ShieldCheck} label="Diretrizes reconhecidas" />
-                <TrustPill icon={HeartPulse} label="Risco cardiovascular" />
-                <TrustPill icon={TrendingUp} label="Evolução contínua" />
+                <TrustPill icon={HeartPulse} label="Score de risco claro" />
+                <TrustPill icon={FlaskConical} label="Exames certos" />
+                <TrustPill icon={FileText} label="Resultado explicado" />
               </div>
             </motion.div>
           </motion.div>
         </section>
 
-        <section id="sobre" className="overflow-hidden bg-white px-6 py-24 text-[#10201f] sm:py-36">
-          <div className="mx-auto max-w-7xl">
-            <motion.div
-              initial={{ opacity: 0, y: 28 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ duration: 0.7, ease: EASE }}
-              className="grid gap-16 lg:grid-cols-[0.92fr_1.08fr] lg:items-center"
-            >
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#6f8581]">
-                  Precisão para a vida real
-                </p>
-                <h2 className="mt-5 max-w-3xl font-sans text-[clamp(2.7rem,5.6vw,5.9rem)] font-semibold leading-[0.98] tracking-normal">
-                  Vá além do que as calculadoras tradicionais mostram
-                </h2>
-                <p className="mt-8 max-w-xl text-lg leading-8 text-[#536b68]">
-                  A maioria das avaliações de risco usa só 4 ou 5 informações básicas — idade,
-                  pressão, colesterol. A HTCare cruza seu histórico clínico, hábitos de vida,
-                  sintomas e fatores familiares pra te dar uma visão mais completa do seu risco
-                  real, não uma média genérica de população.
-                </p>
-              </div>
-              <HTCareProductDemo />
-            </motion.div>
-
-            <motion.div
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "-80px" }}
-              variants={staggerContainer}
-              className="mt-16 grid gap-5 md:grid-cols-3"
-            >
-              {differentiators.map((item) => (
-                <motion.article
-                  key={item.title}
-                  variants={revealItem}
-                  whileHover={{ y: -8, scale: 1.01 }}
-                  transition={{ duration: 0.28, ease: EASE }}
-                  className="group rounded-[1.65rem] border border-[#10201f]/[0.07] bg-white/82 p-7 shadow-[0_28px_90px_-72px_rgba(16,32,31,0.58)] backdrop-blur-xl transition-colors hover:border-[#10201f]/14 hover:bg-white sm:p-8"
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="grid h-10 w-10 place-items-center rounded-full border border-[#10201f]/8 bg-[#f7faf9] text-[#2f6760] transition group-hover:bg-[#10201f] group-hover:text-white">
-                      <item.icon className="h-[18px] w-[18px]" />
-                    </span>
-                    <span className="h-px flex-1 bg-[#10201f]/8" />
-                  </div>
-                  <h3 className="mt-8 max-w-xs font-sans text-2xl font-semibold leading-tight tracking-normal">
-                    {item.title}
-                  </h3>
-                  <p className="mt-5 text-base leading-7 text-[#536b68]">{item.text}</p>
-                </motion.article>
-              ))}
-            </motion.div>
-          </div>
-        </section>
-
-        <section ref={omsRef} className="bg-[#f7f9f8] px-6 py-20 text-[#10201f] sm:py-28">
-          <div className="mx-auto grid max-w-7xl gap-10 rounded-[2rem] border border-[#10201f]/8 bg-white p-7 shadow-[0_30px_120px_-86px_rgba(16,32,31,0.55)] sm:p-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
-            <motion.div
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-              style={{ y: omsCardY }}
-              className="rounded-[1.5rem] bg-[#10201f] p-8 text-white"
-            >
-              <Stethoscope className="h-8 w-8 text-white/72" />
-              <p className="mt-20 text-xs font-semibold uppercase tracking-[0.24em] text-white/48">
-                Diretrizes clínicas
-              </p>
-              <p className="mt-4 font-sans text-5xl font-semibold leading-none">OMS + SBC</p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ duration: 0.5, ease: "easeOut", delay: 0.08 }}
-              style={{ y: omsTextY }}
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#536b68]">
-                Construído sobre ciência, não suposição.
-              </p>
-              <h2 className="mt-4 max-w-3xl font-sans text-4xl font-semibold leading-tight tracking-normal sm:text-6xl">
-                Critérios reconhecidos, apresentados de forma clara.
-              </h2>
-              <p className="mt-6 max-w-3xl text-lg leading-8 text-[#536b68]">
-                Nosso cálculo de risco segue os mesmos parâmetros clínicos usados por cardiologistas
-                no Brasil e recomendados pela Organização Mundial da Saúde — não inventamos critério
-                próprio.
-              </p>
-            </motion.div>
-          </div>
-        </section>
-
-        <section className="bg-white px-6 py-20 text-[#10201f] sm:py-28">
+        <section id="sobre" className="bg-white px-6 py-20 text-[#10201f] sm:py-28">
           <div className="mx-auto max-w-7xl">
             <motion.div
               initial={{ opacity: 0, y: 16 }}
@@ -443,48 +335,7 @@ function Landing() {
           </div>
         </section>
 
-        <section className="bg-[#f7f9f8] px-6 py-20 text-[#10201f] sm:py-28">
-          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ duration: 0.5, ease: "easeOut" }}
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#536b68]">
-                Prevenção começa com dados
-              </p>
-              <h2 className="mt-4 max-w-3xl font-sans text-4xl font-semibold leading-tight tracking-normal sm:text-6xl">
-                Entender cedo muda a conversa.
-              </h2>
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-[#536b68]">
-                Testes e acompanhamento cardiológico ajudam a identificar fatores de risco antes que
-                eles virem urgência. A HTCare organiza esse primeiro mapa para você conversar melhor
-                com seu médico.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-80px" }}
-              transition={{ duration: 0.5, ease: "easeOut", delay: 0.08 }}
-              className="overflow-hidden rounded-[2rem] border border-[#10201f]/8 bg-[#10201f] shadow-[0_30px_120px_-70px_rgba(16,32,31,0.7)]"
-            >
-              <div className="aspect-video">
-                <iframe
-                  className="h-full w-full"
-                  src="https://www.youtube.com/embed/v-UI0PmZPFQ"
-                  title="Importância dos testes cardiológicos"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
-              </div>
-            </motion.div>
-          </div>
-        </section>
-
-        <section id="pacientes" className="bg-[#10201f] px-6 py-20 text-white sm:py-28">
+        <section id="como-funciona" className="bg-[#10201f] px-6 py-20 text-white sm:py-28">
           <div className="mx-auto max-w-7xl">
             <motion.div
               initial={{ opacity: 0, y: 16 }}
@@ -497,8 +348,12 @@ function Landing() {
                 Como funciona
               </p>
               <h2 className="mt-4 font-sans text-4xl font-semibold leading-tight tracking-normal sm:text-6xl">
-                3 passos simples. 100% gratuito. Uma visão clara do seu risco cardiovascular.
+                Da primeira avaliação ao protocolo de 90 dias.
               </h2>
+              <p className="mt-6 max-w-2xl text-lg leading-8 text-white/64">
+                A HTCare organiza o caminho inteiro: descobre risco, indica exame, coloca médico no
+                loop, traduz o resultado e acompanha sua evolução.
+              </p>
             </motion.div>
 
             <motion.div
@@ -506,7 +361,7 @@ function Landing() {
               whileInView="visible"
               viewport={{ once: true, margin: "-80px" }}
               variants={staggerContainer}
-              className="mt-14 grid gap-px overflow-hidden rounded-[1.75rem] border border-white/12 bg-white/12 md:grid-cols-3"
+              className="mt-14 grid gap-px overflow-hidden rounded-[1.75rem] border border-white/12 bg-white/12 md:grid-cols-2 lg:grid-cols-5"
             >
               {steps.map((step) => (
                 <motion.article
@@ -527,7 +382,69 @@ function Landing() {
           </div>
         </section>
 
-        <section className="bg-white px-6 py-20 text-[#10201f] sm:py-28">
+        <section
+          id="carelito"
+          className="overflow-hidden bg-white px-6 py-20 text-[#10201f] sm:py-28"
+        >
+          <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.88fr_1.12fr] lg:items-center">
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-80px" }}
+              transition={{ duration: 0.6, ease: EASE }}
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#536b68]">
+                Carelito IA
+              </p>
+              <h2 className="mt-4 max-w-3xl font-sans text-4xl font-semibold leading-tight tracking-normal sm:text-6xl">
+                Tem um exame que não entendeu? O Carelito explica.
+              </h2>
+              <p className="mt-6 max-w-xl text-lg leading-8 text-[#536b68]">
+                Seja do SUS ou de laboratório particular — fotografe ou envie o PDF. O Carelito
+                interpreta cada resultado em linguagem simples e te diz o que fazer.
+              </p>
+              <div className="mt-8 flex items-center gap-4 rounded-[1.5rem] border border-[#10201f]/8 bg-[#f7f9f8] p-4">
+                <Carelito className="h-20 w-20 shrink-0" expression="confident" />
+                <p className="text-base font-medium leading-7 text-[#304643]">
+                  Em vez de mostrar uma tabela fria, a HTCare transforma biomarcadores em contexto,
+                  prioridade e próximo passo.
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-80px" }}
+              variants={staggerContainer}
+              className="grid gap-4"
+            >
+              {biomarkerExamples.map((item) => (
+                <motion.article
+                  key={item.title}
+                  variants={revealItem}
+                  whileHover={{ y: -5 }}
+                  transition={{ duration: 0.24, ease: EASE }}
+                  className="rounded-[1.5rem] border border-[#10201f]/8 bg-white p-6 shadow-[0_28px_90px_-72px_rgba(16,32,31,0.58)]"
+                >
+                  <div className="flex items-start gap-4">
+                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#edf8f5] text-[#2f6760]">
+                      <item.icon className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <h3 className="font-sans text-2xl font-semibold tracking-normal">
+                        {item.title}
+                      </h3>
+                      <p className="mt-2 text-base leading-7 text-[#536b68]">{item.text}</p>
+                    </div>
+                  </div>
+                </motion.article>
+              ))}
+            </motion.div>
+          </div>
+        </section>
+
+        <section id="profissionais" className="bg-[#f7f9f8] px-6 py-20 text-[#10201f] sm:py-28">
           <div className="mx-auto max-w-7xl rounded-[2rem] border border-[#10201f]/8 bg-[#f7f9f8] p-8 sm:p-12">
             <motion.div
               initial={{ opacity: 0, y: 16 }}
@@ -544,8 +461,8 @@ function Landing() {
                   É cardiologista ou clínico geral?
                 </h2>
                 <p className="mt-5 max-w-2xl text-lg leading-8 text-[#536b68]">
-                  Veja como a HTCare faz a triagem antes do paciente chegar até você — sem mudar sua
-                  rotina.
+                  Seus pacientes chegam até você com histórico levantado, risco identificado, e
+                  exames prontos. Você foca na conversa clínica que importa.
                 </p>
               </div>
               <Button
@@ -686,15 +603,15 @@ function MobileVisitorWelcome({ onDismiss }: { onDismiss: () => void }) {
             </div>
 
             <p className="mt-5 text-base font-medium leading-7 text-[#536b68]">
-              Em poucos minutos, você entende seu risco cardiovascular, desbloqueia seu score e
-              começa a evoluir com pequenas missões.
+              Em poucos minutos, você entende seu risco cardiovascular, sabe quais exames fazem
+              sentido e recebe explicações simples sobre seus resultados.
             </p>
 
             <div className="mt-5 grid gap-2.5">
               {[
                 "Score cardiovascular claro",
-                "Plano de ação com missões",
-                "Acompanhamento semanal",
+                "Exames certos para seu perfil",
+                "Interpretação em linguagem simples",
               ].map((item) => (
                 <div key={item} className="flex items-center gap-3 rounded-2xl bg-[#f7faf9] p-3">
                   <span className="grid h-8 w-8 place-items-center rounded-full bg-[#e8f5ef] text-[#2f6760]">
@@ -730,157 +647,6 @@ function MobileVisitorWelcome({ onDismiss }: { onDismiss: () => void }) {
         </div>
       </div>
     </motion.section>
-  );
-}
-
-function HTCareProductDemo() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 28, scale: 0.98 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.75, ease: EASE, delay: 0.08 }}
-      className="relative min-h-[540px] lg:min-h-[620px]"
-    >
-      <div className="absolute inset-x-4 top-12 h-[430px] rounded-[3rem] border border-[#10201f]/6 bg-[#f8fbfa]/70 shadow-[0_45px_140px_-92px_rgba(16,32,31,0.72)] backdrop-blur-2xl" />
-
-      <motion.div
-        whileHover={{ y: -10, rotate: -2.5 }}
-        transition={{ duration: 0.35, ease: EASE }}
-        className="absolute left-0 top-28 hidden w-[255px] rotate-[-7deg] rounded-[1.6rem] border border-[#10201f]/8 bg-white/88 p-5 shadow-[0_32px_90px_-58px_rgba(16,32,31,0.74)] backdrop-blur-xl sm:block"
-      >
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#78908d]">
-            Relatório
-          </p>
-          <span className="h-2 w-2 rounded-full bg-[#2f9e72]" />
-        </div>
-        <h3 className="mt-5 font-sans text-xl font-semibold">Risco metabólico</h3>
-        <div className="mt-5 space-y-4">
-          {[
-            ["Glicemia", "92"],
-            ["LDL", "118"],
-            ["HDL", "54"],
-          ].map(([label, value]) => (
-            <div
-              key={label}
-              className="flex items-center justify-between border-b border-[#10201f]/8 pb-3"
-            >
-              <span className="text-sm text-[#536b68]">{label}</span>
-              <span className="font-semibold">{value}</span>
-            </div>
-          ))}
-        </div>
-        <div className="mt-6 flex h-16 items-end gap-2">
-          {[42, 58, 36, 72, 48, 66, 78].map((height, index) => (
-            <span
-              key={index}
-              className="flex-1 rounded-full bg-[#2f6760]/18"
-              style={{ height: `${height}%` }}
-            />
-          ))}
-        </div>
-      </motion.div>
-
-      <motion.div
-        whileHover={{ y: -12, rotate: 1.5 }}
-        transition={{ duration: 0.35, ease: EASE }}
-        className="absolute right-0 top-0 w-full max-w-[470px] rounded-[2rem] border border-[#10201f]/8 bg-white/92 p-6 shadow-[0_38px_120px_-70px_rgba(16,32,31,0.78)] backdrop-blur-xl sm:p-7"
-      >
-        <div className="flex items-start justify-between gap-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78908d]">
-              HTCare Score
-            </p>
-            <h3 className="mt-4 font-sans text-3xl font-semibold leading-tight">
-              Visão cardiovascular
-            </h3>
-          </div>
-          <div className="relative grid h-28 w-28 shrink-0 place-items-center rounded-full bg-[conic-gradient(#2f9e72_0_76%,#e6eeeb_76%_100%)]">
-            <div className="grid h-[86px] w-[86px] place-items-center rounded-full bg-white text-center shadow-inner">
-              <div>
-                <p className="font-sans text-4xl font-semibold">76</p>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#78908d]">
-                  baixo
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-8 rounded-[1.35rem] border border-[#10201f]/7 bg-[#f8fbfa] p-5">
-          <div className="flex items-center justify-between">
-            <p className="font-semibold">Evolução do score</p>
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#2f6760]">
-              +4 pts
-            </span>
-          </div>
-          <div className="mt-6 h-28 overflow-hidden rounded-2xl bg-white p-4">
-            <svg viewBox="0 0 420 120" className="h-full w-full" aria-hidden="true">
-              <path
-                d="M0 86 C42 70 58 90 96 74 C132 59 145 62 177 50 C214 36 236 58 272 45 C313 30 340 43 420 23"
-                fill="none"
-                stroke="#2f6760"
-                strokeLinecap="round"
-                strokeWidth="5"
-              />
-              <path
-                d="M0 86 C42 70 58 90 96 74 C132 59 145 62 177 50 C214 36 236 58 272 45 C313 30 340 43 420 23 L420 120 L0 120 Z"
-                fill="rgba(47,103,96,0.08)"
-              />
-            </svg>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          {[
-            ["Pressão", "128/82"],
-            ["Metabólico", "Estável"],
-            ["Check-ins", "7"],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-[1.15rem] border border-[#10201f]/7 bg-white p-4">
-              <p className="text-xs font-medium text-[#78908d]">{label}</p>
-              <p className="mt-2 font-sans text-xl font-semibold">{value}</p>
-            </div>
-          ))}
-        </div>
-      </motion.div>
-
-      <motion.div
-        whileHover={{ y: -10, rotate: -0.8 }}
-        transition={{ duration: 0.35, ease: EASE }}
-        className="absolute bottom-0 left-[8%] w-[78%] rounded-[1.8rem] border border-[#10201f]/8 bg-white/86 p-6 shadow-[0_36px_110px_-72px_rgba(16,32,31,0.8)] backdrop-blur-xl sm:w-[430px]"
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78908d]">
-              Fatores que pesaram
-            </p>
-            <h3 className="mt-3 font-sans text-2xl font-semibold">Relatório personalizado</h3>
-          </div>
-          <span className="rounded-full bg-[#fff7e8] px-3 py-1 text-xs font-semibold text-[#9a5b12]">
-            revisar
-          </span>
-        </div>
-        <div className="mt-6 grid gap-3">
-          {[
-            ["Pressão sistólica acima do ideal", "Médio"],
-            ["Histórico familiar informado", "Atenção"],
-            ["Tabagismo ausente", "Positivo"],
-          ].map(([label, status]) => (
-            <div
-              key={label}
-              className="flex items-center justify-between rounded-2xl bg-[#f7faf9] p-4"
-            >
-              <span className="text-sm font-medium text-[#304643]">{label}</span>
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#78908d]">
-                {status}
-              </span>
-            </div>
-          ))}
-        </div>
-      </motion.div>
-    </motion.div>
   );
 }
 

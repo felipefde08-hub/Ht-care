@@ -10,8 +10,8 @@ const productLinks = [
 ];
 
 const sectionLinks = [
-  { label: "Sobre", href: "/#sobre" },
   { label: "Como funciona", href: "/#como-funciona" },
+  { label: "Carelito IA", href: "/#carelito" },
   { label: "FAQ", href: "/#faq" },
 ];
 
@@ -23,8 +23,8 @@ export function SiteFooter() {
           <div>
             <Logo />
             <p className="mt-6 max-w-sm text-base leading-7 text-[#536b68]">
-              Acompanhamento cardiovascular e metabólico com dados organizados, score de risco e
-              evolução ao longo do tempo.
+              A HTCare descobre seu risco cardiovascular, indica os exames certos, e interpreta cada
+              resultado com Carelito IA — para você entender sua saúde sem burocracia.
             </p>
             <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-[#10201f]/8 bg-white px-4 py-2 text-sm font-medium text-[#536b68] shadow-soft">
               <ShieldCheck className="h-4 w-4 text-[#2f6760]" />
