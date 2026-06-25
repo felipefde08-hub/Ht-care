@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
+import { getChallengeStats, getWeeklyMissions } from "@/lib/challenge";
 import { calculateInitialRiskScore } from "@/lib/risk-score";
 import { recordUserActivity } from "@/lib/user-activity";
 
@@ -72,6 +73,28 @@ interface Medication {
   category: string;
   description: string;
   created_at: string;
+}
+
+interface Exam {
+  id: string;
+  name: string;
+  exam_date: string | null;
+  notes: string | null;
+  file_url: string | null;
+  created_at: string;
+}
+
+interface ExamRequest {
+  id: string;
+  status: string;
+  created_at: string;
+}
+
+interface ProfileNotification {
+  id: string;
+  title: string;
+  text: string;
+  tone: string;
 }
 
 interface Preferences {
@@ -175,7 +198,12 @@ function ProfileSectionPage() {
   const Icon = meta.icon;
   const [form, setForm] = useState<ProfileForm>(emptyForm);
   const [medications, setMedications] = useState<Medication[]>([]);
-  const [newMedication, setNewMedication] = useState({ category: "outro", description: "" });
+  const [newMedication, setNewMedication] = useState({ name: "", dose: "", time: "" });
+  const [exams, setExams] = useState<Exam[]>([]);
+  const [examFile, setExamFile] = useState<File | null>(null);
+  const [examForm, setExamForm] = useState({ name: "", date: "", notes: "" });
+  const [notifications, setNotifications] = useState<ProfileNotification[]>([]);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [preferences, setPreferences] = useState<Preferences>({
     weekly_checkin: true,
     weekly_summary_email: false,
@@ -241,6 +269,21 @@ function ProfileSectionPage() {
           achievement_unlocked: prefs.achievement_unlocked,
         });
       }
+
+      const [{ data: examData }, { data: requestData }] = await Promise.all([
+        supabase
+          .from("exams")
+          .select("id,name,exam_date,notes,file_url,created_at")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("exam_requests")
+          .select("id,status,created_at")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      setExams(examData ?? []);
+      setNotifications(buildNotifications(local, isExamRequest(requestData) ? requestData : null));
     }
 
     void load();
@@ -251,6 +294,10 @@ function ProfileSectionPage() {
   }
 
   async function saveProfile(kind: "personal" | "health" | "medical") {
+    if (kind === "personal" && !form.sex) {
+      toast.error("Selecione masculino ou feminino antes de salvar.");
+      return;
+    }
     const raw = window.localStorage.getItem("htcare:onboarding");
     const local = raw ? JSON.parse(raw) : {};
     const nextLocal = {
@@ -344,13 +391,20 @@ function ProfileSectionPage() {
   }
 
   async function addMedication() {
-    if (!newMedication.description.trim()) return;
+    if (!newMedication.name.trim()) return;
+    const description = [
+      newMedication.name.trim(),
+      newMedication.dose.trim() ? `Dose: ${newMedication.dose.trim()}` : "",
+      newMedication.time.trim() ? `Horário: ${newMedication.time.trim()}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
     const { data, error } = await supabase
       .from("medications")
       .insert({
         user_id: user.id,
-        category: newMedication.category,
-        description: newMedication.description.trim(),
+        category: "medicamento",
+        description,
       })
       .select("id,category,description,created_at")
       .single();
@@ -360,7 +414,7 @@ function ProfileSectionPage() {
       return;
     }
     setMedications((current) => [data, ...current]);
-    setNewMedication({ category: "outro", description: "" });
+    setNewMedication({ name: "", dose: "", time: "" });
   }
 
   async function removeMedication(id: string) {
@@ -378,6 +432,66 @@ function ProfileSectionPage() {
     const { error } = await supabase.auth.resetPasswordForEmail(user.email);
     if (error) toast.error("Não foi possível iniciar alteração de senha.");
     else toast.success("Enviamos um link de alteração de senha para seu e-mail.");
+  }
+
+  async function addExam() {
+    if (!examForm.name.trim()) {
+      toast.error("Informe o nome do exame.");
+      return;
+    }
+
+    let fileUrl: string | null = null;
+    let filePath: string | null = null;
+    if (examFile) {
+      const safeName = examFile.name.replace(/[^\w.-]+/g, "-");
+      filePath = `${user.id}/${Date.now()}-${safeName}`;
+      const { error: uploadError } = await supabase.storage
+        .from("exams")
+        .upload(filePath, examFile, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+      if (uploadError) {
+        toast.error("Não foi possível enviar o arquivo.");
+        console.error(uploadError);
+        return;
+      }
+      fileUrl = supabase.storage.from("exams").getPublicUrl(filePath).data.publicUrl;
+    }
+
+    const { data, error } = await supabase
+      .from("exams")
+      .insert({
+        user_id: user.id,
+        name: examForm.name.trim(),
+        exam_date: examForm.date || null,
+        notes: examForm.notes.trim() || null,
+        file_url: fileUrl,
+        file_path: filePath,
+        file_type: examFile?.type ?? null,
+      })
+      .select("id,name,exam_date,notes,file_url,created_at")
+      .single();
+
+    if (error) {
+      toast.error("Não foi possível salvar o exame.");
+      console.error(error);
+      return;
+    }
+    setExams((current) => [data, ...current]);
+    setExamForm({ name: "", date: "", notes: "" });
+    setExamFile(null);
+    toast.success("Exame enviado.");
+  }
+
+  async function requestAccountDeletion() {
+    if (!deleteConfirm) {
+      setDeleteConfirm(true);
+      return;
+    }
+    toast.success("Solicitação registrada. O suporte vai confirmar a exclusão com segurança.");
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", replace: true });
   }
 
   async function logout() {
@@ -560,7 +674,7 @@ function ProfileSectionPage() {
             <div className="space-y-4">
               {!medications.length && (
                 <div className="rounded-2xl bg-[#f7faf9] p-5 text-sm text-[#536b68]">
-                  Nenhum uso informado.
+                  Nenhum medicamento informado.
                 </div>
               )}
               {medications.map((medication) => (
@@ -578,25 +692,20 @@ function ProfileSectionPage() {
                   </button>
                 </div>
               ))}
-              <Choice
-                label="Categoria"
-                value={newMedication.category}
-                options={[
-                  ["pressão", "Pressão"],
-                  ["diabetes", "Diabetes"],
-                  ["colesterol", "Colesterol"],
-                  ["outro", "Outro"],
-                ]}
-                onChange={(value) =>
-                  setNewMedication((current) => ({ ...current, category: value }))
-                }
+              <TextField
+                label="Nome do medicamento"
+                value={newMedication.name}
+                onChange={(value) => setNewMedication((current) => ({ ...current, name: value }))}
               />
               <TextField
-                label="Medicamento ou observação"
-                value={newMedication.description}
-                onChange={(value) =>
-                  setNewMedication((current) => ({ ...current, description: value }))
-                }
+                label="Dose"
+                value={newMedication.dose}
+                onChange={(value) => setNewMedication((current) => ({ ...current, dose: value }))}
+              />
+              <TextField
+                label="Horário"
+                value={newMedication.time}
+                onChange={(value) => setNewMedication((current) => ({ ...current, time: value }))}
               />
               <Button
                 className="w-full rounded-full bg-[#10201f]"
@@ -608,89 +717,148 @@ function ProfileSectionPage() {
           )}
 
           {key === "exames-resultados" && (
-            <div className="space-y-3">
-              <div className="rounded-2xl bg-[#f7faf9] p-5">
-                <div className="flex items-start gap-3">
-                  <FlaskConical className="mt-1 h-5 w-5 text-[#2f8fc8]" />
-                  <div>
-                    <p className="font-semibold">Envie ou consulte seus exames</p>
-                    <p className="mt-1 text-sm leading-6 text-[#536b68]">
-                      Guarde PDFs, imagens e observações. Quando houver laboratório parceiro, os
-                      resultados também aparecerão aqui.
-                    </p>
-                  </div>
+            <div className="space-y-4">
+              {!exams.length && (
+                <div className="rounded-2xl bg-[#f7faf9] p-5 text-sm text-[#536b68]">
+                  Nenhum exame registrado ainda.
+                </div>
+              )}
+              {exams.map((exam) => (
+                <div key={exam.id} className="rounded-2xl bg-[#f7faf9] p-4">
+                  <p className="font-semibold">{exam.name}</p>
+                  <p className="mt-1 text-sm text-[#78908d]">
+                    {exam.exam_date
+                      ? new Date(exam.exam_date).toLocaleDateString("pt-BR")
+                      : "Sem data informada"}
+                  </p>
+                  {exam.notes && <p className="mt-2 text-sm text-[#536b68]">{exam.notes}</p>}
+                  {exam.file_url && (
+                    <a
+                      href={exam.file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-flex font-bold text-[#2f8fc8]"
+                    >
+                      Ver arquivo
+                    </a>
+                  )}
+                </div>
+              ))}
+              <div className="rounded-2xl bg-[#f7faf9] p-4">
+                <p className="font-semibold">Enviar exame</p>
+                <div className="mt-3 grid gap-3">
+                  <TextField
+                    label="Nome do exame"
+                    value={examForm.name}
+                    onChange={(name) => setExamForm((current) => ({ ...current, name }))}
+                  />
+                  <TextField
+                    label="Data"
+                    type="date"
+                    value={examForm.date}
+                    onChange={(date) => setExamForm((current) => ({ ...current, date }))}
+                  />
+                  <TextField
+                    label="Observação"
+                    value={examForm.notes}
+                    onChange={(notes) => setExamForm((current) => ({ ...current, notes }))}
+                  />
+                  <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-[#10201f]/16 bg-white px-4 text-sm font-semibold">
+                    <FileUp className="h-5 w-5 text-[#2f8fc8]" />
+                    {examFile ? examFile.name : "Selecionar PDF ou imagem"}
+                    <input
+                      type="file"
+                      accept="application/pdf,image/*"
+                      className="sr-only"
+                      onChange={(event) => setExamFile(event.target.files?.[0] ?? null)}
+                    />
+                  </label>
                 </div>
               </div>
-              <Button className="min-h-12 w-full rounded-full bg-[#10201f]" asChild>
-                <Link to="/exames">
-                  <FileUp className="h-4 w-4" />
-                  Abrir upload e lista de exames
-                </Link>
-              </Button>
-              <Button variant="outline" className="min-h-12 w-full rounded-full" asChild>
-                <Link to="/meu-risco">Solicitar exame de sangue</Link>
+              <Button
+                className="min-h-12 w-full rounded-full bg-[#10201f]"
+                onClick={() => void addExam()}
+              >
+                Enviar exame
               </Button>
             </div>
           )}
 
           {key === "metas-saude" && (
             <div className="space-y-3">
-              <InfoCard
-                title="Protocolo de 90 dias"
-                text="Suas metas principais são definidas a partir dos biomarcadores e do score mais recente."
-              />
-              <div className="grid gap-3">
-                {[
-                  ["Caminhar 30 min após o almoço", "Ajuda resistência à insulina e pressão."],
-                  [
-                    "Registrar pressão 3x por semana",
-                    "Mostra tendência real, não uma foto isolada.",
-                  ],
-                  [
-                    "Repetir exame no prazo recomendado",
-                    "Confirma se o plano está mudando seus biomarcadores.",
-                  ],
-                ].map(([title, text]) => (
-                  <div key={title} className="rounded-2xl bg-[#f7faf9] p-4">
-                    <p className="font-semibold">{title}</p>
-                    <p className="mt-1 text-sm leading-6 text-[#536b68]">{text}</p>
-                  </div>
-                ))}
-              </div>
-              <Button className="min-h-12 w-full rounded-full bg-[#10201f]" asChild>
-                <Link to="/protocolo-90-dias/$id" params={{ id: "demo" }}>
-                  Ver protocolo de 90 dias
-                </Link>
-              </Button>
+              {hasProtocol(form) ? (
+                <>
+                  <InfoCard
+                    title="Protocolo de 90 dias"
+                    text="Três objetivos principais para acompanhar sua evolução cardiovascular."
+                  />
+                  {buildProtocolGoals(form).map((goal) => (
+                    <div key={goal.title} className="rounded-2xl bg-[#f7faf9] p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold">{goal.title}</p>
+                          <p className="mt-1 text-sm leading-6 text-[#536b68]">{goal.text}</p>
+                        </div>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#2f6760]">
+                          {goal.progress}%
+                        </span>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                        <div
+                          className="h-full rounded-full bg-[#2f8fc8]"
+                          style={{ width: `${goal.progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div className="rounded-2xl bg-[#f7faf9] p-5 text-sm leading-6 text-[#536b68]">
+                  Complete sua avaliação para receber seu protocolo personalizado.
+                </div>
+              )}
             </div>
           )}
 
           {key === "configuracoes" && (
             <div className="space-y-3">
-              <ConfigLink
-                icon={<Bell className="h-5 w-5" />}
-                title="Notificações"
-                text="Lembretes, resumo semanal e novas missões."
-                section="notificacoes"
+              <PreferenceRow
+                label="Notificações ativas"
+                checked={
+                  preferences.weekly_checkin ||
+                  preferences.weekly_summary_email ||
+                  preferences.new_mission ||
+                  preferences.achievement_unlocked
+                }
+                onChange={(checked) =>
+                  void savePreferences({
+                    weekly_checkin: checked,
+                    weekly_summary_email: checked,
+                    new_mission: checked,
+                    achievement_unlocked: checked,
+                  })
+                }
               />
-              <ConfigLink
-                icon={<Lock className="h-5 w-5" />}
-                title="Privacidade e segurança"
-                text="Senha, proteção da conta e política de privacidade."
-                section="privacidade-seguranca"
-              />
-              <ConfigLink
-                icon={<Languages className="h-5 w-5" />}
-                title="Idioma"
-                text="Português Brasil."
-                section="idioma"
-              />
-              <ConfigLink
-                icon={<Moon className="h-5 w-5" />}
-                title="Aparência"
-                text="Modo claro por enquanto."
-                section="aparencia"
-              />
+              <Button
+                variant="outline"
+                className="min-h-12 w-full rounded-full"
+                onClick={() => void sendPasswordReset()}
+              >
+                Alterar senha
+              </Button>
+              <Button
+                variant="outline"
+                className="min-h-12 w-full rounded-full border-[#c14525]/25 text-[#c14525]"
+                onClick={() => void requestAccountDeletion()}
+              >
+                {deleteConfirm ? "Confirmar exclusão da conta" : "Excluir conta"}
+              </Button>
+              <a
+                href="/privacidade"
+                className="block rounded-2xl bg-[#f7faf9] p-4 font-semibold text-[#2f8fc8]"
+              >
+                Política de privacidade
+              </a>
               <button
                 type="button"
                 onClick={() => void logout()}
@@ -704,34 +872,23 @@ function ProfileSectionPage() {
 
           {key === "notificacoes" && (
             <div className="space-y-3">
-              <PreferenceRow
-                label="Lembrete semanal de check-in"
-                checked={preferences.weekly_checkin}
-                onChange={(checked) =>
-                  void savePreferences({ ...preferences, weekly_checkin: checked })
-                }
-              />
-              <PreferenceRow
-                label="E-mail semanal de resumo"
-                checked={preferences.weekly_summary_email}
-                onChange={(checked) =>
-                  void savePreferences({ ...preferences, weekly_summary_email: checked })
-                }
-              />
-              <PreferenceRow
-                label="Nova missão disponível"
-                checked={preferences.new_mission}
-                onChange={(checked) =>
-                  void savePreferences({ ...preferences, new_mission: checked })
-                }
-              />
-              <PreferenceRow
-                label="Conquista desbloqueada"
-                checked={preferences.achievement_unlocked}
-                onChange={(checked) =>
-                  void savePreferences({ ...preferences, achievement_unlocked: checked })
-                }
-              />
+              {notifications.length ? (
+                notifications.map((notification) => (
+                  <div key={notification.id} className="rounded-2xl bg-[#f7faf9] p-4">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-[0.68rem] font-bold ${notification.tone}`}
+                    >
+                      Novo
+                    </span>
+                    <p className="mt-3 font-semibold">{notification.title}</p>
+                    <p className="mt-1 text-sm leading-6 text-[#536b68]">{notification.text}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-2xl bg-[#f7faf9] p-5 text-sm text-[#536b68]">
+                  Nenhuma notificação por enquanto.
+                </div>
+              )}
             </div>
           )}
 
@@ -773,8 +930,8 @@ function ProfileSectionPage() {
                 answer="É uma estimativa simplificada baseada nas informações que você informou no app."
               />
               <Faq
-                question="Como funcionam as missões?"
-                answer="São pequenas ações semanais para ajudar você a cuidar melhor do coração."
+                question="Como funciona o exame?"
+                answer="Você solicita pelo app, o médico parceiro revisa remotamente e libera a requisição digital para o laboratório."
               />
               <Faq
                 question="Meus dados estão seguros?"
@@ -784,7 +941,7 @@ function ProfileSectionPage() {
                 href="mailto:suporte@htcare.com.br"
                 className="block rounded-full bg-[#10201f] px-5 py-3 text-center font-semibold text-white"
               >
-                Falar com suporte
+                suporte@htcare.com.br
               </a>
             </div>
           )}
@@ -922,6 +1079,118 @@ function Faq({ question, answer }: { question: string; answer: string }) {
       <p className="mt-1 text-sm leading-6 text-[#536b68]">{answer}</p>
     </div>
   );
+}
+
+function buildNotifications(local: Record<string, unknown>, examRequest: ExamRequest | null) {
+  const notifications: ProfileNotification[] = [];
+  const today = new Date().toISOString().slice(0, 10);
+  const dailyCheckinDone =
+    typeof window !== "undefined" &&
+    window.localStorage.getItem("htcare:daily-checkin-date") === today;
+
+  if (!dailyCheckinDone) {
+    notifications.push({
+      id: "checkin-pendente",
+      title: "Check-in pendente",
+      text: "Registre pressão, peso, sono ou glicemia para manter seu histórico atualizado.",
+      tone: "bg-[#fff7dc] text-[#9a5b12]",
+    });
+  }
+
+  if (examRequest?.status === "concluido") {
+    notifications.push({
+      id: "resultado-disponivel",
+      title: "Resultado de exame disponível",
+      text: "Sua interpretação já foi liberada pelo médico parceiro.",
+      tone: "bg-[#e8f5ef] text-[#2f6760]",
+    });
+  }
+
+  if (examRequest?.status === "autorizado") {
+    notifications.push({
+      id: "requisicao-pronta",
+      title: "Requisição pronta",
+      text: "Baixe sua requisição e leve ao laboratório parceiro.",
+      tone: "bg-[#e9f4fb] text-[#2f8fc8]",
+    });
+  }
+
+  const missions = getWeeklyMissions(getLocalFactors(local));
+  const stats = getChallengeStats(missions);
+  if (stats.pendingThisWeek > 0) {
+    notifications.push({
+      id: "missao-nova",
+      title: "Missão nova disponível",
+      text: `${stats.pendingThisWeek} ação${stats.pendingThisWeek > 1 ? "ões" : ""} desta semana ainda aguardando conclusão.`,
+      tone: "bg-[#e9f4fb] text-[#2f8fc8]",
+    });
+  }
+
+  const milestone = stats.points >= 100 ? Math.floor(stats.points / 100) * 100 : 0;
+  if (milestone > 0) {
+    notifications.push({
+      id: `conquista-${milestone}`,
+      title: "Conquista desbloqueada",
+      text: `Você alcançou ${milestone} Pontos do Coração.`,
+      tone: "bg-[#e8f5ef] text-[#2f6760]",
+    });
+  }
+
+  return notifications.slice(0, 5);
+}
+
+function getLocalFactors(local: Record<string, unknown>) {
+  const result = local.result;
+  if (!result || typeof result !== "object") return [];
+  const factors = (result as { factors?: unknown }).factors;
+  return Array.isArray(factors)
+    ? factors.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function isExamRequest(data: unknown): data is ExamRequest {
+  if (!data || typeof data !== "object") return false;
+  const record = data as Partial<ExamRequest>;
+  return typeof record.id === "string" && typeof record.status === "string";
+}
+
+function hasProtocol(form: ProfileForm) {
+  return Boolean(form.age && form.weight && form.height);
+}
+
+function buildProtocolGoals(form: ProfileForm) {
+  const hasHighPressure = Number(form.systolic) >= 130 || Number(form.diastolic) >= 85;
+  const bmi = calculateBmi(form.weight, form.height);
+  const goals = [
+    hasHighPressure
+      ? {
+          title: "Registrar pressão 3x por semana",
+          text: "Acompanhe tendência real para discutir com seu médico.",
+          progress: 33,
+        }
+      : {
+          title: "Manter pressão acompanhada",
+          text: "Registre ao menos uma medida por semana para criar histórico.",
+          progress: 25,
+        },
+    bmi && bmi >= 25
+      ? {
+          title: "Reduzir risco metabólico",
+          text: "Priorize caminhada após refeições e evolução gradual do peso.",
+          progress: 20,
+        }
+      : {
+          title: "Preservar bons indicadores",
+          text: "Mantenha rotina de sono, movimento e alimentação consistente.",
+          progress: 45,
+        },
+    {
+      title: "Revisar score em 90 dias",
+      text: "Atualize dados ou envie exame para comparar sua evolução.",
+      progress: 10,
+    },
+  ];
+  return goals;
 }
 
 function isSectionKey(value: string): value is SectionKey {
