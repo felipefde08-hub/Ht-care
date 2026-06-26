@@ -10,7 +10,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const items = [
   { label: "Início", to: "/painel", icon: House },
@@ -24,6 +24,15 @@ export function MobileAppNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    function openRegisterSheet() {
+      setOpen(true);
+    }
+    window.addEventListener("htcare:open-register-sheet", openRegisterSheet);
+    return () => window.removeEventListener("htcare:open-register-sheet", openRegisterSheet);
+  }, []);
+
   const hubItems = [
     {
       label: "Pressão",

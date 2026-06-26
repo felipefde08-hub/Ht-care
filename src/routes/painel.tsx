@@ -130,8 +130,6 @@ function PanelPage() {
   const [history, setHistory] = useState<ScorePoint[]>([]);
   const [examRequest, setExamRequest] = useState<ExamRequest | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [dailyCheckinDone, setDailyCheckinDone] = useState(() => isDailyCheckinDoneToday());
-  const [daysAway] = useState(() => getDaysSinceLastOpen(user.id));
   const [carelitoOpenSignal, setCarelitoOpenSignal] = useState(0);
 
   useEffect(() => {
@@ -220,12 +218,7 @@ function PanelPage() {
     day: "2-digit",
     month: "short",
   }).format(new Date());
-  const todayCards = buildTodayCards({
-    examRequest,
-    dailyCheckinDone,
-    daysAway,
-    insightText: insight.text,
-  });
+  const todayRecords = buildTodayRecords(lastCheckIn);
   const weeklyMissions = useMemo(
     () => getWeeklyMissions(stored?.result?.factors ?? latest?.factors ?? []),
     [latest?.factors, stored?.result?.factors],
@@ -311,15 +304,18 @@ function PanelPage() {
         >
           <section className="relative pt-3 text-center">
             <p className="text-base font-semibold text-[#111827]">Bom dia, {firstName}</p>
-            <div className="mx-auto mt-3 flex max-w-xs items-center justify-center gap-2">
-              <p className="font-sans text-[88px] font-bold leading-none tracking-[-0.06em] text-[#111827]">
+            <div className="mt-2 flex items-center justify-center gap-2">
+              <Carelito className="h-11 w-11 shrink-0" expression="confident" />
+              <p className="max-w-[13rem] text-left text-xs font-semibold leading-4 text-[#16A34A]">
+                {insight.speech}
+              </p>
+            </div>
+            <div className="mx-auto mt-4 text-center">
+              <p className="w-full font-sans text-[88px] font-bold leading-none tracking-[-0.04em] text-[#111827]">
                 {currentScore ?? "—"}
               </p>
-              <div className="flex w-[98px] shrink-0 flex-col items-center">
-                <Carelito className="h-14 w-14" expression="confident" />
-                <div className="mt-1 rounded-2xl rounded-tl-md bg-white/90 px-2.5 py-2 text-left text-[0.6rem] font-bold leading-tight text-[#16A34A] shadow-[0_2px_8px_rgba(0,0,0,0.06)] backdrop-blur-md">
-                  {trend.mobileLabel || insight.speech}
-                </div>
+              <div className="mx-auto mt-2 inline-flex rounded-2xl bg-white/90 px-3 py-2 text-xs font-bold leading-tight text-[#16A34A] shadow-[0_2px_8px_rgba(0,0,0,0.06)] backdrop-blur-md">
+                {trend.mobileLabel}
               </div>
             </div>
             <p className="mt-2 text-sm font-semibold text-[#6B7280]">
@@ -350,11 +346,7 @@ function PanelPage() {
 
           <section className="mt-8">
             <p className="text-sm font-bold text-[#111827]">Hoje · {todayLabel}</p>
-            <div className="-mx-4 mt-3 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
-              {todayCards.map((card) => (
-                <TodayFeedCard key={card.title} {...card} />
-              ))}
-            </div>
+            <TodayRecords records={todayRecords} />
           </section>
 
           {examRequest && <ExamStatusCard request={examRequest} compact />}
@@ -642,98 +634,59 @@ function ExamReportPreviewCard({ compact = false }: { compact?: boolean }) {
   );
 }
 
-interface TodayCardConfig {
+interface TodayRecord {
   icon: ReactNode;
-  title: string;
-  text: string;
-  to: "/check-in" | "/meu-risco" | "/historico" | "/protocolo-90-dias/$id";
-  params?: { id: string };
+  label: string;
+  value: string;
+  time: string;
+  tone: "blue" | "green" | "purple";
 }
 
-function buildTodayCards({
-  examRequest,
-  dailyCheckinDone,
-  daysAway,
-  insightText,
-}: {
-  examRequest: ExamRequest | null;
-  dailyCheckinDone: boolean;
-  daysAway: number | null;
-  insightText: string;
-}): TodayCardConfig[] {
-  const cards: TodayCardConfig[] = [];
+function buildTodayRecords(lastCheckIn: LastCheckIn | null): TodayRecord[] {
+  if (!lastCheckIn?.createdAt || !isToday(lastCheckIn.createdAt)) return [];
 
-  if (!examRequest) {
-    cards.push({
-      icon: <FlaskConical className="h-5 w-5" />,
-      title: "Fazer exame",
-      text: "Aprofunde seu score com biomarcadores reais.",
-      to: "/meu-risco",
-    });
-  } else if (examRequest.status === "concluido") {
-    cards.push({
-      icon: <FlaskConical className="h-5 w-5" />,
-      title: "Resultado liberado",
-      text: "Veja a interpretação completa do seu exame.",
-      to: "/meu-risco",
-    });
-  } else if (examRequest.status === "resultado_recebido") {
-    cards.push({
-      icon: <Clock3 className="h-5 w-5" />,
-      title: "Resultado em análise",
-      text: "O médico parceiro vai liberar a nota final.",
-      to: "/meu-risco",
-    });
-  } else if (examRequest.status === "autorizado") {
-    cards.push({
-      icon: <Download className="h-5 w-5" />,
-      title: "Baixar requisição",
-      text: "Leve o PDF ao laboratório em jejum de 12 horas.",
-      to: "/meu-risco",
-    });
-  } else if (dailyCheckinDone) {
-    cards.push({
-      icon: <CheckCircle2 className="h-5 w-5" />,
-      title: "Resumo do dia",
-      text: "Check-in registrado. Seu histórico foi atualizado.",
-      to: "/historico",
-    });
-  } else if (daysAway != null && daysAway > 3) {
-    cards.push({
-      icon: <Bell className="h-5 w-5" />,
-      title: "Bem-vindo de volta",
-      text: "Carelito separou uma ação simples para retomar hoje.",
-      to: "/check-in",
-    });
-  }
+  const checkIn = lastCheckIn.checkIn;
+  const time = new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(lastCheckIn.createdAt));
+  const records: TodayRecord[] = [];
 
-  const fallback: TodayCardConfig[] = [
-    {
+  if (
+    checkIn?.measuredBloodPressure === "sim" &&
+    Number(checkIn.systolic) > 0 &&
+    Number(checkIn.diastolic) > 0
+  ) {
+    records.push({
       icon: <HeartPulse className="h-5 w-5" />,
-      title: "Registrar pressão",
-      text: "Atualize sua medida em menos de 30 segundos.",
-      to: "/check-in",
-    },
-    {
-      icon: <CheckCircle2 className="h-5 w-5" />,
-      title: "Protocolo de hoje",
-      text: "Veja a próxima ação do seu plano de 90 dias.",
-      to: "/protocolo-90-dias/$id",
-      params: { id: "demo" },
-    },
-    {
-      icon: <Bell className="h-5 w-5" />,
-      title: "Insight do Carelito",
-      text: insightText,
-      to: "/meu-risco",
-    },
-  ];
-
-  for (const card of fallback) {
-    if (!cards.some((item) => item.title === card.title)) cards.push(card);
+      label: "Pressão",
+      value: `${checkIn.systolic}/${checkIn.diastolic}`,
+      time,
+      tone: "blue",
+    });
   }
 
-  return cards.slice(0, 3);
+  if (Number(checkIn?.weight) > 0) {
+    records.push({
+      icon: <Scale className="h-5 w-5" />,
+      label: "Peso",
+      value: `${checkIn?.weight} kg`,
+      time,
+      tone: "green",
+    });
+  }
+
+  if (checkIn?.measuredGlucose === "sim" && Number(checkIn.glucose) > 0) {
+    records.push({
+      icon: <Activity className="h-5 w-5" />,
+      label: "Glicemia",
+      value: `${checkIn.glucose} mg/dL`,
+      time,
+      tone: "purple",
+    });
+  }
+
+  return records;
 }
 
 function FloatingActionCircle({
@@ -761,34 +714,65 @@ function FloatingActionCircle({
   );
 }
 
-function TodayFeedCard({
-  icon,
-  title,
-  text,
-  to,
-  params,
-}: {
-  icon: ReactNode;
-  title: string;
-  text: string;
-  to: "/check-in" | "/meu-risco" | "/historico" | "/protocolo-90-dias/$id";
-  params?: { id: string };
-}) {
+function TodayRecords({ records }: { records: TodayRecord[] }) {
+  if (!records.length) {
+    return (
+      <div className="mt-3 rounded-3xl bg-white p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+        <div className="flex items-start gap-3">
+          <Carelito className="h-11 w-11 shrink-0" expression="thoughtful" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold leading-5 text-[#111827]">
+              Nenhum dado registrado hoje. Que tal registrar sua pressão agora?
+            </p>
+            <button
+              type="button"
+              onClick={openRegisterSheet}
+              className="mt-3 min-h-10 rounded-2xl bg-[#2563EB] px-4 text-sm font-bold text-white shadow-[0_8px_22px_-14px_rgba(37,99,235,0.9)] active:scale-95"
+            >
+              Registrar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Link
-      to={to}
-      params={params}
-      className="flex h-[120px] w-[60vw] shrink-0 snap-start flex-col justify-between rounded-3xl bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-    >
-      <span className="grid h-10 w-10 place-items-center rounded-2xl bg-[#EFF6FF] text-[#2563EB]">
-        {icon}
+    <div className="-mx-4 mt-3 flex snap-x gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {records.map((record) => (
+        <TodayRecordCard key={record.label} record={record} />
+      ))}
+    </div>
+  );
+}
+
+function TodayRecordCard({ record }: { record: TodayRecord }) {
+  const toneClasses = {
+    blue: "bg-[#EFF6FF] text-[#2563EB]",
+    green: "bg-[#F0FDF4] text-[#16A34A]",
+    purple: "bg-[#F5F3FF] text-[#7C3AED]",
+  };
+
+  return (
+    <div className="flex h-[120px] w-[60vw] shrink-0 snap-start flex-col justify-between rounded-3xl bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+      <span className={`grid h-10 w-10 place-items-center rounded-2xl ${toneClasses[record.tone]}`}>
+        {record.icon}
       </span>
       <span>
-        <span className="block text-base font-semibold leading-tight text-[#111827]">{title}</span>
-        <span className="mt-1 line-clamp-2 block text-xs leading-4 text-[#6B7280]">{text}</span>
+        <span className="block text-xs font-bold uppercase tracking-[0.12em] text-[#6B7280]">
+          {record.label}
+        </span>
+        <span className="mt-1 block text-xl font-bold leading-tight text-[#111827]">
+          {record.value}
+        </span>
+        <span className="mt-1 block text-xs leading-4 text-[#6B7280]">Hoje às {record.time}</span>
       </span>
-    </Link>
+    </div>
   );
+}
+
+function openRegisterSheet() {
+  window.dispatchEvent(new Event("htcare:open-register-sheet"));
 }
 
 interface QuickAccessAction {
@@ -1467,28 +1451,8 @@ function TrendBadge({ trend }: { trend: ReturnType<typeof getTrend> }) {
   );
 }
 
-function isDailyCheckinDoneToday() {
-  if (typeof window === "undefined") return false;
-  return window.localStorage.getItem("htcare:daily-checkin-date") === todayKey();
-}
-
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function getDaysSinceLastOpen(userId: string) {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(`htcare:activity-days:${userId}`);
-    const days = raw ? Object.keys(JSON.parse(raw) as Record<string, unknown>) : [];
-    const previousDays = days.filter((day) => day !== todayKey()).sort();
-    const lastPreviousDay = previousDays.at(-1);
-    if (!lastPreviousDay) return null;
-    const lastOpenAt = new Date(`${lastPreviousDay}T12:00:00`).getTime();
-    return Math.floor((Date.now() - lastOpenAt) / 86_400_000);
-  } catch {
-    return null;
-  }
+function isToday(value: string) {
+  return new Date(value).toDateString() === new Date().toDateString();
 }
 
 function getRecommendedAction(
