@@ -1,23 +1,35 @@
 import { Link } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import { motion } from "motion/react";
 import {
   Activity,
-  AlertTriangle,
+  ArrowRight,
   CalendarDays,
+  ChevronRight,
   CircleGauge,
   Cigarette,
+  ClipboardCheck,
   Dumbbell,
-  FileText,
+  FileHeart,
+  HeartHandshake,
   HeartPulse,
+  Microscope,
   Moon,
-  ShieldCheck,
+  Scale,
   Sparkles,
-  TrendingUp,
+  Stethoscope,
+  TestTube2,
   Wine,
   type LucideIcon,
 } from "lucide-react";
-import { Logo } from "@/components/Logo";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { RiskResult } from "@/lib/risk-score";
 
 export interface HealthReportData {
@@ -46,6 +58,9 @@ interface ReportFactor {
   title: string;
   explanation: string;
   recommendation: string;
+  reference: string;
+  severity: "Leve" | "Moderado" | "Alto";
+  impact: "Baixo" | "Médio" | "Alto";
 }
 
 export function HealthReport({
@@ -63,408 +78,519 @@ export function HealthReport({
   result: RiskResult;
   onReview?: () => void;
 }) {
-  const factors = buildReportFactors(data, bmi, result);
-  const nextStep = nextStepFor(result.level);
-  const display = displayFor(result.level);
-  const riskPercent = result.level === "baixo" ? 17 : result.level === "moderado" ? 50 : 84;
+  const firstName = personName.split(" ")[0] || "Paciente";
+  const status = statusFor(result.score);
+  const factors = buildReportFactors(data, bmi, result).slice(0, 6);
+  const quickSummary = quickSummaryFor(result.level, factors);
+  const plan = planForFactors(factors, data);
+  const insight = insightFor(result, factors);
 
   return (
-    <article className="w-full rounded-[1.5rem] border border-[#10201f]/8 bg-[#f6f8f7] p-3 shadow-[0_34px_140px_-92px_rgba(16,32,31,0.74)] sm:rounded-[2.25rem] sm:p-8">
-      <header className="flex flex-col gap-3 rounded-[1.25rem] border border-[#10201f]/8 bg-white p-4 sm:gap-5 sm:rounded-[1.75rem] sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-4">
-          <Logo />
+    <article className="mx-auto w-full max-w-7xl text-[#111827]">
+      <motion.section
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.48, ease: "easeOut" }}
+        className="relative overflow-hidden rounded-[2rem] border border-black/[0.04] bg-white p-6 shadow-[0_28px_90px_-70px_rgba(15,23,42,0.55)] sm:p-8 lg:rounded-[2.5rem] lg:p-10"
+      >
+        <div className="pointer-events-none absolute right-[-120px] top-[-160px] h-80 w-80 rounded-full bg-[#2563EB]/[0.07] blur-3xl" />
+        <div className="pointer-events-none absolute bottom-[-180px] left-[-140px] h-96 w-96 rounded-full bg-[#16A34A]/[0.06] blur-3xl" />
+
+        <div className="relative grid gap-8 lg:grid-cols-[1fr_340px] lg:items-center">
           <div>
-            <p className="text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[#78908d] sm:text-xs sm:tracking-[0.24em]">
-              Relatório de Saúde
-            </p>
-            <h1 className="mt-1 font-sans text-xl font-semibold leading-tight sm:text-3xl">
-              {personName}
+            <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-[#6B7280]">
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#F3F4F6] px-3 py-1.5">
+                <CalendarDays className="h-3.5 w-3.5" />
+                {assessmentDate.toLocaleDateString("pt-BR")}
+              </span>
+              <span className="rounded-full bg-[#EEF2FF] px-3 py-1.5 text-[#2563EB]">
+                Relatório HTCare
+              </span>
+            </div>
+
+            <p className="mt-8 text-sm font-medium text-[#6B7280]">Olá, {firstName}</p>
+            <h1 className="mt-2 max-w-3xl font-sans text-4xl font-semibold tracking-[-0.03em] text-[#111827] sm:text-5xl lg:text-6xl">
+              Seu relatório está pronto.
             </h1>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-[#6B7280] sm:text-lg">
+              {quickSummary}
+            </p>
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Button
+                size="xl"
+                className="h-12 rounded-2xl bg-[#2563EB] px-6 font-semibold"
+                asChild
+              >
+                <Link to="/plano-acao">
+                  Continuar meu plano <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button size="xl" variant="outline" className="h-12 rounded-2xl" asChild>
+                <Link to="/meu-risco">Ver evolução</Link>
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-[1.75rem] border border-black/[0.04] bg-[#F9FAFB]/80 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6B7280]">
+                  Score principal
+                </p>
+                <div className="mt-4 flex items-end gap-2">
+                  <span className="font-sans text-7xl font-semibold tracking-[-0.06em] text-[#111827]">
+                    {result.score}
+                  </span>
+                  <span className="mb-3 text-xl font-semibold text-[#9CA3AF]">/100</span>
+                </div>
+              </div>
+              <span
+                className={cn("rounded-full px-3 py-1.5 text-xs font-semibold", status.badgeClass)}
+              >
+                {status.label}
+              </span>
+            </div>
+            <div className="mt-7">
+              <ScoreGauge value={result.score} />
+            </div>
+            <p className="mt-5 text-sm leading-6 text-[#6B7280]">{status.summary}</p>
           </div>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-full border border-[#10201f]/8 bg-[#f7faf9] px-3 py-2 text-xs font-medium text-[#536b68] sm:px-4 sm:text-sm">
-          <CalendarDays className="h-4 w-4 text-[#2f6760]" />
-          Avaliação em {assessmentDate.toLocaleDateString("pt-BR")}
-        </div>
-      </header>
+      </motion.section>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_360px]">
-        <div className="order-2 grid gap-4 lg:grid-cols-2 xl:order-1 xl:gap-5">
-          <ReportCard className="lg:col-span-2">
-            <SectionTitle icon={Activity} title="Seus Hábitos" />
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <HabitChip
-                icon={Dumbbell}
-                label="Atividade"
-                value={formatActivity(data.activityLevel)}
+      <section className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <QuickMetric
+          icon={HeartPulse}
+          label="Pressão"
+          value={pressureShortLabel(data)}
+          tone={pressureTone(data)}
+          to="/perfil/dados-saude"
+        />
+        <QuickMetric
+          icon={TestTube2}
+          label="Colesterol"
+          value={cholesterolShortLabel(data)}
+          tone={cholesterolTone(data)}
+          to="/perfil/dados-saude"
+        />
+        <QuickMetric
+          icon={Scale}
+          label="IMC"
+          value={bmi == null ? "Não calculado" : bmi.toFixed(1)}
+          tone={bmiTone(bmi)}
+          to="/perfil/dados-saude"
+        />
+        <QuickMetric
+          icon={Activity}
+          label="Atividade"
+          value={formatActivity(data.activityLevel)}
+          tone={activityTone(data.activityLevel)}
+          to="/perfil/dados-saude"
+        />
+      </section>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="grid gap-5">
+          <PremiumCard>
+            <SectionHeading
+              eyebrow="Principais fatores"
+              title="O que mais impactou sua saúde"
+              description="Itens que mais pesaram no seu score, em ordem de atenção."
+            />
+            <Accordion type="single" collapsible className="mt-6 space-y-3">
+              {factors.map((factor, index) => {
+                const Icon = factorIcon(factor.title);
+                return (
+                  <AccordionItem
+                    key={factor.title}
+                    value={`factor-${index}`}
+                    className="rounded-2xl border border-black/[0.05] bg-[#F9FAFB] px-4"
+                  >
+                    <AccordionTrigger className="gap-4 py-4 hover:no-underline">
+                      <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                        <span
+                          className={cn(
+                            "grid h-10 w-10 shrink-0 place-items-center rounded-full",
+                            factorToneClass(factor.severity, "soft"),
+                          )}
+                        >
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block font-sans text-base font-semibold text-[#111827]">
+                            {factor.title}
+                          </span>
+                          <span className="mt-1 block text-sm text-[#6B7280]">
+                            Afeta {factor.impact.toLowerCase()} seu risco cardiovascular.
+                          </span>
+                        </span>
+                      </div>
+                      <span
+                        className={cn(
+                          "hidden rounded-full px-2.5 py-1 text-xs font-semibold sm:inline-flex",
+                          factorToneClass(factor.severity, "badge"),
+                        )}
+                      >
+                        {factor.severity}
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-5 pt-0">
+                      <div className="grid gap-3 text-sm leading-6 text-[#4B5563] sm:grid-cols-3">
+                        <InfoBlock title="Explicação" text={factor.explanation} />
+                        <InfoBlock title="Recomendação" text={factor.recommendation} />
+                        <InfoBlock title="Referência clínica" text={factor.reference} />
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+            </Accordion>
+          </PremiumCard>
+
+          <PremiumCard className="overflow-hidden">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <SectionHeading
+                eyebrow="Plano personalizado"
+                title="Seu plano para os próximos 30 dias"
+                description="Três ações simples para começar a reduzir risco sem sobrecarregar sua rotina."
               />
-              <HabitChip icon={Moon} label="Sono" value={formatSleep(data.sleepHours)} />
-              <HabitChip icon={Sparkles} label="Estresse" value={formatStress(data.stressLevel)} />
-              <HabitChip icon={Wine} label="Álcool" value={formatAlcohol(data.alcoholUse)} />
-            </div>
-          </ReportCard>
-
-          <ReportCard>
-            <SectionTitle icon={CircleGauge} title="Seus Dados Informados" />
-            <div className="mt-6 grid gap-4">
-              <DataLine label="IMC" value={bmiLabel(data, bmi)} tone={bmiTone(bmi)} />
-              <DataLine
-                label="Pressão arterial"
-                value={pressureLabel(data)}
-                tone={pressureTone(data)}
-              />
-              <DataLine
-                label="Colesterol"
-                value={cholesterolLabel(data)}
-                tone={cholesterolTone(data)}
-              />
-            </div>
-          </ReportCard>
-
-          <ReportCard>
-            <SectionTitle icon={TrendingUp} title="Risco Cardiovascular Estimado" />
-            <p className="mt-5 text-base leading-7 text-[#536b68]">
-              Seu risco estimado é{" "}
-              <span className="font-semibold text-[#10201f]">{result.label}</span>, baseado nos
-              fatores identificados nesta avaliação.
-            </p>
-            <RiskBar percent={riskPercent} level={result.level} />
-          </ReportCard>
-
-          <ReportCard className="lg:col-span-2">
-            <SectionTitle icon={ShieldCheck} title="Fatores que Pesaram no Seu Resultado" />
-            <div className="mt-5 grid gap-3 md:grid-cols-2">
-              {factors.length ? (
-                factors.map((factor) => <FactorMiniCard key={factor.title} factor={factor} />)
-              ) : (
-                <div className="rounded-2xl bg-[#f7faf9] p-5 text-[#536b68] md:col-span-2">
-                  Nenhum fator crítico foi identificado nas respostas informadas. Ainda assim,
-                  acompanhamento preventivo continua sendo importante.
-                </div>
-              )}
-            </div>
-          </ReportCard>
-        </div>
-
-        <div className="order-1 grid gap-4 xl:order-2 xl:gap-5">
-          <ReportCard className="text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#78908d]">
-              Score de Saúde
-            </p>
-            <div className="mt-6 flex justify-center">
-              <ScoreRing value={result.score} />
-            </div>
-            <h2 className="mt-6 font-sans text-2xl font-semibold">{display.title}</h2>
-            <p className="mt-2 text-base leading-7 text-[#536b68]">{display.subtitle}</p>
-            <ReportFeedback score={result.score} />
-          </ReportCard>
-
-          <ReportCard>
-            <SectionTitle icon={FileText} title="Próximos Passos" />
-            <h3 className="mt-5 font-sans text-2xl font-semibold">{nextStep.title}</h3>
-            <p className="mt-3 text-base leading-7 text-[#536b68]">{nextStep.text}</p>
-            <div className="mt-6 grid gap-3">
-              <Button className="rounded-full bg-[#10201f] font-semibold" asChild>
-                <Link to="/desafio">Continuar para o desafio</Link>
+              <Button variant="outline" className="rounded-2xl" asChild>
+                <Link to="/plano-acao">Abrir plano</Link>
               </Button>
-              {result.level !== "baixo" && (
-                <Button variant="outline" className="rounded-full" asChild>
-                  <a href="mailto:contato@htcare.com.br?subject=Quero%20ser%20conectado%20a%20um%20cardiologista%20parceiro">
-                    Buscar cardiologista parceiro
-                  </a>
-                </Button>
-              )}
-              {onReview && (
-                <Button variant="ghost" className="rounded-full" onClick={onReview}>
-                  Revisar respostas
-                </Button>
-              )}
             </div>
-          </ReportCard>
+            <div className="mt-7 grid gap-3">
+              {plan.map((item, index) => (
+                <PlanAction key={item.title} index={index + 1} {...item} />
+              ))}
+            </div>
+          </PremiumCard>
+
+          <PremiumCard className="bg-[#F8FBFF]">
+            <div className="flex gap-4">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-[#2563EB] shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#2563EB]">
+                  Insight da IA
+                </p>
+                <h2 className="mt-2 font-sans text-2xl font-semibold tracking-[-0.02em]">
+                  O que mais faria diferença hoje?
+                </h2>
+                <p className="mt-3 max-w-3xl text-base leading-7 text-[#4B5563]">{insight}</p>
+              </div>
+            </div>
+          </PremiumCard>
         </div>
+
+        <aside className="grid content-start gap-5">
+          <PremiumCard>
+            <SectionHeading eyebrow="Exames" title="Exames recomendados" />
+            <div className="mt-5 grid gap-3">
+              {recommendedExams(data).map((exam) => (
+                <ExamCard key={exam.title} {...exam} />
+              ))}
+            </div>
+          </PremiumCard>
+
+          <PremiumCard>
+            <SectionHeading eyebrow="Rede parceira" title="Médicos parceiros" />
+            <div className="mt-5 grid gap-3">
+              <PartnerAction icon={HeartHandshake} title="Encontrar cardiologista" />
+              <PartnerAction icon={Stethoscope} title="Encontrar clínico" />
+              <PartnerAction icon={CalendarDays} title="Agendar consulta" />
+            </div>
+          </PremiumCard>
+
+          <PremiumCard>
+            <SectionHeading eyebrow="Próximos passos" title="Linha do tempo" />
+            <div className="mt-6 space-y-1">
+              {[
+                ["Hoje", "Questionário concluído"],
+                ["7 dias", "Próximo check-in"],
+                ["30 dias", "Revisão do plano"],
+                ["90 dias", "Nova avaliação"],
+              ].map(([time, title], index) => (
+                <TimelineItem key={title} time={time} title={title} isLast={index === 3} />
+              ))}
+            </div>
+          </PremiumCard>
+        </aside>
       </div>
 
-      <footer className="mt-5 rounded-[1.5rem] border border-[#10201f]/8 bg-white p-5 text-sm leading-6 text-[#536b68]">
-        Este relatório é uma ferramenta de triagem e educação em saúde, baseada em diretrizes da OMS
-        e da Sociedade Brasileira de Cardiologia. Não substitui consulta, diagnóstico ou prescrição
-        médica. <span className="font-semibold text-[#10201f]">www.htcare.com.br</span>
+      <footer className="mt-5 rounded-[1.5rem] bg-white px-5 py-4 text-xs leading-5 text-[#6B7280] shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+        Esta avaliação é uma ferramenta de triagem e acompanhamento. Não substitui consulta,
+        diagnóstico ou prescrição médica. Em caso de sintomas ou risco elevado, procure atendimento
+        profissional.
       </footer>
     </article>
   );
 }
 
-type FeedbackAnswer = "sim" | "nao" | "mais_ou_menos";
-
-interface ReportFeedbackEntry {
-  score: number;
-  answer: FeedbackAnswer;
-  feedback: string;
-  createdAt: string;
-}
-
-function ReportFeedback({ score }: { score: number }) {
-  const [answer, setAnswer] = useState<FeedbackAnswer | null>(null);
-  const [feedback, setFeedback] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
-  function submitFeedback(nextAnswer = answer) {
-    if (!nextAnswer) return;
-    const payload = {
-      score,
-      answer: nextAnswer,
-      feedback,
-      createdAt: new Date().toISOString(),
-    };
-    const previous = JSON.parse(
-      window.localStorage.getItem("htcare:report-feedback") || "[]",
-    ) as ReportFeedbackEntry[];
-    window.localStorage.setItem("htcare:report-feedback", JSON.stringify([...previous, payload]));
-    setSubmitted(true);
-  }
-
-  return (
-    <div className="mt-7 rounded-[1.25rem] border border-[#10201f]/8 bg-[#f7faf9] p-4 text-left">
-      <p className="font-sans text-base font-semibold text-[#10201f]">
-        O resultado foi útil pra você?
-      </p>
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        {[
-          ["sim", "Sim"],
-          ["nao", "Não"],
-          ["mais_ou_menos", "Mais ou menos"],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => {
-              setAnswer(value as FeedbackAnswer);
-              setSubmitted(false);
-            }}
-            className={`rounded-full border px-3 py-2 text-xs font-semibold transition ${
-              answer === value
-                ? "border-[#10201f] bg-[#10201f] text-white"
-                : "border-[#10201f]/10 bg-white text-[#536b68] hover:border-[#10201f]/30"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <textarea
-        value={feedback}
-        onChange={(event) => {
-          setFeedback(event.target.value);
-          setSubmitted(false);
-        }}
-        placeholder="Deixe um feedback para melhorarmos"
-        className="mt-3 min-h-24 w-full resize-none rounded-2xl border border-[#10201f]/8 bg-white px-4 py-3 text-sm leading-6 text-[#10201f] outline-none transition placeholder:text-[#78908d] focus:border-[#2f6760]/45 focus:ring-4 focus:ring-[#2f6760]/10"
-      />
-      <button
-        type="button"
-        disabled={!answer}
-        onClick={() => submitFeedback()}
-        className="mt-3 w-full rounded-full bg-[#10201f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#1f3b38] disabled:cursor-not-allowed disabled:bg-[#10201f]/30"
-      >
-        {submitted ? "Feedback salvo. Obrigado." : "Enviar feedback"}
-      </button>
-    </div>
-  );
-}
-
-function ScoreRing({ value }: { value: number }) {
-  const radius = 74;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (value / 100) * circumference;
-  return (
-    <div className="relative h-36 w-36 rounded-full bg-[radial-gradient(circle,white_58%,transparent_59%),conic-gradient(from_180deg,#1d7cff,#31b68f,#e5ecea)] p-2 sm:h-56 sm:w-56 sm:p-3">
-      <svg className="h-full w-full -rotate-90" viewBox="0 0 180 180">
-        <circle cx="90" cy="90" r={radius} fill="none" stroke="#e5ecea" strokeWidth="12" />
-        <circle
-          cx="90"
-          cy="90"
-          r={radius}
-          fill="none"
-          stroke="url(#scoreGradient)"
-          strokeLinecap="round"
-          strokeWidth="12"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-        />
-        <defs>
-          <linearGradient id="scoreGradient" x1="20" y1="20" x2="160" y2="160">
-            <stop stopColor="#1d7cff" />
-            <stop offset="1" stopColor="#31b68f" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div className="absolute inset-0 grid place-items-center text-center">
-        <div>
-          <p className="font-sans text-4xl font-semibold text-[#10201f] sm:text-6xl">{value}</p>
-          <p className="mt-1 text-sm font-medium text-[#78908d]">/ 100</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-[#f7faf9] p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#78908d]">{label}</p>
-      <p className="mt-2 font-sans text-xl font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function ReportCard({ children, className = "" }: { children: ReactNode; className?: string }) {
+function PremiumCard({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <section
-      className={`rounded-[1.25rem] border border-[#10201f]/8 bg-white p-4 shadow-[0_22px_90px_-76px_rgba(16,32,31,0.56)] sm:rounded-[1.6rem] sm:p-6 ${className}`}
+      className={cn(
+        "rounded-[1.75rem] bg-white p-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)] sm:p-6",
+        className,
+      )}
     >
       {children}
     </section>
   );
 }
 
-function SectionTitle({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+}) {
   return (
-    <div className="flex items-center gap-3">
-      <span className="grid h-9 w-9 place-items-center rounded-full bg-[#eef6f3] text-[#2f6760] sm:h-10 sm:w-10">
-        <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
-      </span>
-      <h2 className="font-sans text-xl font-semibold sm:text-2xl">{title}</h2>
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6B7280]">{eyebrow}</p>
+      <h2 className="mt-2 font-sans text-2xl font-semibold tracking-[-0.025em] text-[#111827]">
+        {title}
+      </h2>
+      {description && (
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6B7280]">{description}</p>
+      )}
     </div>
   );
 }
 
-function HabitChip({
+function ScoreGauge({ value }: { value: number }) {
+  return (
+    <div className="h-3 overflow-hidden rounded-full bg-[#E5E7EB]">
+      <motion.div
+        initial={{ width: 0 }}
+        animate={{ width: `${Math.max(0, Math.min(100, value))}%` }}
+        transition={{ duration: 0.9, ease: "easeOut", delay: 0.15 }}
+        className="h-full rounded-full bg-gradient-to-r from-[#2563EB] to-[#16A34A]"
+      />
+    </div>
+  );
+}
+
+function QuickMetric({
   icon: Icon,
   label,
   value,
+  tone,
+  to,
 }: {
   icon: LucideIcon;
   label: string;
   value: string;
+  tone: RiskLevelTone;
+  to: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[#10201f]/8 bg-[#f7faf9] p-3 sm:p-4">
-      <Icon className="h-5 w-5 text-[#2f6760]" />
-      <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-[#78908d]">
-        {label}
-      </p>
-      <p className="mt-2 font-sans text-lg font-semibold leading-tight sm:text-xl">{value}</p>
-    </div>
-  );
-}
-
-function DataLine({ label, value, tone }: { label: string; value: string; tone: RiskLevelTone }) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#f7faf9] p-4">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#78908d]">{label}</p>
-        <p className="mt-2 font-medium text-[#10201f]">{value}</p>
-      </div>
-      <span className={`h-3 w-3 shrink-0 rounded-full ${toneClass(tone)}`} />
-    </div>
-  );
-}
-
-function RiskBar({ percent, level }: { percent: number; level: RiskResult["level"] }) {
-  return (
-    <div className="mt-7">
-      <div className="relative h-3 rounded-full bg-gradient-to-r from-[#31b68f] via-[#d89a1d] to-[#c4413a]">
-        <span
-          className="absolute top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border-4 border-white bg-[#10201f] shadow-soft"
-          style={{ left: `calc(${percent}% - 12px)` }}
-        />
-      </div>
-      <div className="mt-3 flex justify-between text-xs font-semibold uppercase tracking-[0.14em] text-[#78908d]">
-        <span>Baixo</span>
-        <span>Moderado</span>
-        <span>Alto</span>
-      </div>
-      <p className="mt-5 rounded-2xl bg-[#f7faf9] p-4 text-sm leading-6 text-[#536b68]">
-        Posição atual: <span className="font-semibold text-[#10201f]">{riskLabelText(level)}</span>.
-      </p>
-    </div>
-  );
-}
-
-function FactorMiniCard({ factor }: { factor: ReportFactor }) {
-  const tone = factorTone(factor.title);
-  const Icon = factorIcon(factor.title);
-  return (
-    <div className="rounded-2xl border border-[#10201f]/8 bg-[#fbfcfc] p-4">
-      <div className="flex items-start justify-between gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-[#2f6760] shadow-soft">
+    <Link
+      to={to}
+      className="group rounded-[1.5rem] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_44px_-34px_rgba(15,23,42,0.45)]"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className={cn("grid h-10 w-10 place-items-center rounded-2xl", toneSoftClass(tone))}>
           <Icon className="h-5 w-5" />
         </span>
-        <span className={`mt-1 h-3 w-3 rounded-full ${toneClass(tone)}`} />
+        <ChevronRight className="h-4 w-4 text-[#D1D5DB] transition group-hover:translate-x-0.5 group-hover:text-[#2563EB]" />
       </div>
-      <h3 className="mt-4 font-sans text-lg font-semibold">{factor.title}</h3>
-      <p className="mt-3 text-sm leading-6 text-[#536b68]">{factor.explanation}</p>
-      <p className="mt-4 rounded-2xl bg-white p-3 text-sm leading-6 text-[#304643]">
-        <span className="font-semibold">Recomendação: </span>
-        {factor.recommendation}
+      <p className="mt-5 text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280]">
+        {label}
       </p>
+      <p className="mt-1 truncate font-sans text-lg font-semibold text-[#111827]">{value}</p>
+    </Link>
+  );
+}
+
+function InfoBlock({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-2xl bg-white p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6B7280]">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-[#4B5563]">{text}</p>
     </div>
   );
 }
 
-type RiskLevelTone = "good" | "attention" | "risk";
+function PlanAction({
+  index,
+  title,
+  progress,
+}: {
+  index: number;
+  title: string;
+  progress: number;
+}) {
+  return (
+    <div className="rounded-2xl border border-black/[0.05] bg-[#F9FAFB] p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-sm font-semibold text-[#2563EB] shadow-[0_2px_8px_rgba(0,0,0,0.05)]">
+            {index}
+          </span>
+          <p className="font-medium text-[#111827]">{title}</p>
+        </div>
+        <span className="text-xs font-semibold text-[#6B7280]">{progress}%</span>
+      </div>
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#E5E7EB]">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-[#2563EB] to-[#16A34A]"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+    </div>
+  );
+}
 
-function displayFor(level: RiskResult["level"]) {
-  if (level === "baixo") {
-    return { title: "Muito bom", subtitle: "Você está no caminho certo." };
+function ExamCard({
+  icon: Icon,
+  title,
+  reason,
+}: {
+  icon: LucideIcon;
+  title: string;
+  reason: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-[#F9FAFB] p-4">
+      <div className="flex items-start gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white text-[#2563EB]">
+          <Icon className="h-5 w-5" />
+        </span>
+        <div>
+          <h3 className="font-sans text-base font-semibold">{title}</h3>
+          <p className="mt-1 text-sm leading-5 text-[#6B7280]">
+            <span className="font-medium text-[#4B5563]">Motivo: </span>
+            {reason}
+          </p>
+        </div>
+      </div>
+      <Button className="mt-4 h-11 w-full rounded-2xl bg-[#2563EB] font-semibold" asChild>
+        <Link to="/meu-risco">Solicitar exame</Link>
+      </Button>
+    </div>
+  );
+}
+
+function PartnerAction({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
+  return (
+    <a
+      href={`mailto:contato@htcare.com.br?subject=${encodeURIComponent(title)}`}
+      className="flex items-center justify-between rounded-2xl bg-[#F9FAFB] p-4 transition hover:bg-[#EEF2FF]"
+    >
+      <span className="flex items-center gap-3 font-medium">
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-white text-[#2563EB]">
+          <Icon className="h-4 w-4" />
+        </span>
+        {title}
+      </span>
+      <ChevronRight className="h-4 w-4 text-[#9CA3AF]" />
+    </a>
+  );
+}
+
+function TimelineItem({ time, title, isLast }: { time: string; title: string; isLast?: boolean }) {
+  return (
+    <div className="grid grid-cols-[72px_20px_1fr] gap-3">
+      <p className="pt-0.5 text-xs font-semibold text-[#6B7280]">{time}</p>
+      <div className="flex flex-col items-center">
+        <span className="h-3 w-3 rounded-full bg-[#2563EB]" />
+        {!isLast && <span className="mt-1 h-10 w-px bg-[#E5E7EB]" />}
+      </div>
+      <p className="pb-7 text-sm font-medium text-[#111827]">{title}</p>
+    </div>
+  );
+}
+
+type RiskLevelTone = "good" | "attention" | "risk" | "neutral";
+
+function statusFor(score: number) {
+  if (score >= 90) {
+    return {
+      label: "Excelente",
+      summary: "Seu perfil inicial mostra poucos fatores de risco informados.",
+      badgeClass: "bg-[#DCFCE7] text-[#166534]",
+    };
   }
-  if (level === "moderado") {
-    return { title: "Atenção necessária", subtitle: "Vamos te ajudar a melhorar isso." };
+  if (score >= 80) {
+    return {
+      label: "Bom",
+      summary: "Você está em uma faixa favorável, com pontos que ainda podem ser acompanhados.",
+      badgeClass: "bg-[#DCFCE7] text-[#166534]",
+    };
+  }
+  if (score >= 50) {
+    return {
+      label: "Moderado",
+      summary: "Há fatores relevantes para acompanhar e melhorar nos próximos meses.",
+      badgeClass: "bg-[#FEF3C7] text-[#92400E]",
+    };
   }
   return {
-    title: "Risco identificado",
-    subtitle: "Vamos te ajudar a entender os próximos passos.",
+    label: "Alto risco",
+    summary: "Seu resultado merece atenção médica e acompanhamento mais estruturado.",
+    badgeClass: "bg-[#FEE2E2] text-[#991B1B]",
   };
 }
 
-function riskLabelText(level: RiskResult["level"]) {
-  if (level === "baixo") return "baixo risco";
-  if (level === "moderado") return "risco moderado";
-  return "risco alto";
+function quickSummaryFor(level: RiskResult["level"], factors: ReportFactor[]) {
+  const mainFactor = factors[0]?.title.toLowerCase();
+  if (level === "baixo") {
+    return "Seu score indica baixo risco neste momento. Continue acompanhando para manter a tendência.";
+  }
+  if (level === "moderado") {
+    return mainFactor
+      ? `Seu score indica atenção moderada, principalmente por ${mainFactor}.`
+      : "Seu score indica atenção moderada e merece acompanhamento preventivo.";
+  }
+  return mainFactor
+    ? `Seu score indica risco elevado, com maior impacto de ${mainFactor}.`
+    : "Seu score indica risco elevado e merece avaliação profissional.";
 }
 
-function toneClass(tone: RiskLevelTone) {
-  if (tone === "good") return "bg-[#31b68f]";
-  if (tone === "attention") return "bg-[#d89a1d]";
-  return "bg-[#c4413a]";
+function toneSoftClass(tone: RiskLevelTone) {
+  if (tone === "good") return "bg-[#DCFCE7] text-[#16A34A]";
+  if (tone === "attention") return "bg-[#FEF3C7] text-[#D97706]";
+  if (tone === "risk") return "bg-[#FEE2E2] text-[#DC2626]";
+  return "bg-[#EEF2FF] text-[#2563EB]";
 }
 
-function bmiLabel(data: HealthReportData, bmi: number | null) {
-  if (bmi == null) return "Não calculado";
-  return `IMC ${bmi.toFixed(1)} — ${bmiCategory(bmi)} (${data.weight || "—"} kg / ${
-    data.height || "—"
-  } cm)`;
+function factorToneClass(severity: ReportFactor["severity"], mode: "soft" | "badge") {
+  if (severity === "Alto") {
+    return mode === "soft" ? "bg-[#FEE2E2] text-[#DC2626]" : "bg-[#FEE2E2] text-[#991B1B]";
+  }
+  if (severity === "Moderado") {
+    return mode === "soft" ? "bg-[#FEF3C7] text-[#D97706]" : "bg-[#FEF3C7] text-[#92400E]";
+  }
+  return mode === "soft" ? "bg-[#DCFCE7] text-[#16A34A]" : "bg-[#DCFCE7] text-[#166534]";
 }
 
-function bmiCategory(bmi: number) {
-  if (bmi >= 35) return "Obesidade grau 2/3";
-  if (bmi >= 30) return "Obesidade grau 1";
-  if (bmi >= 25) return "Sobrepeso";
-  return "Dentro do esperado";
+function pressureShortLabel(data: HealthReportData) {
+  if (data.knowsBloodPressure !== "sim") return "Não informado";
+  return `${data.systolic || "—"}/${data.diastolic || "—"}`;
+}
+
+function cholesterolShortLabel(data: HealthReportData) {
+  if (data.knowsCholesterol !== "sim") return "Não informado";
+  if (data.ldl) return `LDL ${data.ldl}`;
+  if (data.totalCholesterol) return `Total ${data.totalCholesterol}`;
+  return "Informado";
 }
 
 function bmiTone(bmi: number | null): RiskLevelTone {
-  if (bmi == null || bmi < 25) return "good";
+  if (bmi == null) return "neutral";
+  if (bmi < 25) return "good";
   if (bmi < 30) return "attention";
   return "risk";
 }
 
-function pressureLabel(data: HealthReportData) {
-  if (data.knowsBloodPressure !== "sim") return "Não informado — considere medir e atualizar";
-  return `${data.systolic || "—"} / ${data.diastolic || "—"} mmHg`;
-}
-
 function pressureTone(data: HealthReportData): RiskLevelTone {
-  if (data.knowsBloodPressure !== "sim") return "attention";
+  if (data.knowsBloodPressure !== "sim") return "neutral";
   const systolic = Number(data.systolic);
   const diastolic = Number(data.diastolic);
   if (systolic >= 140 || diastolic >= 90) return "risk";
@@ -472,13 +598,8 @@ function pressureTone(data: HealthReportData): RiskLevelTone {
   return "good";
 }
 
-function cholesterolLabel(data: HealthReportData) {
-  if (data.knowsCholesterol !== "sim") return "Não informado";
-  return `LDL ${data.ldl || "—"} · HDL ${data.hdl || "—"} · Total ${data.totalCholesterol || "—"}`;
-}
-
 function cholesterolTone(data: HealthReportData): RiskLevelTone {
-  if (data.knowsCholesterol !== "sim") return "attention";
+  if (data.knowsCholesterol !== "sim") return "neutral";
   const total = Number(data.totalCholesterol);
   const ldl = Number(data.ldl);
   const hdl = Number(data.hdl);
@@ -487,49 +608,95 @@ function cholesterolTone(data: HealthReportData): RiskLevelTone {
   return "good";
 }
 
-function factorTone(title: string): RiskLevelTone {
-  if (
-    title.includes("Fumante") ||
-    title.includes("Pressão") ||
-    title.includes("Diabetes") ||
-    title.includes("Sintomas")
-  ) {
-    return "risk";
-  }
-  if (title.includes("IMC") || title.includes("Sedentarismo") || title.includes("Histórico")) {
-    return "attention";
-  }
-  return "attention";
+function activityTone(value: HealthReportData["activityLevel"]): RiskLevelTone {
+  if (value === "intenso" || value === "moderado") return "good";
+  if (value === "leve") return "attention";
+  if (value === "sedentario") return "risk";
+  return "neutral";
 }
 
 function factorIcon(title: string): LucideIcon {
   if (title.includes("Fumante")) return Cigarette;
   if (title.includes("Pressão") || title.includes("Sintomas")) return HeartPulse;
   if (title.includes("IMC")) return CircleGauge;
-  if (title.includes("Sedentarismo")) return Dumbbell;
-  if (title.includes("Estresse")) return Sparkles;
+  if (title.includes("Sedentarismo") || title.includes("Atividade")) return Dumbbell;
+  if (title.includes("Estresse") || title.includes("sono")) return Moon;
   if (title.includes("álcool")) return Wine;
-  if (title.includes("Histórico")) return FileText;
-  return AlertTriangle;
+  if (title.includes("Diabetes")) return TestTube2;
+  return FileHeart;
 }
 
-function nextStepFor(level: RiskResult["level"]) {
-  if (level === "baixo") {
-    return {
-      title: "Continue acompanhando",
-      text: "Seus hábitos atuais estão alinhados com um perfil de baixo risco. Recomendamos refazer esta avaliação em 6 a 12 meses, ou antes se algo mudar no seu histórico de saúde.",
-    };
+function planForFactors(factors: ReportFactor[], data: HealthReportData) {
+  const titles = factors.map((factor) => factor.title.toLowerCase()).join(" ");
+  const actions = [];
+
+  if (titles.includes("pressão")) {
+    actions.push({ title: "Medir pressão duas vezes por semana", progress: 0 });
+    actions.push({ title: "Reduzir sódio nas principais refeições", progress: 0 });
   }
-  if (level === "moderado") {
-    return {
-      title: "Converse com um médico",
-      text: "Identificamos alguns fatores que merecem atenção. Recomendamos conversar com um médico sobre os pontos levantados neste relatório, e considerar exames complementares para uma avaliação mais completa.",
-    };
+  if (titles.includes("sedentarismo") || data.activityLevel === "sedentario") {
+    actions.push({ title: "Caminhar 30 minutos, 5 vezes por semana", progress: 0 });
   }
-  return {
-    title: "Busque avaliação médica",
-    text: "Seu resultado indica fatores de risco significativos. Recomendamos fortemente buscar avaliação médica o quanto antes para investigação adequada.",
-  };
+  if (titles.includes("imc")) {
+    actions.push({ title: "Trocar ultraprocessados por refeições simples", progress: 0 });
+  }
+  if (titles.includes("fumante")) {
+    actions.push({ title: "Definir um plano para parar de fumar", progress: 0 });
+  }
+  if (titles.includes("sono") || titles.includes("estresse")) {
+    actions.push({ title: "Dormir em horário regular por 7 dias", progress: 0 });
+  }
+
+  return [
+    ...actions,
+    { title: "Registrar um check-in semanal", progress: 0 },
+    { title: "Solicitar exames para aprofundar a avaliação", progress: 0 },
+  ].slice(0, 3);
+}
+
+function insightFor(result: RiskResult, factors: ReportFactor[]) {
+  const main = factors[0]?.title.toLowerCase();
+  if (main?.includes("pressão")) {
+    return "Normalizar sua pressão arterial é uma das mudanças com maior potencial de reduzir risco cardiovascular. Comece medindo com regularidade e leve os registros para avaliação médica.";
+  }
+  if (main?.includes("fumante")) {
+    return "Parar de fumar costuma ser a mudança isolada mais potente para reduzir risco cardiovascular. O primeiro passo é transformar isso em um plano acompanhado, não em força de vontade solta.";
+  }
+  if (main?.includes("imc") || main?.includes("sedentarismo")) {
+    return "Movimento regular e pequenas mudanças alimentares podem melhorar pressão, glicemia e metabolismo ao mesmo tempo. O objetivo agora é consistência, não perfeição.";
+  }
+  if (result.level === "baixo") {
+    return "Seu melhor próximo passo é manter acompanhamento. Um novo check-in em algumas semanas ajuda a confirmar se seu risco segue estável.";
+  }
+  return "O maior ganho agora vem de transformar seus principais fatores de risco em acompanhamento simples: medir, revisar e agir com orientação profissional quando necessário.";
+}
+
+function recommendedExams(data: HealthReportData) {
+  const exams = [
+    {
+      icon: Microscope,
+      title: "Perfil lipídico",
+      reason:
+        data.knowsCholesterol === "sim"
+          ? "Atualizar colesterol informado."
+          : "Ainda não informado.",
+    },
+    {
+      icon: TestTube2,
+      title: "ApoB",
+      reason: "Refina a leitura de risco cardiovascular além do LDL.",
+    },
+    {
+      icon: ClipboardCheck,
+      title: "Glicemia e HbA1c",
+      reason:
+        data.diabetes === "nao"
+          ? "Rastreio metabólico preventivo."
+          : "Acompanhar risco metabólico.",
+    },
+  ];
+
+  return exams;
 }
 
 function buildReportFactors(
@@ -549,81 +716,111 @@ function buildReportFactors(
   if (data.smokes === "sim") {
     addFactor({
       title: "Fumante",
+      severity: "Alto",
+      impact: "Alto",
       explanation:
-        "Fumar é um dos fatores que mais aumenta o risco cardiovascular — danifica os vasos sanguíneos e acelera o acúmulo de placas de gordura nas artérias.",
+        "O tabagismo danifica vasos sanguíneos e acelera o acúmulo de placas nas artérias.",
       recommendation:
-        "Parar de fumar é a mudança isolada que mais reduz risco cardiovascular, com efeito mensurável já no primeiro ano sem fumar.",
+        "Criar um plano acompanhado para parar de fumar é uma das ações de maior impacto.",
+      reference: "Diretrizes de prevenção cardiovascular SBC/OMS.",
     });
   }
-  if (data.activityLevel === "sedentario") {
+  if (data.knowsBloodPressure === "sim" && (systolic >= 130 || diastolic >= 85)) {
     addFactor({
-      title: "Sedentarismo",
+      title:
+        systolic >= 160 || diastolic >= 100
+          ? "Pressão arterial em estágio 2"
+          : "Pressão arterial elevada",
+      severity: systolic >= 160 || diastolic >= 100 ? "Alto" : "Moderado",
+      impact: systolic >= 160 || diastolic >= 100 ? "Alto" : "Médio",
       explanation:
-        "A falta de atividade física regular contribui para pressão alta, colesterol elevado e resistência à insulina.",
-      recommendation:
-        "A Organização Mundial da Saúde recomenda pelo menos 150 minutos de atividade física moderada por semana — o equivalente a uma caminhada de 30 minutos, 5 vezes por semana.",
+        "Pressão acima do ideal aumenta o esforço sobre vasos e coração, mesmo sem sintomas.",
+      recommendation: "Meça em dias diferentes e converse com um médico com os registros em mãos.",
+      reference: "Classificação baseada em faixas clínicas de pressão arterial.",
+    });
+  }
+  if (data.knowsBloodPressure !== "sim") {
+    addFactor({
+      title: "Pressão não informada",
+      severity: "Moderado",
+      impact: "Médio",
+      explanation: "Sem medida recente, a estimativa fica menos precisa.",
+      recommendation: "Registre uma medida de pressão no próximo check-in.",
+      reference: "Pressão arterial é entrada central em calculadoras clínicas de risco.",
     });
   }
   if (bmi != null && bmi >= 25) {
     addFactor({
       title: "IMC elevado",
+      severity: bmi >= 30 ? "Alto" : "Moderado",
+      impact: bmi >= 30 ? "Alto" : "Médio",
       explanation:
-        "O excesso de peso, principalmente concentrado na região abdominal, está associado a maior risco de hipertensão, diabetes tipo 2 e doenças cardiovasculares.",
-      recommendation:
-        "Uma redução de 5 a 10% do peso corporal já traz benefícios mensuráveis para pressão arterial e controle de glicemia.",
+        "Excesso de peso se associa a maior risco de hipertensão, diabetes tipo 2 e alterações metabólicas.",
+      recommendation: "Reduções graduais de peso podem melhorar pressão e marcadores metabólicos.",
+      reference: "OMS e diretrizes de prevenção cardiometabólica.",
     });
   }
-  if (data.familyHistory === "sim") {
+  if (data.activityLevel === "sedentario") {
     addFactor({
-      title: "Histórico familiar de infarto/AVC antes dos 60 anos",
-      explanation:
-        "Ter um parente de primeiro grau com evento cardiovascular precoce aumenta seu risco individual, independente dos seus próprios hábitos.",
-      recommendation:
-        "Esse é um fator que não pode ser mudado, mas pode ser compensado controlando os fatores que estão sob seu controle — e justifica avaliação médica preventiva mais cedo.",
-    });
-  }
-  if (data.knowsBloodPressure === "sim" && (systolic >= 130 || diastolic >= 85)) {
-    addFactor({
-      title: "Pressão arterial elevada",
-      explanation:
-        "Pressão alta não controlada é um dos principais fatores de risco para infarto e AVC, e frequentemente não causa nenhum sintoma perceptível.",
-      recommendation:
-        "Medir a pressão regularmente e buscar acompanhamento médico é essencial, mesmo sem sintomas.",
+      title: "Sedentarismo",
+      severity: "Moderado",
+      impact: "Médio",
+      explanation: "Baixa atividade física reduz proteção metabólica e cardiovascular.",
+      recommendation: "Comece com caminhadas curtas e avance para 150 minutos semanais.",
+      reference: "Recomendação da OMS para atividade física em adultos.",
     });
   }
   if (data.diabetes === "sim") {
     addFactor({
       title: "Diabetes ou pré-diabetes",
+      severity: "Alto",
+      impact: "Alto",
       explanation:
-        "Glicemia elevada de forma persistente danifica vasos sanguíneos ao longo do tempo, aumentando significativamente o risco cardiovascular.",
-      recommendation:
-        "Manter acompanhamento médico regular e atenção à alimentação e atividade física é essencial para esse perfil.",
+        "Alterações persistentes de glicemia aumentam risco cardiovascular ao longo do tempo.",
+      recommendation: "Acompanhe glicemia/HbA1c e mantenha seguimento médico regular.",
+      reference: "Diretrizes de risco cardiovascular e diabetes.",
+    });
+  }
+  if (data.familyHistory === "sim") {
+    addFactor({
+      title: "Histórico familiar precoce",
+      severity: "Moderado",
+      impact: "Médio",
+      explanation:
+        "Eventos cardiovasculares em familiares antes dos 60 anos elevam seu risco individual.",
+      recommendation: "Use esse dado para antecipar prevenção e exames de rastreio.",
+      reference: "Fator usado em estratificação clínica de risco.",
     });
   }
   if (hasSymptoms) {
     addFactor({
       title: "Sintomas relatados",
-      explanation: "Você relatou sintomas que merecem atenção médica para investigação adequada.",
+      severity: "Alto",
+      impact: "Alto",
+      explanation: "Sintomas como dor no peito ou falta de ar merecem investigação médica.",
       recommendation:
-        "Recomendamos buscar avaliação médica para investigar a causa desses sintomas, independente do score calculado.",
+        "Procure avaliação profissional, especialmente se sintomas forem recentes ou intensos.",
+      reference: "Triagem clínica de sintomas cardiovasculares.",
     });
   }
   if (data.stressLevel === "alto" || data.sleepHours === "menos_5" || data.sleepHours === "5_6") {
     addFactor({
       title: "Estresse alto / sono insuficiente",
-      explanation:
-        "Estresse crônico e sono insuficiente estão associados a pressão arterial elevada e maior risco cardiovascular ao longo do tempo.",
-      recommendation:
-        "Priorizar qualidade de sono (7-8 horas) e estratégias de manejo de estresse traz benefício mensurável para saúde cardiovascular.",
+      severity: "Moderado",
+      impact: "Médio",
+      explanation: "Sono ruim e estresse crônico podem piorar pressão e metabolismo.",
+      recommendation: "Priorize rotina de sono e pausas diárias de recuperação.",
+      reference: "Evidência observacional em saúde cardiometabólica.",
     });
   }
   if (data.alcoholUse === "algumas_vezes_semana" || data.alcoholUse === "diariamente") {
     addFactor({
       title: "Consumo de álcool frequente",
-      explanation:
-        "Consumo frequente de álcool está associado a aumento de pressão arterial e de triglicerídeos.",
-      recommendation:
-        "Reduzir a frequência de consumo de álcool é uma medida com benefício direto para saúde cardiovascular.",
+      severity: data.alcoholUse === "diariamente" ? "Alto" : "Moderado",
+      impact: data.alcoholUse === "diariamente" ? "Alto" : "Médio",
+      explanation: "Álcool frequente pode elevar pressão e triglicerídeos.",
+      recommendation: "Reduzir frequência de consumo tende a beneficiar pressão e metabolismo.",
+      reference: "Diretrizes de prevenção cardiovascular e saúde metabólica.",
     });
   }
 
@@ -632,98 +829,55 @@ function buildReportFactors(
     addFactor(copyForScoreFactor(factor));
   }
 
+  if (!factors.length) {
+    factors.push({
+      title: "Perfil preventivo",
+      severity: "Leve",
+      impact: "Baixo",
+      explanation: "Nenhum fator crítico foi identificado nas respostas informadas.",
+      recommendation: "Mantenha check-ins periódicos e atualize exames quando disponíveis.",
+      reference: "Acompanhamento preventivo longitudinal.",
+    });
+  }
+
   return factors;
 }
 
 function copyForScoreFactor(factor: string): ReportFactor {
-  if (factor.includes("hipertensão estágio 2")) {
+  if (factor.includes("combinação de fatores graves")) {
     return {
-      title: "Pressão arterial em estágio 2",
-      explanation:
-        "A pressão informada entrou em uma faixa de maior atenção cardiovascular e pesa bastante no score.",
-      recommendation:
-        "Procure avaliação médica para confirmar medidas, investigar causas e definir um plano de acompanhamento.",
-    };
-  }
-  if (factor.includes("hipertensão estágio 1") || factor.includes("pressão arterial elevada")) {
-    return {
-      title: "Pressão arterial elevada",
-      explanation:
-        "A pressão informada está acima do ideal e pode aumentar risco cardiovascular quando persiste ao longo do tempo.",
-      recommendation:
-        "Meça novamente em dias diferentes e leve os registros para conversar com um médico.",
-    };
-  }
-  if (factor.includes("pressão arterial não informada")) {
-    return {
-      title: "Pressão não informada",
-      explanation:
-        "Sem uma medida recente de pressão, a avaliação fica menos precisa e recebe uma penalidade pequena por falta de acompanhamento.",
-      recommendation: "Faça uma medida de pressão e atualize seus dados no próximo check-in.",
+      title: "Combinação de fatores graves",
+      severity: "Alto",
+      impact: "Alto",
+      explanation: "Fatores simultâneos aumentam risco de forma acumulativa.",
+      recommendation: "Priorize avaliação médica e acompanhamento estruturado.",
+      reference: "Estratificação clínica considera carga total de risco.",
     };
   }
   if (factor.includes("colesterol")) {
     return {
       title: factor.includes("não informado") ? "Colesterol não informado" : "Colesterol alterado",
-      explanation:
-        "Colesterol é um dos marcadores usados em calculadoras clínicas de risco cardiovascular.",
-      recommendation:
-        "Se você tiver exames recentes, atualize os valores. Se não tiver, converse com seu médico sobre quando faz sentido medir.",
-    };
-  }
-  if (factor.includes("atividade física")) {
-    return {
-      title: "Atividade física abaixo do ideal",
-      explanation:
-        "Níveis menores de atividade física reduzem proteção metabólica e cardiovascular ao longo do tempo.",
-      recommendation:
-        "Aumentar frequência de movimento semanal costuma ser um dos primeiros passos de maior impacto.",
-    };
-  }
-  if (factor.includes("combinação de fatores graves")) {
-    return {
-      title: "Combinação de fatores graves",
-      explanation:
-        "Tabagismo, pressão alta e obesidade juntos aumentam o risco de forma acumulativa, não isolada.",
-      recommendation:
-        "Esse conjunto merece conversa médica prioritária e acompanhamento estruturado.",
+      severity: factor.includes("não informado") ? "Moderado" : "Alto",
+      impact: "Médio",
+      explanation: "Colesterol é um marcador importante de risco cardiovascular.",
+      recommendation: "Atualize valores recentes ou solicite perfil lipídico.",
+      reference: "Diretrizes SBC de dislipidemias e prevenção cardiovascular.",
     };
   }
   return {
     title: factor.charAt(0).toUpperCase() + factor.slice(1),
-    explanation: "Este item teve peso no cálculo determinístico do seu score.",
-    recommendation:
-      "Use este ponto como guia para acompanhar sua evolução e conversar com um profissional de saúde.",
+    severity: "Moderado",
+    impact: "Médio",
+    explanation: "Este item teve peso no cálculo determinístico do score.",
+    recommendation: "Use este ponto como guia para acompanhar evolução e conversar com um médico.",
+    reference: "Regra HTCare baseada em fatores clínicos publicados.",
   };
 }
 
 function formatActivity(value: HealthReportData["activityLevel"]) {
-  if (value === "sedentario") return "Sedentário";
+  if (value === "sedentario") return "Baixa";
   if (value === "leve") return "Leve";
-  if (value === "moderado") return "Moderado";
-  if (value === "intenso") return "Intenso";
-  return "Não informado";
-}
-
-function formatSleep(value: HealthReportData["sleepHours"]) {
-  if (value === "menos_5") return "Menos de 5h";
-  if (value === "5_6") return "5-6h";
-  if (value === "7_8") return "7-8h, ideal";
-  if (value === "mais_8") return "Mais de 8h";
-  return "Não informado";
-}
-
-function formatStress(value: HealthReportData["stressLevel"]) {
-  if (value === "baixo") return "Baixo";
-  if (value === "moderado") return "Moderado";
-  if (value === "alto") return "Alto";
-  return "Não informado";
-}
-
-function formatAlcohol(value: HealthReportData["alcoholUse"]) {
-  if (value === "nao_bebo") return "Não bebe";
-  if (value === "socialmente") return "Socialmente";
-  if (value === "algumas_vezes_semana") return "Algumas vezes/semana";
-  if (value === "diariamente") return "Diariamente";
+  if (value === "moderado") return "Moderada";
+  if (value === "intenso") return "Alta";
   return "Não informado";
 }
