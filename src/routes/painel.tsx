@@ -311,14 +311,16 @@ function PanelPage() {
         >
           <section className="relative pt-3 text-center">
             <p className="text-base font-semibold text-[#111827]">Bom dia, {firstName}</p>
-            <div className="relative mx-auto mt-3 max-w-xs">
-              <Carelito className="absolute -right-2 -top-2 h-16 w-16" expression="confident" />
-              <div className="absolute right-10 top-9 rounded-2xl rounded-tr-md bg-white/84 px-3 py-2 text-[0.68rem] font-bold text-[#16A34A] shadow-[0_2px_8px_rgba(0,0,0,0.06)] backdrop-blur-md">
-                {trend.mobileLabel || insight.speech}
-              </div>
+            <div className="mx-auto mt-3 flex max-w-xs items-center justify-center gap-2">
               <p className="font-sans text-[88px] font-bold leading-none tracking-[-0.06em] text-[#111827]">
                 {currentScore ?? "—"}
               </p>
+              <div className="flex w-[98px] shrink-0 flex-col items-center">
+                <Carelito className="h-14 w-14" expression="confident" />
+                <div className="mt-1 rounded-2xl rounded-tl-md bg-white/90 px-2.5 py-2 text-left text-[0.6rem] font-bold leading-tight text-[#16A34A] shadow-[0_2px_8px_rgba(0,0,0,0.06)] backdrop-blur-md">
+                  {trend.mobileLabel || insight.speech}
+                </div>
+              </div>
             </div>
             <p className="mt-2 text-sm font-semibold text-[#6B7280]">
               Score cardiovascular · {scoreRiskLabel(currentScore)}.
