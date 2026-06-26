@@ -17,10 +17,12 @@ export function CarelitoChat({
   userId,
   score,
   factors,
+  openSignal = 0,
 }: {
   userId: string;
   score: number | null;
   factors: string[];
+  openSignal?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -48,6 +50,10 @@ export function CarelitoChat({
     }
     void load();
   }, [open]);
+
+  useEffect(() => {
+    if (openSignal > 0) setOpen(true);
+  }, [openSignal]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

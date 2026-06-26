@@ -6,19 +6,23 @@ import {
   ArrowRight,
   ArrowUp,
   Bell,
+  Bot,
   CalendarDays,
   ChartLine,
   CheckCircle2,
   ChevronRight,
   Clock3,
+  ClipboardList,
   Download,
   FileText,
   FlaskConical,
   HeartPulse,
   Minus,
   Moon,
+  Pill,
   Scale,
   Syringe,
+  Target,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -29,6 +33,7 @@ import { Carelito } from "@/components/HeartMascot";
 import { Logo } from "@/components/Logo";
 import { MobileAppNav } from "@/components/MobileAppNav";
 import { Button } from "@/components/ui/button";
+import { getChallengeStats, getWeeklyMissions } from "@/lib/challenge";
 import { recordUserActivity } from "@/lib/user-activity";
 
 export const Route = createFileRoute("/painel")({
@@ -127,6 +132,7 @@ function PanelPage() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [dailyCheckinDone, setDailyCheckinDone] = useState(() => isDailyCheckinDoneToday());
   const [daysAway] = useState(() => getDaysSinceLastOpen(user.id));
+  const [carelitoOpenSignal, setCarelitoOpenSignal] = useState(0);
 
   useEffect(() => {
     async function loadData() {
@@ -219,6 +225,16 @@ function PanelPage() {
     dailyCheckinDone,
     daysAway,
     insightText: insight.text,
+  });
+  const weeklyMissions = useMemo(
+    () => getWeeklyMissions(stored?.result?.factors ?? latest?.factors ?? []),
+    [latest?.factors, stored?.result?.factors],
+  );
+  const missionStats = getChallengeStats(weeklyMissions);
+  const quickActions = buildQuickActions({
+    examRequest,
+    pendingMissions: missionStats.pendingThisWeek,
+    onCarelito: () => setCarelitoOpenSignal((current) => current + 1),
   });
 
   return (
@@ -328,6 +344,8 @@ function PanelPage() {
             />
           </section>
 
+          <QuickAccessBar actions={quickActions} />
+
           <section className="mt-8">
             <p className="text-sm font-bold text-[#111827]">Hoje · {todayLabel}</p>
             <div className="-mx-4 mt-3 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
@@ -338,15 +356,6 @@ function PanelPage() {
           </section>
 
           {examRequest && <ExamStatusCard request={examRequest} compact />}
-
-          {!dailyCheckinDone && (
-            <DailyQuickCheckin
-              userId={user.id}
-              onDone={() => {
-                setDailyCheckinDone(true);
-              }}
-            />
-          )}
 
           <p className="sr-only">{recommendedAction.title}</p>
         </motion.div>
@@ -513,6 +522,7 @@ function PanelPage() {
         userId={user.id}
         score={currentScore}
         factors={stored?.result?.factors ?? latest?.factors ?? []}
+        openSignal={carelitoOpenSignal}
       />
       <MobileAppNav />
     </main>
@@ -779,149 +789,146 @@ function TodayFeedCard({
   );
 }
 
-function DailyQuickCheckin({ userId, onDone }: { userId: string; onDone: () => void }) {
-  const [answers, setAnswers] = useState({
-    meds: null as boolean | null,
-    water: null as boolean | null,
-    movement: null as boolean | null,
-    mood: "" as "feliz" | "neutro" | "triste" | "",
-  });
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const canSave =
-    answers.meds !== null &&
-    answers.water !== null &&
-    answers.movement !== null &&
-    Boolean(answers.mood);
+interface QuickAccessAction {
+  icon: ReactNode;
+  label: string;
+  badge?: true | number;
+  to?: "/exames" | "/perfil/$section" | "/missoes" | "/historico" | "/protocolo-90-dias/$id";
+  params?: { section: string } | { id: string };
+  onClick?: () => void;
+}
 
-  async function save() {
-    if (!canSave) return;
-    const positives = [answers.meds, answers.water, answers.movement].filter(Boolean).length;
-    const message =
-      positives >= 3
-        ? "Ótimo! Três de três hoje. Seu coração agradece."
-        : positives >= 1
-          ? "Bom começo. Escolha mais uma ação pequena antes de dormir."
-          : "Tudo bem, amanhã é um novo dia. Que tal beber um copo d'água agora?";
+function buildQuickActions({
+  examRequest,
+  pendingMissions,
+  onCarelito,
+}: {
+  examRequest: ExamRequest | null;
+  pendingMissions: number;
+  onCarelito: () => void;
+}): QuickAccessAction[] {
+  const hasExamPending =
+    examRequest?.status === "resultado_recebido" ||
+    examRequest?.status === "concluido" ||
+    Boolean(examRequest?.resultado_url);
 
-    const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
-    const insert = dynamicSupabase.from("daily_checkins").insert;
-    if (insert) {
-      const { error } = await insert({
-        user_id: userId,
-        tomou_medicamentos: answers.meds,
-        bebeu_agua: answers.water,
-        movimentou: answers.movement,
-        humor: answers.mood,
-        feedback: message,
-      });
-      if (error) {
-        console.error(error);
-        toast.error("Não foi possível salvar o check-in diário.");
-        return;
-      }
-    }
-    window.localStorage.setItem("htcare:daily-checkin-date", todayKey());
-    setFeedback(message);
-    onDone();
-  }
+  return [
+    {
+      icon: <FlaskConical className="h-[26px] w-[26px]" />,
+      label: "Ler Exame",
+      to: "/exames",
+      badge: hasExamPending || undefined,
+    },
+    {
+      icon: <HeartPulse className="h-[26px] w-[26px]" />,
+      label: "Minha Saúde",
+      to: "/perfil/$section",
+      params: { section: "dados-saude" },
+    },
+    {
+      icon: <Target className="h-[26px] w-[26px]" />,
+      label: "Missões",
+      to: "/missoes",
+      badge: pendingMissions || undefined,
+    },
+    {
+      icon: <Bot className="h-[26px] w-[26px]" />,
+      label: "Carelito",
+      onClick: onCarelito,
+    },
+    {
+      icon: <ChartLine className="h-[26px] w-[26px]" />,
+      label: "Evolução",
+      to: "/historico",
+    },
+    {
+      icon: <Pill className="h-[26px] w-[26px]" />,
+      label: "Medicamentos",
+      to: "/perfil/$section",
+      params: { section: "medicamentos" },
+    },
+    {
+      icon: <ClipboardList className="h-[26px] w-[26px]" />,
+      label: "Protocolo",
+      to: "/protocolo-90-dias/$id",
+      params: { id: "demo" },
+    },
+  ];
+}
 
+function QuickAccessBar({ actions }: { actions: QuickAccessAction[] }) {
   return (
-    <section className="mt-3 rounded-[1.7rem] border border-[#10201f]/8 bg-white p-4 shadow-soft">
-      <div className="flex items-start gap-3">
-        <Carelito className="h-14 w-14 shrink-0" expression="happy" />
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#2f8fc8]">
-            Check-in diário
-          </p>
-          <h2 className="mt-1 font-sans text-xl font-semibold">Como foi hoje?</h2>
-        </div>
-      </div>
-      <div className="mt-4 grid gap-2">
-        <DailyBooleanRow
-          label="Tomou seus medicamentos?"
-          value={answers.meds}
-          onChange={(meds) => setAnswers((current) => ({ ...current, meds }))}
-        />
-        <DailyBooleanRow
-          label="Bebeu água suficiente?"
-          value={answers.water}
-          onChange={(water) => setAnswers((current) => ({ ...current, water }))}
-        />
-        <DailyBooleanRow
-          label="Se movimentou pelo menos um pouco?"
-          value={answers.movement}
-          onChange={(movement) => setAnswers((current) => ({ ...current, movement }))}
-        />
-      </div>
-      <div className="mt-3 flex gap-2">
-        {[
-          ["feliz", "😊"],
-          ["neutro", "😐"],
-          ["triste", "😔"],
-        ].map(([mood, emoji]) => (
-          <button
-            key={mood}
-            type="button"
-            onClick={() =>
-              setAnswers((current) => ({ ...current, mood: mood as typeof answers.mood }))
-            }
-            className={`min-h-11 flex-1 rounded-2xl border text-xl transition active:scale-95 ${
-              answers.mood === mood
-                ? "border-[#49c7ae] bg-[#e8f5ef]"
-                : "border-[#10201f]/8 bg-[#f7faf9]"
-            }`}
-          >
-            {emoji}
-          </button>
+    <section className="mt-6">
+      <p className="px-0 text-xs font-bold text-[#6B7280]">Acesso rápido</p>
+      <div className="-mx-4 mt-2 flex gap-2.5 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {actions.map((action) => (
+          <QuickAccessTile key={action.label} action={action} />
         ))}
       </div>
-      {feedback && (
-        <p className="mt-3 text-sm font-semibold leading-5 text-[#2f6760]">{feedback}</p>
-      )}
-      <Button
-        className="mt-4 min-h-12 w-full rounded-full bg-[#10201f] font-semibold"
-        disabled={!canSave}
-        onClick={() => void save()}
-      >
-        Salvar check-in rápido
-      </Button>
     </section>
   );
 }
 
-function DailyBooleanRow({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: boolean | null;
-  onChange: (value: boolean) => void;
-}) {
+function QuickAccessTile({ action }: { action: QuickAccessAction }) {
+  const content = (
+    <>
+      {action.badge && (
+        <span
+          className={`absolute right-2 top-2 grid place-items-center rounded-full bg-[#2563EB] font-bold leading-none text-white ${
+            typeof action.badge === "number" ? "h-4 min-w-4 px-1 text-[0.6rem]" : "h-2 w-2"
+          }`}
+        >
+          {typeof action.badge === "number" ? action.badge : ""}
+        </span>
+      )}
+      <span className="grid h-[26px] w-[26px] place-items-center text-[#2563EB]">
+        {action.icon}
+      </span>
+      <span className="mt-1.5 line-clamp-2 block max-w-[66px] text-center text-[11px] font-semibold leading-tight text-[#6B7280]">
+        {action.label}
+      </span>
+    </>
+  );
+
+  const className =
+    "relative flex h-[72px] w-[72px] shrink-0 flex-col items-center justify-center rounded-2xl bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)] transition active:scale-95";
+
+  if (action.onClick) {
+    return (
+      <button type="button" onClick={action.onClick} className={className}>
+        {content}
+      </button>
+    );
+  }
+
+  if (action.to === "/perfil/$section") {
+    return (
+      <Link
+        to="/perfil/$section"
+        params={action.params as { section: string }}
+        className={className}
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  if (action.to === "/protocolo-90-dias/$id") {
+    return (
+      <Link
+        to="/protocolo-90-dias/$id"
+        params={action.params as { id: string }}
+        className={className}
+      >
+        {content}
+      </Link>
+    );
+  }
+
   return (
-    <div className="flex items-center justify-between gap-2 rounded-2xl bg-[#f7faf9] p-3">
-      <span className="text-sm font-semibold text-[#536b68]">{label}</span>
-      <div className="flex gap-1.5">
-        <button
-          type="button"
-          onClick={() => onChange(true)}
-          className={`rounded-full px-3 py-1.5 text-xs font-black ${
-            value === true ? "bg-[#2f6760] text-white" : "bg-white text-[#78908d]"
-          }`}
-        >
-          Sim
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange(false)}
-          className={`rounded-full px-3 py-1.5 text-xs font-black ${
-            value === false ? "bg-[#10201f] text-white" : "bg-white text-[#78908d]"
-          }`}
-        >
-          Não
-        </button>
-      </div>
-    </div>
+    <Link to={action.to ?? "/painel"} className={className}>
+      {content}
+    </Link>
   );
 }
 
