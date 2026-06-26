@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const FALLBACK_ADMIN_EMAILS = ["felipe.fde08@gmail.com"];
+const FALLBACK_ADMIN_EMAILS = ["felipe.fde08@gmail.com", "felipefde08@gmail.com"];
 
 interface AdminUserRow {
   id: string;

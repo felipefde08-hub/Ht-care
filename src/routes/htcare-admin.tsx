@@ -15,21 +15,11 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getAdminOverview } from "@/lib/api/admin.functions";
 
-const LOCAL_ADMIN_EMAILS = ["felipe.fde08@gmail.com"];
-
 export const Route = createFileRoute("/htcare-admin")({
   ssr: false,
   beforeLoad: async () => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) throw redirect({ to: "/auth" });
-    const email = data.user.email?.toLowerCase();
-    const configured = (import.meta.env.VITE_HTCARE_ADMIN_EMAILS ?? "")
-      .split(",")
-      .map((item: string) => item.trim().toLowerCase())
-      .filter(Boolean);
-    if (!email || ![...LOCAL_ADMIN_EMAILS, ...configured].includes(email)) {
-      throw redirect({ to: "/painel" });
-    }
     return { user: data.user };
   },
   head: () => ({ meta: [{ title: "Admin oculto — HTCare" }] }),
