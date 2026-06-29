@@ -20,7 +20,7 @@ export interface ExtractedExamValues {
 }
 
 export async function readExamValues(input: {
-  fileUrl: string;
+  fileUrl?: string | null;
   filePath: string;
   fileName: string;
   fileType: string;
@@ -34,6 +34,10 @@ export async function readExamValues(input: {
     return data;
   } catch (serverError) {
     console.info("Leitura via Vercel indisponível, tentando Supabase Edge Function.", serverError);
+  }
+
+  if (!input.fileUrl) {
+    throw new Error("Leitura via Vercel falhou e não há URL pública para tentar Supabase Edge.");
   }
 
   const { data, error } = await supabase.functions.invoke("read-exam", {

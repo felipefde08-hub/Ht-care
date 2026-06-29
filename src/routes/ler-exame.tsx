@@ -54,7 +54,7 @@ type BiomarkerField =
 
 interface UploadedExam {
   fileName: string;
-  fileUrl: string;
+  fileUrl: string | null;
   filePath: string;
   fileType: string;
   fileBase64: string;
@@ -171,26 +171,26 @@ function ReadExamPage() {
     setStage("uploading");
     const safeName = file.name.replace(/[^\w.-]+/g, "-");
     const filePath = `${user.id}/carelito-read-${Date.now()}-${safeName}`;
+    const fileBase64 = await fileToBase64(file);
     const { error } = await supabase.storage.from("resultados_exames").upload(filePath, file, {
       cacheControl: "3600",
       upsert: true,
     });
 
     if (error) {
-      console.error(error);
-      toast.error("Não foi possível enviar o exame.");
-      setStage("choose");
-      return;
+      console.error("Storage upload failed, continuing with direct reader.", error);
+      toast.info("Não consegui guardar o arquivo agora. Vou tentar ler mesmo assim.");
     }
 
-    const fileUrl = supabase.storage.from("resultados_exames").getPublicUrl(filePath)
-      .data.publicUrl;
+    const fileUrl = error
+      ? null
+      : supabase.storage.from("resultados_exames").getPublicUrl(filePath).data.publicUrl;
     const uploadedExam = {
       fileName: file.name,
       fileUrl,
       filePath,
       fileType: file.type || "application/octet-stream",
-      fileBase64: await fileToBase64(file),
+      fileBase64,
     };
     setUploaded(uploadedExam);
     setStage("processing");

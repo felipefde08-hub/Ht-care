@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 const readExamInputSchema = z.object({
-  fileUrl: z.string().url(),
+  fileUrl: z.string().url().nullable().optional(),
   filePath: z.string().optional(),
   fileName: z.string().min(1),
   fileType: z.string().min(1),
@@ -72,7 +72,12 @@ export const readExamWithOpenAI = createServerFn({ method: "POST" })
 
     const file = data.fileBase64
       ? { base64: data.fileBase64, mimeType: data.fileType }
-      : await base64FromUrl(data.fileUrl);
+      : data.fileUrl
+        ? await base64FromUrl(data.fileUrl)
+        : null;
+    if (!file) {
+      throw new Error("Arquivo não foi enviado para leitura.");
+    }
     const mimeType = data.fileType || file.mimeType;
     const isPdf = mimeType.includes("pdf");
     const dataUrl = `data:${mimeType};base64,${file.base64}`;
