@@ -169,10 +169,11 @@ function ReadExamPage() {
     if (!file) return;
     setReadError(null);
     setStage("uploading");
-    const safeName = file.name.replace(/[^\w.-]+/g, "-");
+    const preparedFile = await prepareExamFile(file);
+    const safeName = preparedFile.name.replace(/[^\w.-]+/g, "-");
     const filePath = `${user.id}/carelito-read-${Date.now()}-${safeName}`;
-    const fileBase64 = await fileToBase64(file);
-    const { error } = await supabase.storage.from("resultados_exames").upload(filePath, file, {
+    const fileBase64 = await fileToBase64(preparedFile);
+    const { error } = await supabase.storage.from("resultados_exames").upload(filePath, preparedFile, {
       cacheControl: "3600",
       upsert: true,
     });
@@ -186,10 +187,10 @@ function ReadExamPage() {
       ? null
       : supabase.storage.from("resultados_exames").getPublicUrl(filePath).data.publicUrl;
     const uploadedExam = {
-      fileName: file.name,
+      fileName: preparedFile.name,
       fileUrl,
       filePath,
-      fileType: file.type || "application/octet-stream",
+      fileType: preparedFile.type || "application/octet-stream",
       fileBase64,
     };
     setUploaded(uploadedExam);
@@ -576,6 +577,56 @@ function fileToBase64(file: File) {
     };
     reader.onerror = () => reject(reader.error ?? new Error("Não foi possível ler o arquivo."));
     reader.readAsDataURL(file);
+  });
+}
+
+async function prepareExamFile(file: File) {
+  if (!file.type.startsWith("image/")) return file;
+  try {
+    return await compressImage(file);
+  } catch (error) {
+    console.info("Não foi possível comprimir a imagem, usando original.", error);
+    return file;
+  }
+}
+
+function compressImage(file: File) {
+  return new Promise<File>((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const maxSide = 1600;
+      const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+      const width = Math.max(1, Math.round(image.width * scale));
+      const height = Math.max(1, Math.round(image.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        reject(new Error("Canvas indisponível para comprimir imagem."));
+        return;
+      }
+      context.drawImage(image, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Não foi possível gerar imagem comprimida."));
+            return;
+          }
+          const compressedName = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+          resolve(new File([blob], compressedName, { type: "image/jpeg" }));
+        },
+        "image/jpeg",
+        0.82,
+      );
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Não foi possível carregar a imagem para compressão."));
+    };
+    image.src = objectUrl;
   });
 }
 

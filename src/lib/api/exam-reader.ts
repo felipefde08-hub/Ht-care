@@ -26,6 +26,7 @@ export async function readExamValues(input: {
   fileType: string;
   fileBase64?: string;
 }) {
+  let vercelError: unknown = null;
   try {
     const data = await readExamWithOpenAI({ data: input });
     if (!isExtractedExamValues(data)) {
@@ -33,11 +34,14 @@ export async function readExamValues(input: {
     }
     return data;
   } catch (serverError) {
+    vercelError = serverError;
     console.info("Leitura via Vercel indisponível, tentando Supabase Edge Function.", serverError);
   }
 
   if (!input.fileUrl) {
-    throw new Error("Leitura via Vercel falhou e não há URL pública para tentar Supabase Edge.");
+    throw new Error(
+      `Leitura via Vercel falhou: ${formatUnknownError(vercelError)}. Também não há URL pública para tentar Supabase Edge.`,
+    );
   }
 
   const { data, error } = await supabase.functions.invoke("read-exam", {
@@ -48,6 +52,24 @@ export async function readExamValues(input: {
     throw new Error("A Edge Function read-exam respondeu em um formato inesperado.");
   }
   return data;
+}
+
+function formatUnknownError(error: unknown) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const record = error as { message?: unknown; data?: unknown; error?: unknown };
+    if (typeof record.message === "string") return record.message;
+    if (typeof record.error === "string") return record.error;
+    if (record.data) {
+      try {
+        return JSON.stringify(record.data);
+      } catch {
+        return "erro sem detalhes legíveis";
+      }
+    }
+  }
+  return "erro sem detalhes legíveis";
 }
 
 async function formatFunctionError(error: unknown) {
