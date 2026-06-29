@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { Carelito } from "@/components/HeartMascot";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { askCarelito } from "@/lib/api/carelito.functions";
 
 interface ChatMessage {
   id: string;
@@ -77,19 +76,25 @@ export function CarelitoChat({
       message: text,
     });
 
-    const result = await askCarelito({ data: { message: text, context: { score, factors } } });
+    const { data: result, error } = await supabase.functions.invoke("carelito-chat", {
+      body: { message: text, context: { score, factors } },
+    });
+    if (error) console.error(error);
+    const answer = isCarelitoResponse(result)
+      ? result.answer
+      : fallbackCarelitoAnswer(factors);
     const assistantMessage: ChatMessage = {
       id: `local-assistant-${Date.now()}`,
       role: "assistant",
-      message: result.answer,
+      message: answer,
       created_at: new Date().toISOString(),
     };
     setMessages((current) => [...current, assistantMessage]);
     await supabase.from("carelito_conversations").insert({
       user_id: userId,
       role: "assistant",
-      message: result.answer,
-      metadata: { source: result.source },
+      message: answer,
+      metadata: { source: isCarelitoResponse(result) ? result.source : "fallback" },
     });
     setLoading(false);
   }
@@ -177,4 +182,17 @@ export function CarelitoChat({
       </AnimatePresence>
     </>
   );
+}
+
+function isCarelitoResponse(value: unknown): value is { answer: string; source?: string } {
+  return Boolean(
+    value && typeof value === "object" && typeof (value as { answer?: unknown }).answer === "string",
+  );
+}
+
+function fallbackCarelitoAnswer(factors: string[]) {
+  const factorText = factors.length
+    ? `Vi que alguns fatores importantes no seu score são: ${factors.slice(0, 3).join(", ")}.`
+    : "Ainda não encontrei fatores suficientes no seu perfil.";
+  return `${factorText} Posso te ajudar a entender seus dados em linguagem simples, mas não substituo consulta médica. Se você estiver com dor no peito, falta de ar importante ou mal-estar intenso, procure atendimento médico.`;
 }

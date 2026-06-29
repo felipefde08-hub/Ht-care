@@ -39,7 +39,9 @@ import {
   buildExamInterpretation,
   calculateHomaIr,
   parseExamNumber,
+  type BiomarkerInterpretation,
   type ExamBiomarkers,
+  type RiskLevel,
 } from "@/lib/exam-interpretation";
 import {
   populationReference,
@@ -50,6 +52,7 @@ import {
   riskToneFromScore,
   type HubScorePoint,
 } from "@/lib/patient-hub";
+import { gerarProtocolo } from "@/lib/protocol-generator";
 
 export const Route = createFileRoute("/meu-risco")({
   ssr: false,
@@ -130,6 +133,17 @@ interface DynamicSupabaseTable {
 
 interface DynamicSupabaseClient {
   from: (table: string) => DynamicSupabaseTable;
+}
+
+interface AiExamInterpretation {
+  score: number;
+  category: RiskLevel;
+  factors: string[];
+  cards: BiomarkerInterpretation[];
+  summary: string;
+  next90Days?: string[];
+  source?: string;
+  model?: string;
 }
 
 interface ExamResultSummary {
@@ -688,11 +702,12 @@ function ExamRequestCard({
       return;
     }
     const homaIr = calculateHomaIr(biomarkers.glicemiaJejum, biomarkers.insulinaJejum);
-    const interpretation = buildExamInterpretation(
+    const interpretation = await interpretExamWithCarelito(
       { ...biomarkers, homaIr },
       estimatedScore,
       "você",
     );
+    const protocol = gerarProtocolo(interpretation.factors);
     setSavingBiomarkers(true);
     const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
     const insertBuilder = dynamicSupabase.from("exam_results").insert({
@@ -717,8 +732,12 @@ function ExamRequestCard({
       interpretacao_gerada: {
         cards: interpretation.cards,
         factors: interpretation.factors,
+        next90Days: interpretation.next90Days ?? protocol.acoes.map((action) => action.titulo),
+        protocol,
         score: interpretation.score,
         category: interpretation.category,
+        interpretation_source: interpretation.source ?? "local",
+        interpretation_model: interpretation.model ?? "local",
       },
       resumo_carelito: interpretation.summary,
     }) as DynamicInsertReturningBuilder;
@@ -1306,5 +1325,37 @@ function SectionTitle({ icon: Icon, title }: { icon: typeof HeartPulse; title: s
       </span>
       <h1 className="font-sans text-base font-semibold text-[#111827]">{title}</h1>
     </div>
+  );
+}
+
+async function interpretExamWithCarelito(
+  biomarkers: ExamBiomarkers,
+  estimatedScore: number | null,
+  firstName: string,
+): Promise<AiExamInterpretation> {
+  try {
+    const { data, error } = await supabase.functions.invoke("interpret-exam", {
+      body: { biomarkers, estimatedScore, firstName },
+    });
+    if (error) throw error;
+    if (isAiExamInterpretation(data)) return data;
+  } catch (error) {
+    console.info("Interpretação por IA indisponível, usando fallback local.", error);
+  }
+  return {
+    ...buildExamInterpretation(biomarkers, estimatedScore, firstName),
+    source: "local",
+    model: "local",
+  };
+}
+
+function isAiExamInterpretation(value: unknown): value is AiExamInterpretation {
+  if (!value || typeof value !== "object") return false;
+  const record = value as { score?: unknown; category?: unknown; cards?: unknown; summary?: unknown };
+  return (
+    typeof record.score === "number" &&
+    (record.category === "baixo" || record.category === "moderado" || record.category === "alto") &&
+    Array.isArray(record.cards) &&
+    typeof record.summary === "string"
   );
 }

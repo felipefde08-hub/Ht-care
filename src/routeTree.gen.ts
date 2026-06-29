@@ -23,6 +23,7 @@ import { Route as MissoesRouteImport } from './routes/missoes'
 import { Route as MeuRiscoRouteImport } from './routes/meu-risco'
 import { Route as MedicoRouteImport } from './routes/medico'
 import { Route as MedicamentosRouteImport } from './routes/medicamentos'
+import { Route as LerExameRouteImport } from './routes/ler-exame'
 import { Route as HtcareAdminRouteImport } from './routes/htcare-admin'
 import { Route as HistoricoRouteImport } from './routes/historico'
 import { Route as ExamesRouteImport } from './routes/exames'
@@ -111,6 +112,11 @@ const MedicoRoute = MedicoRouteImport.update({
 const MedicamentosRoute = MedicamentosRouteImport.update({
   id: '/medicamentos',
   path: '/medicamentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LerExameRoute = LerExameRouteImport.update({
+  id: '/ler-exame',
+  path: '/ler-exame',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HtcareAdminRoute = HtcareAdminRouteImport.update({
@@ -222,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/exames': typeof ExamesRoute
   '/historico': typeof HistoricoRoute
   '/htcare-admin': typeof HtcareAdminRoute
+  '/ler-exame': typeof LerExameRoute
   '/medicamentos': typeof MedicamentosRoute
   '/medico': typeof MedicoRoute
   '/meu-risco': typeof MeuRiscoRoute
@@ -256,6 +263,7 @@ export interface FileRoutesByTo {
   '/exames': typeof ExamesRoute
   '/historico': typeof HistoricoRoute
   '/htcare-admin': typeof HtcareAdminRoute
+  '/ler-exame': typeof LerExameRoute
   '/medicamentos': typeof MedicamentosRoute
   '/medico': typeof MedicoRoute
   '/meu-risco': typeof MeuRiscoRoute
@@ -292,6 +300,7 @@ export interface FileRoutesById {
   '/exames': typeof ExamesRoute
   '/historico': typeof HistoricoRoute
   '/htcare-admin': typeof HtcareAdminRoute
+  '/ler-exame': typeof LerExameRoute
   '/medicamentos': typeof MedicamentosRoute
   '/medico': typeof MedicoRoute
   '/meu-risco': typeof MeuRiscoRoute
@@ -328,6 +337,7 @@ export interface FileRouteTypes {
     | '/exames'
     | '/historico'
     | '/htcare-admin'
+    | '/ler-exame'
     | '/medicamentos'
     | '/medico'
     | '/meu-risco'
@@ -362,6 +372,7 @@ export interface FileRouteTypes {
     | '/exames'
     | '/historico'
     | '/htcare-admin'
+    | '/ler-exame'
     | '/medicamentos'
     | '/medico'
     | '/meu-risco'
@@ -397,6 +408,7 @@ export interface FileRouteTypes {
     | '/exames'
     | '/historico'
     | '/htcare-admin'
+    | '/ler-exame'
     | '/medicamentos'
     | '/medico'
     | '/meu-risco'
@@ -433,6 +445,7 @@ export interface RootRouteChildren {
   ExamesRoute: typeof ExamesRoute
   HistoricoRoute: typeof HistoricoRoute
   HtcareAdminRoute: typeof HtcareAdminRoute
+  LerExameRoute: typeof LerExameRoute
   MedicamentosRoute: typeof MedicamentosRoute
   MedicoRoute: typeof MedicoRoute
   MeuRiscoRoute: typeof MeuRiscoRoute
@@ -550,6 +563,13 @@ declare module '@tanstack/react-router' {
       path: '/medicamentos'
       fullPath: '/medicamentos'
       preLoaderRoute: typeof MedicamentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ler-exame': {
+      id: '/ler-exame'
+      path: '/ler-exame'
+      fullPath: '/ler-exame'
+      preLoaderRoute: typeof LerExameRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/htcare-admin': {
@@ -730,6 +750,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExamesRoute: ExamesRoute,
   HistoricoRoute: HistoricoRoute,
   HtcareAdminRoute: HtcareAdminRoute,
+  LerExameRoute: LerExameRoute,
   MedicamentosRoute: MedicamentosRoute,
   MedicoRoute: MedicoRoute,
   MeuRiscoRoute: MeuRiscoRoute,

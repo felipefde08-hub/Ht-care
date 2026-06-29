@@ -43,6 +43,53 @@ export interface CheckInRiskInput {
   glucose: string | number;
 }
 
+export const RISK_WEIGHTS = {
+  apob_high: -25,
+  apob_borderline: -12,
+  ldl_high: -15,
+  ldl_borderline: -8,
+  hdl_low: -12,
+  trig_high: -10,
+  homa_ir_high: -20,
+  homa_ir_borderline: -10,
+  hbA1c_diabetes: -25,
+  hbA1c_prediabetes: -15,
+  pcr_us_high: -15,
+  pcr_us_moderate: -8,
+  smoker_current: -25,
+  smoker_ex_recent: -12,
+  smoker_ex_remote: -8,
+  hypertension_stage2: -28,
+  hypertension_stage1: -15,
+  blood_pressure_unknown: -5,
+  cholesterol_unknown: -4,
+  bmi_obese2: -22,
+  bmi_obese1: -15,
+  bmi_overweight: -8,
+  diabetes_type1: -15,
+  diabetes_type2: -20,
+  diabetes_unknown: -5,
+  prediabetes: -12,
+  family_history: -10,
+  family_history_unknown: -3,
+  sedentary: -12,
+  light_activity: -6,
+  moderate_activity_gap: -2,
+  previous_cardiac_diagnosis: -15,
+  sleep_poor: -8,
+  sleep_short: -4,
+  sleep_long: -2,
+  stress_high: -6,
+  stress_moderate: -3,
+  alcohol_daily: -10,
+  alcohol_weekly: -5,
+  alcohol_social: -2,
+  waist_elevated: -8,
+  sleep_apnea: -6,
+  sleep_apnea_unknown: -2,
+  severe_factor_cluster: -10,
+} as const;
+
 function clampScore(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
@@ -105,34 +152,40 @@ export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
 
   if (input.smokes === "sim") {
     hasCurrentSmoker = true;
-    add(25, "tabagismo");
+    add(Math.abs(RISK_WEIGHTS.smoker_current), "tabagismo");
   }
-  if (input.smokes === "ex_fumante_menos_5") add(12, "ex-tabagismo recente");
-  if (input.smokes === "ex_fumante_mais_5") add(8, "histórico de tabagismo");
+  if (input.smokes === "ex_fumante_menos_5")
+    add(Math.abs(RISK_WEIGHTS.smoker_ex_recent), "ex-tabagismo recente");
+  if (input.smokes === "ex_fumante_mais_5")
+    add(Math.abs(RISK_WEIGHTS.smoker_ex_remote), "histórico de tabagismo");
   if (input.diabetes === "sim" || input.diabetes === "diabetes_tipo_2")
-    add(20, "diabetes tipo 2 diagnosticado");
-  if (input.diabetes === "diabetes_tipo_1") add(15, "diabetes tipo 1 diagnosticado");
-  if (input.diabetes === "pre_diabetes") add(12, "pré-diabetes diagnosticado");
-  if (input.diabetes === "nao_sei") add(5, "status de diabetes desconhecido");
+    add(Math.abs(RISK_WEIGHTS.diabetes_type2), "diabetes tipo 2 diagnosticado");
+  if (input.diabetes === "diabetes_tipo_1")
+    add(Math.abs(RISK_WEIGHTS.diabetes_type1), "diabetes tipo 1 diagnosticado");
+  if (input.diabetes === "pre_diabetes")
+    add(Math.abs(RISK_WEIGHTS.prediabetes), "pré-diabetes diagnosticado");
+  if (input.diabetes === "nao_sei")
+    add(Math.abs(RISK_WEIGHTS.diabetes_unknown), "status de diabetes desconhecido");
 
   if (input.knowsBloodPressure === "sim") {
     if (systolic >= 160 || diastolic >= 100) {
       hasStage2Hypertension = true;
-      add(28, "hipertensão estágio 2");
-    } else if (systolic >= 140 || diastolic >= 90) add(15, "hipertensão estágio 1");
+      add(Math.abs(RISK_WEIGHTS.hypertension_stage2), "hipertensão estágio 2");
+    } else if (systolic >= 140 || diastolic >= 90)
+      add(Math.abs(RISK_WEIGHTS.hypertension_stage1), "hipertensão estágio 1");
     else if (systolic >= 120 || diastolic >= 80) add(8, "pressão arterial elevada");
   } else {
-    add(5, "pressão arterial não informada");
+    add(Math.abs(RISK_WEIGHTS.blood_pressure_unknown), "pressão arterial não informada");
   }
 
   if (bmi != null) {
     if (bmi >= 35) {
       hasObesity = true;
-      add(22, "IMC em faixa de obesidade grau 2/3");
+      add(Math.abs(RISK_WEIGHTS.bmi_obese2), "IMC em faixa de obesidade grau 2/3");
     } else if (bmi >= 30) {
       hasObesity = true;
-      add(15, "IMC em faixa de obesidade grau 1");
-    } else if (bmi >= 25) add(8, "IMC em faixa de sobrepeso");
+      add(Math.abs(RISK_WEIGHTS.bmi_obese1), "IMC em faixa de obesidade grau 1");
+    } else if (bmi >= 25) add(Math.abs(RISK_WEIGHTS.bmi_overweight), "IMC em faixa de sobrepeso");
   }
 
   if (input.knowsCholesterol === "sim") {
@@ -142,17 +195,23 @@ export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
       add(6, "colesterol levemente alterado");
     }
   } else {
-    add(4, "colesterol não informado");
+    add(Math.abs(RISK_WEIGHTS.cholesterol_unknown), "colesterol não informado");
   }
 
-  if (input.familyHistory === "sim") add(10, "histórico familiar de infarto ou AVC precoce");
-  if (input.familyHistory === "nao_sei") add(3, "histórico familiar desconhecido");
+  if (input.familyHistory === "sim")
+    add(Math.abs(RISK_WEIGHTS.family_history), "histórico familiar de infarto ou AVC precoce");
+  if (input.familyHistory === "nao_sei")
+    add(Math.abs(RISK_WEIGHTS.family_history_unknown), "histórico familiar desconhecido");
 
-  if (input.activityLevel === "sedentario") add(12, "baixo nível de atividade física");
-  if (input.activityLevel === "leve") add(6, "atividade física 1-2x por semana");
-  if (input.activityLevel === "moderado") add(2, "atividade física abaixo do ideal");
+  if (input.activityLevel === "sedentario")
+    add(Math.abs(RISK_WEIGHTS.sedentary), "baixo nível de atividade física");
+  if (input.activityLevel === "leve")
+    add(Math.abs(RISK_WEIGHTS.light_activity), "atividade física 1-2x por semana");
+  if (input.activityLevel === "moderado")
+    add(Math.abs(RISK_WEIGHTS.moderate_activity_gap), "atividade física abaixo do ideal");
 
-  if (input.previousCardiacDiagnosis === "sim") add(15, "diagnóstico cardíaco anterior");
+  if (input.previousCardiacDiagnosis === "sim")
+    add(Math.abs(RISK_WEIGHTS.previous_cardiac_diagnosis), "diagnóstico cardíaco anterior");
 
   for (const symptom of input.frequentSymptoms ?? []) {
     if (symptom === "dor ou aperto no peito") add(10, "dor ou aperto no peito");
@@ -162,24 +221,33 @@ export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
     if (symptom === "inchaço nas pernas/tornozelos") add(6, "inchaço nas pernas ou tornozelos");
   }
 
-  if (input.stressLevel === "alto") add(6, "estresse elevado");
-  if (input.stressLevel === "moderado") add(3, "estresse moderado");
+  if (input.stressLevel === "alto") add(Math.abs(RISK_WEIGHTS.stress_high), "estresse elevado");
+  if (input.stressLevel === "moderado")
+    add(Math.abs(RISK_WEIGHTS.stress_moderate), "estresse moderado");
 
-  if (input.sleepHours === "menos_5") add(8, "sono insuficiente");
-  if (input.sleepHours === "5_6") add(4, "sono abaixo do recomendado");
-  if (input.sleepHours === "mais_8") add(2, "sono acima de 8 horas");
+  if (input.sleepHours === "menos_5") add(Math.abs(RISK_WEIGHTS.sleep_poor), "sono insuficiente");
+  if (input.sleepHours === "5_6")
+    add(Math.abs(RISK_WEIGHTS.sleep_short), "sono abaixo do recomendado");
+  if (input.sleepHours === "mais_8")
+    add(Math.abs(RISK_WEIGHTS.sleep_long), "sono acima de 8 horas");
 
-  if (input.alcoholUse === "diariamente") add(10, "consumo diário de álcool");
-  if (input.alcoholUse === "algumas_vezes_semana") add(5, "consumo frequente de álcool");
-  if (input.alcoholUse === "socialmente") add(2, "consumo social de álcool");
+  if (input.alcoholUse === "diariamente")
+    add(Math.abs(RISK_WEIGHTS.alcohol_daily), "consumo diário de álcool");
+  if (input.alcoholUse === "algumas_vezes_semana")
+    add(Math.abs(RISK_WEIGHTS.alcohol_weekly), "consumo frequente de álcool");
+  if (input.alcoholUse === "socialmente")
+    add(Math.abs(RISK_WEIGHTS.alcohol_social), "consumo social de álcool");
 
-  if (isWaistElevated(waist, input.biologicalSex)) add(8, "circunferência abdominal elevada");
+  if (isWaistElevated(waist, input.biologicalSex))
+    add(Math.abs(RISK_WEIGHTS.waist_elevated), "circunferência abdominal elevada");
 
-  if (input.sleepApnea === "sim") add(6, "apneia do sono ou ronco importante");
-  if (input.sleepApnea === "nao_sei") add(2, "apneia do sono desconhecida");
+  if (input.sleepApnea === "sim")
+    add(Math.abs(RISK_WEIGHTS.sleep_apnea), "apneia do sono ou ronco importante");
+  if (input.sleepApnea === "nao_sei")
+    add(Math.abs(RISK_WEIGHTS.sleep_apnea_unknown), "apneia do sono desconhecida");
 
   if (hasCurrentSmoker && hasStage2Hypertension && hasObesity) {
-    add(10, "combinação de fatores graves simultâneos");
+    add(Math.abs(RISK_WEIGHTS.severe_factor_cluster), "combinação de fatores graves simultâneos");
   }
 
   return buildRiskResult(100 - riskPoints, factors);

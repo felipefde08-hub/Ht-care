@@ -779,7 +779,13 @@ interface QuickAccessAction {
   icon: ReactNode;
   label: string;
   badge?: true | number;
-  to?: "/exames" | "/perfil/$section" | "/missoes" | "/historico" | "/protocolo-90-dias/$id";
+  to?:
+    | "/ler-exame"
+    | "/exames"
+    | "/perfil/$section"
+    | "/missoes"
+    | "/historico"
+    | "/protocolo-90-dias/$id";
   params?: { section: string } | { id: string };
   onClick?: () => void;
 }
@@ -802,7 +808,7 @@ function buildQuickActions({
     {
       icon: <FlaskConical className="h-[26px] w-[26px]" />,
       label: "Ler Exame",
-      to: "/exames",
+      to: "/ler-exame",
       badge: hasExamPending || undefined,
     },
     {

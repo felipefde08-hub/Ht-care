@@ -65,7 +65,7 @@ export function MobileAppNav() {
     {
       label: "Exame",
       description: "Enviar PDF ou imagem",
-      to: "/exames",
+      to: "/ler-exame",
       icon: FlaskConical,
       tone: "bg-[#eef3f1] text-[#536b68]",
     },

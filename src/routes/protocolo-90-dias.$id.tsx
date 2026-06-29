@@ -1,10 +1,21 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { ArrowLeft, ChevronRight, Footprints, Moon, ShieldCheck, Utensils } from "lucide-react";
+import {
+  ArrowLeft,
+  Ban,
+  ChevronRight,
+  Footprints,
+  Gauge,
+  HeartPulse,
+  Moon,
+  ShieldCheck,
+  Utensils,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { gerarProtocolo, type ProtocolAction } from "@/lib/protocol-generator";
 
 export const Route = createFileRoute("/protocolo-90-dias/$id")({
   ssr: false,
@@ -21,10 +32,15 @@ interface ExamProtocolRecord {
   id: string;
   user_id: string;
   apob: number | null;
+  ldl: number | null;
   triglicerideos: number | null;
+  hba1c: number | null;
+  glicemia_jejum: number | null;
   homa_ir: number | null;
   pcr_us: number | null;
   score_calculado: number;
+  categoria_risco?: string | null;
+  interpretacao_gerada?: { factors?: string[]; protocol?: { acoes?: ProtocolAction[] } } | null;
 }
 
 interface DynamicQueryBuilder {
@@ -39,30 +55,6 @@ interface DynamicSupabaseTable {
 interface DynamicSupabaseClient {
   from: (table: string) => DynamicSupabaseTable;
 }
-
-const protocolCards = [
-  {
-    icon: Footprints,
-    title: "Caminhar 30 min após o almoço",
-    text: "Reduz resistência à insulina melhor que suplemento.",
-    impact: "HOMA-IR ↓20%",
-    tone: "bg-[#DCFCE7] text-[#16A34A]",
-  },
-  {
-    icon: Utensils,
-    title: "Trocar carboidrato refinado por integral",
-    text: "Reduz ApoB e triglicerídeos em 8-12 semanas.",
-    impact: "ApoB ↓12%",
-    tone: "bg-[#EFF6FF] text-[#2563EB]",
-  },
-  {
-    icon: Moon,
-    title: "Dormir antes da meia-noite",
-    text: "Sono ruim eleva cortisol e piora resistência à insulina.",
-    impact: "Score ↑8pts",
-    tone: "bg-[#F3E8FF] text-[#7E22CE]",
-  },
-];
 
 const timelineItems = [
   ["Semana 2", "você vai sentir mais energia."],
@@ -83,10 +75,15 @@ function NinetyDayProtocolPage() {
           id: "demo",
           user_id: user.id,
           apob: 112,
+          ldl: 142,
           triglicerideos: 156,
+          hba1c: 5.9,
+          glicemia_jejum: 101,
           homa_ir: 3.1,
           pcr_us: 2.4,
           score_calculado: 64,
+          categoria_risco: "moderado",
+          interpretacao_gerada: null,
         });
         setLoading(false);
         return;
@@ -95,7 +92,7 @@ function NinetyDayProtocolPage() {
       const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
       const { data, error } = await dynamicSupabase
         .from("exam_results")
-        .select("id,user_id,apob,triglicerideos,homa_ir,pcr_us,score_calculado")
+        .select("id,user_id,apob,ldl,triglicerideos,hba1c,glicemia_jejum,homa_ir,pcr_us,score_calculado,categoria_risco,interpretacao_gerada")
         .eq("id", id)
         .eq("user_id", user.id)
         .maybeSingle();
@@ -110,6 +107,13 @@ function NinetyDayProtocolPage() {
     if (!exam) return "3 mudanças que podem reduzir seu risco em 15%.";
     const target = exam.score_calculado < 50 ? 18 : exam.score_calculado < 75 ? 15 : 10;
     return `3 mudanças que podem reduzir seu risco em ${target}%.`;
+  }, [exam]);
+
+  const protocolActions = useMemo(() => {
+    if (!exam) return [];
+    const stored = exam.interpretacao_gerada?.protocol?.acoes;
+    if (Array.isArray(stored) && stored.length) return stored.slice(0, 3);
+    return gerarProtocolo(buildFactorsFromExam(exam)).acoes;
   }, [exam]);
 
   if (loading) {
@@ -158,8 +162,8 @@ function NinetyDayProtocolPage() {
         <ProgressMilestones />
 
         <div className="mt-6 space-y-3">
-          {protocolCards.map((card, index) => (
-            <ProtocolCard key={card.title} card={card} index={index} />
+          {protocolActions.map((action, index) => (
+            <ProtocolCard key={action.titulo} action={action} index={index} />
           ))}
         </div>
 
@@ -235,8 +239,9 @@ function ProgressMilestones() {
   );
 }
 
-function ProtocolCard({ card, index }: { card: (typeof protocolCards)[number]; index: number }) {
-  const Icon = card.icon;
+function ProtocolCard({ action, index }: { action: ProtocolAction; index: number }) {
+  const visual = protocolVisual(action.area);
+  const Icon = visual.icon;
   return (
     <motion.article
       initial={{ opacity: 0, y: 14 }}
@@ -245,17 +250,55 @@ function ProtocolCard({ card, index }: { card: (typeof protocolCards)[number]; i
       className="rounded-2xl bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
     >
       <div className="flex items-start justify-between gap-3">
-        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${card.tone}`}>
+        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${visual.tone}`}>
           <Icon className="h-5 w-5" />
         </span>
         <span className="rounded-full bg-[#F9FAFB] px-3 py-1 text-xs font-semibold text-[#2563EB]">
-          {card.impact}
+          {action.impacto_esperado}
         </span>
       </div>
-      <h2 className="mt-4 text-lg font-bold leading-tight">{card.title}</h2>
-      <p className="mt-2 text-[13px] leading-5 text-[#6B7280]">{card.text}</p>
+      <h2 className="mt-4 text-lg font-bold leading-tight">{action.titulo}</h2>
+      <p className="mt-2 text-[13px] leading-5 text-[#6B7280]">{action.descricao}</p>
     </motion.article>
   );
+}
+
+function protocolVisual(area: string) {
+  const normalized = area.toLowerCase();
+  if (normalized.includes("atividade")) {
+    return { icon: Footprints, tone: "bg-[#DCFCE7] text-[#16A34A]" };
+  }
+  if (normalized.includes("aliment")) {
+    return { icon: Utensils, tone: "bg-[#EFF6FF] text-[#2563EB]" };
+  }
+  if (normalized.includes("monitor")) {
+    return { icon: Gauge, tone: "bg-[#E0F2FE] text-[#0284C7]" };
+  }
+  if (normalized.includes("cess")) {
+    return { icon: Ban, tone: "bg-[#FEF2F2] text-[#DC2626]" };
+  }
+  if (normalized.includes("inflama")) {
+    return { icon: HeartPulse, tone: "bg-[#FFF7ED] text-[#EA580C]" };
+  }
+  if (normalized.includes("rotina")) {
+    return { icon: Moon, tone: "bg-[#F3E8FF] text-[#7E22CE]" };
+  }
+  return { icon: ShieldCheck, tone: "bg-[#F9FAFB] text-[#2563EB]" };
+}
+
+function buildFactorsFromExam(exam: ExamProtocolRecord) {
+  const stored = exam.interpretacao_gerada?.factors;
+  if (Array.isArray(stored) && stored.length) return stored;
+  const factors: string[] = [];
+  if (exam.apob != null && exam.apob >= 110) factors.push("ApoB em faixa de atenção");
+  if (exam.ldl != null && exam.ldl >= 100) factors.push("LDL em faixa de atenção");
+  if (exam.triglicerideos != null && exam.triglicerideos >= 150) factors.push("triglicerídeos elevados");
+  if (exam.hba1c != null && exam.hba1c >= 5.7) factors.push("HbA1c em faixa de pré-diabetes");
+  if (exam.glicemia_jejum != null && exam.glicemia_jejum >= 100) factors.push("glicemia de jejum alterada");
+  if (exam.homa_ir != null && exam.homa_ir >= 1.5) factors.push("resistência à insulina em atenção");
+  if (exam.pcr_us != null && exam.pcr_us >= 1) factors.push("inflamação em faixa intermediária");
+  if (!factors.length) factors.push(exam.categoria_risco || "acompanhamento cardiovascular");
+  return factors;
 }
 
 function isExamProtocolRecord(data: unknown): data is ExamProtocolRecord {

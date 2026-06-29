@@ -1,6 +1,13 @@
-import { buildRiskResult, type RiskLevel } from "@/lib/risk-score";
+import {
+  classifyBiomarker,
+  formatBiomarkerValue,
+  HTCARE_BIOMARKERS,
+  type BiomarkerId,
+  type BiomarkerTone,
+} from "@/lib/htcare-knowledge";
+import { buildRiskResult, RISK_WEIGHTS, type RiskLevel } from "@/lib/risk-score";
 
-export type BiomarkerTone = "good" | "attention" | "risk";
+export type { BiomarkerTone };
 
 export interface ExamBiomarkers {
   apob?: number | null;
@@ -22,6 +29,8 @@ export interface BiomarkerInterpretation {
   classification: string;
   tone: BiomarkerTone;
   explanation: string;
+  recommendation?: string;
+  source?: string;
 }
 
 export interface ExamInterpretationResult {
@@ -64,36 +73,42 @@ export function buildExamInterpretation(
   }
 
   if (biomarkers.apob != null) {
-    if (biomarkers.apob >= 130) penalize(18, "ApoB elevado");
-    else if (biomarkers.apob >= 90) penalize(9, "ApoB em faixa de atenção");
+    if (biomarkers.apob >= 130) penalize(Math.abs(RISK_WEIGHTS.apob_high), "ApoB elevado");
+    else if (biomarkers.apob >= 110)
+      penalize(Math.abs(RISK_WEIGHTS.apob_borderline), "ApoB em faixa de atenção");
   }
   if (biomarkers.ldl != null) {
-    if (biomarkers.ldl >= 160) penalize(12, "LDL alto");
-    else if (biomarkers.ldl >= 130) penalize(6, "LDL em faixa de atenção");
+    if (biomarkers.ldl >= 160) penalize(Math.abs(RISK_WEIGHTS.ldl_high), "LDL alto");
+    else if (biomarkers.ldl >= 100)
+      penalize(Math.abs(RISK_WEIGHTS.ldl_borderline), "LDL em faixa de atenção");
   }
   if (biomarkers.hdl != null) {
-    if (biomarkers.hdl < 40) penalize(8, "HDL baixo");
-    else if (biomarkers.hdl < 50) penalize(4, "HDL abaixo do ideal");
+    if (biomarkers.hdl < 40) penalize(Math.abs(RISK_WEIGHTS.hdl_low), "HDL baixo");
   }
   if (biomarkers.triglicerideos != null) {
-    if (biomarkers.triglicerideos >= 200) penalize(10, "triglicerídeos elevados");
-    else if (biomarkers.triglicerideos >= 150) penalize(5, "triglicerídeos em faixa de atenção");
+    if (biomarkers.triglicerideos >= 200)
+      penalize(Math.abs(RISK_WEIGHTS.trig_high), "triglicerídeos elevados");
   }
   if (biomarkers.hba1c != null) {
-    if (biomarkers.hba1c >= 6.5) penalize(14, "HbA1c em faixa de diabetes");
-    else if (biomarkers.hba1c >= 5.7) penalize(8, "HbA1c em faixa de pré-diabetes");
+    if (biomarkers.hba1c >= 6.5)
+      penalize(Math.abs(RISK_WEIGHTS.hbA1c_diabetes), "HbA1c em faixa de diabetes");
+    else if (biomarkers.hba1c >= 5.7)
+      penalize(Math.abs(RISK_WEIGHTS.hbA1c_prediabetes), "HbA1c em faixa de pré-diabetes");
   }
   if (biomarkers.glicemiaJejum != null) {
     if (biomarkers.glicemiaJejum >= 126) penalize(10, "glicemia de jejum elevada");
     else if (biomarkers.glicemiaJejum >= 100) penalize(5, "glicemia de jejum alterada");
   }
   if (homaIr != null) {
-    if (homaIr >= 3) penalize(14, "resistência à insulina elevada");
-    else if (homaIr >= 2) penalize(7, "resistência à insulina em atenção");
+    if (homaIr > 2.5)
+      penalize(Math.abs(RISK_WEIGHTS.homa_ir_high), "resistência à insulina elevada");
+    else if (homaIr >= 1.5)
+      penalize(Math.abs(RISK_WEIGHTS.homa_ir_borderline), "resistência à insulina em atenção");
   }
   if (biomarkers.pcrUs != null) {
-    if (biomarkers.pcrUs > 3) penalize(10, "inflamação elevada");
-    else if (biomarkers.pcrUs >= 1) penalize(5, "inflamação em faixa intermediária");
+    if (biomarkers.pcrUs > 3) penalize(Math.abs(RISK_WEIGHTS.pcr_us_high), "inflamação elevada");
+    else if (biomarkers.pcrUs >= 1)
+      penalize(Math.abs(RISK_WEIGHTS.pcr_us_moderate), "inflamação em faixa intermediária");
   }
 
   const riskResult = buildRiskResult(score, factors);
@@ -113,175 +128,29 @@ export function buildBiomarkerCards(input: ExamBiomarkers): BiomarkerInterpretat
   const homaIr = input.homaIr ?? calculateHomaIr(input.glicemiaJejum, input.insulinaJejum);
 
   return [
-    apobCard(input.apob),
-    homaCard(homaIr),
-    pcrCard(input.pcrUs),
-    ldlCard(input.ldl),
-    hdlCard(input.hdl),
-    triglyceridesCard(input.triglicerideos),
-    hba1cCard(input.hba1c),
+    knowledgeCard("apob", input.apob),
+    knowledgeCard("homaIr", homaIr),
+    knowledgeCard("pcrUs", input.pcrUs),
+    knowledgeCard("ldl", input.ldl),
+    knowledgeCard("hdl", input.hdl),
+    knowledgeCard("triglicerideos", input.triglicerideos),
+    knowledgeCard("hba1c", input.hba1c),
   ];
 }
 
-function apobCard(value?: number | null): BiomarkerInterpretation {
-  const tone =
-    value == null ? "attention" : value >= 130 ? "risk" : value >= 90 ? "attention" : "good";
-  const classification =
-    value == null
-      ? "Não informado"
-      : value >= 130
-        ? "Elevado"
-        : value >= 90
-          ? "Atenção"
-          : "Dentro do alvo";
+function knowledgeCard(id: BiomarkerId, value?: number | null): BiomarkerInterpretation {
+  const item = HTCARE_BIOMARKERS[id];
+  const classification = classifyBiomarker(id, value);
   return {
-    key: "apob",
-    title: "ApoB",
-    subtitle: "Partículas reais de gordura no sangue",
-    valueLabel: formatValue(value, "mg/dL"),
-    classification,
-    tone,
-    explanation:
-      value == null
-        ? "Esse marcador ajuda a enxergar o número real de partículas de gordura circulando. Quando você tiver esse valor, o risco fica mais preciso."
-        : `Esse é o número real de partículas de gordura circulando no seu sangue. É mais preciso que o colesterol tradicional para prever risco de infarto. O seu está em ${value} mg/dL, ${classification.toLowerCase()}.`,
-  };
-}
-
-function homaCard(value?: number | null): BiomarkerInterpretation {
-  const tone =
-    value == null ? "attention" : value >= 3 ? "risk" : value >= 2 ? "attention" : "good";
-  const classification =
-    value == null
-      ? "Não calculado"
-      : value >= 3
-        ? "Resistência elevada"
-        : value >= 2
-          ? "Atenção"
-          : "Sensibilidade preservada";
-  return {
-    key: "homaIr",
-    title: "HOMA-IR",
-    subtitle: "Resistência à insulina",
-    valueLabel: value == null ? "—" : value.toFixed(2),
-    classification,
-    tone,
-    explanation:
-      value == null
-        ? "Calculamos esse índice combinando glicemia e insulina de jejum. Ele mostra sinais de resistência à insulina antes mesmo do diabetes aparecer."
-        : `Mostra se seu corpo está tendo dificuldade de processar açúcar, antes mesmo do diabetes aparecer. O seu está em ${value.toFixed(2)}, ${classification.toLowerCase()}.`,
-  };
-}
-
-function pcrCard(value?: number | null): BiomarkerInterpretation {
-  const tone = value == null ? "attention" : value > 3 ? "risk" : value >= 1 ? "attention" : "good";
-  const classification =
-    value == null
-      ? "Não informado"
-      : value > 3
-        ? "Elevada"
-        : value >= 1
-          ? "Intermediária"
-          : "Baixa";
-  return {
-    key: "pcrUs",
-    title: "PCR-us",
-    subtitle: "Inflamação crônica",
-    valueLabel: formatValue(value, "mg/L"),
-    classification,
-    tone,
-    explanation:
-      value == null
-        ? "Esse marcador mede inflamação crônica no corpo. Quando informado, ajuda a entender desgaste silencioso das artérias."
-        : `Mede inflamação crônica no corpo, que desgasta as artérias silenciosamente ao longo do tempo. O seu está em ${value} mg/L, ${classification.toLowerCase()}.`,
-  };
-}
-
-function ldlCard(value?: number | null): BiomarkerInterpretation {
-  const tone =
-    value == null ? "attention" : value >= 160 ? "risk" : value >= 130 ? "attention" : "good";
-  const classification =
-    value == null ? "Não informado" : value >= 160 ? "Alto" : value >= 130 ? "Atenção" : "Adequado";
-  return {
-    key: "ldl",
-    title: "LDL",
-    subtitle: "Colesterol ruim",
-    valueLabel: formatValue(value, "mg/dL"),
-    classification,
-    tone,
-    explanation:
-      value == null
-        ? "O LDL ajuda a estimar gordura circulante, mas não conta tudo sozinho. Por isso analisamos junto com ApoB."
-        : `O colesterol ruim. Mas o número isolado não conta tudo, por isso também analisamos o ApoB. O seu está em ${value} mg/dL.`,
-  };
-}
-
-function hdlCard(value?: number | null): BiomarkerInterpretation {
-  const tone =
-    value == null ? "attention" : value < 40 ? "risk" : value < 50 ? "attention" : "good";
-  const classification =
-    value == null ? "Não informado" : value < 40 ? "Baixo" : value < 50 ? "Atenção" : "Protetor";
-  return {
-    key: "hdl",
-    title: "HDL",
-    subtitle: "Colesterol bom",
-    valueLabel: formatValue(value, "mg/dL"),
-    classification,
-    tone,
-    explanation:
-      value == null
-        ? "O HDL ajuda na proteção das artérias. Valores mais altos costumam ser melhores para o perfil cardiovascular."
-        : `O colesterol bom, que protege as artérias. Quanto mais alto, melhor. O seu está em ${value} mg/dL.`,
-  };
-}
-
-function triglyceridesCard(value?: number | null): BiomarkerInterpretation {
-  const tone =
-    value == null ? "attention" : value >= 200 ? "risk" : value >= 150 ? "attention" : "good";
-  const classification =
-    value == null
-      ? "Não informado"
-      : value >= 200
-        ? "Elevados"
-        : value >= 150
-          ? "Atenção"
-          : "Adequados";
-  return {
-    key: "triglicerideos",
-    title: "Triglicerídeos",
-    subtitle: "Gordura no sangue",
-    valueLabel: formatValue(value, "mg/dL"),
-    classification,
-    tone,
-    explanation:
-      value == null
-        ? "Esse marcador conversa muito com açúcar, álcool e metabolismo. Quando informado, ajuda a orientar ações práticas."
-        : `Gordura no sangue relacionada a açúcar e álcool. O seu está em ${value} mg/dL, ${classification.toLowerCase()}.`,
-  };
-}
-
-function hba1cCard(value?: number | null): BiomarkerInterpretation {
-  const tone =
-    value == null ? "attention" : value >= 6.5 ? "risk" : value >= 5.7 ? "attention" : "good";
-  const classification =
-    value == null
-      ? "Não informado"
-      : value >= 6.5
-        ? "Diabetes"
-        : value >= 5.7
-          ? "Pré-diabetes"
-          : "Normal";
-  return {
-    key: "hba1c",
-    title: "HbA1c",
-    subtitle: "Média do açúcar em 3 meses",
-    valueLabel: formatValue(value, "%"),
-    classification,
-    tone,
-    explanation:
-      value == null
-        ? "A hemoglobina glicada mostra a média do açúcar no sangue nos últimos 3 meses. Ela ajuda a enxergar risco metabólico acumulado."
-        : `A média do seu açúcar no sangue nos últimos 3 meses. O seu está em ${value}%, classificação: ${classification.toLowerCase()}.`,
+    key: id,
+    title: item.nome_simples,
+    subtitle: item.o_que_e,
+    valueLabel: formatBiomarkerValue(id, value),
+    classification: classification.label,
+    tone: classification.tone,
+    explanation: classification.explanation,
+    recommendation: classification.recommendation,
+    source: classification.source,
   };
 }
 
@@ -307,9 +176,4 @@ function buildCarelitoSummary(firstName: string, cards: BiomarkerInterpretation[
   }
 
   return `${firstName}, seus exames mostram que o maior ponto de atenção é ${mainAttention.title}. O positivo é que ${positive?.title ?? "alguns marcadores"} está dentro do esperado. Recomendamos focar em ${focus} nos próximos 3 meses e repetir o exame para ver a evolução. Score atualizado: ${score}/100.`;
-}
-
-function formatValue(value: number | null | undefined, unit: string) {
-  if (value == null) return "—";
-  return `${value}${unit === "%" ? "%" : ` ${unit}`}`;
 }
