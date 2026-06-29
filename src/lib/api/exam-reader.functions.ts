@@ -6,6 +6,7 @@ const readExamInputSchema = z.object({
   filePath: z.string().optional(),
   fileName: z.string().min(1),
   fileType: z.string().min(1),
+  fileBase64: z.string().optional(),
 });
 
 const extractionSchema = {
@@ -69,7 +70,9 @@ export const readExamWithOpenAI = createServerFn({ method: "POST" })
       throw new Error("OPENAI_API_KEY não está configurada na Vercel.");
     }
 
-    const file = await base64FromUrl(data.fileUrl);
+    const file = data.fileBase64
+      ? { base64: data.fileBase64, mimeType: data.fileType }
+      : await base64FromUrl(data.fileUrl);
     const mimeType = data.fileType || file.mimeType;
     const isPdf = mimeType.includes("pdf");
     const dataUrl = `data:${mimeType};base64,${file.base64}`;

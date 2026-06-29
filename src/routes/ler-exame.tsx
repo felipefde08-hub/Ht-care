@@ -57,6 +57,7 @@ interface UploadedExam {
   fileUrl: string;
   filePath: string;
   fileType: string;
+  fileBase64: string;
 }
 
 interface AssessmentRecord {
@@ -189,6 +190,7 @@ function ReadExamPage() {
       fileUrl,
       filePath,
       fileType: file.type || "application/octet-stream",
+      fileBase64: await fileToBase64(file),
     };
     setUploaded(uploadedExam);
     setStage("processing");
@@ -527,6 +529,7 @@ async function readExamWithCarelito(uploaded: UploadedExam) {
     filePath: uploaded.filePath,
     fileName: uploaded.fileName,
     fileType: uploaded.fileType,
+    fileBase64: uploaded.fileBase64,
   });
   const [result] = await Promise.allSettled([invocation, minimumDelay]).then((results) => [
     results[0],
@@ -562,6 +565,18 @@ function formatReadableError(error: unknown) {
   } catch {
     return "erro desconhecido";
   }
+}
+
+function fileToBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      resolve(result.includes(",") ? result.split(",")[1] : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Não foi possível ler o arquivo."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function normalizeExtractedValues(data: unknown): Partial<Record<BiomarkerField, string>> {

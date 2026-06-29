@@ -24,6 +24,7 @@ export async function readExamValues(input: {
   filePath: string;
   fileName: string;
   fileType: string;
+  fileBase64?: string;
 }) {
   try {
     const data = await readExamWithOpenAI({ data: input });
