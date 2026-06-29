@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { readExamWithOpenAI } from "@/lib/api/exam-reader.functions";
 
 export interface ExtractedExamField {
   key: string;
@@ -24,6 +25,16 @@ export async function readExamValues(input: {
   fileName: string;
   fileType: string;
 }) {
+  try {
+    const data = await readExamWithOpenAI({ data: input });
+    if (!isExtractedExamValues(data)) {
+      throw new Error("A leitura via Vercel respondeu em um formato inesperado.");
+    }
+    return data;
+  } catch (serverError) {
+    console.info("Leitura via Vercel indisponível, tentando Supabase Edge Function.", serverError);
+  }
+
   const { data, error } = await supabase.functions.invoke("read-exam", {
     body: input,
   });
