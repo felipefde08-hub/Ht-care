@@ -4,6 +4,9 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock3,
+  ExternalLink,
+  FileText,
+  FlaskConical,
   LogIn,
   RefreshCw,
   UserRound,
@@ -42,6 +45,25 @@ interface AdminUserRow {
   latestScore: number | null;
   latestRisk: string | null;
   latestAssessmentAt: string | null;
+  examRequestsCount: number;
+  examResultsCount: number;
+  latestExamAt: string | null;
+}
+
+interface AdminExamRow {
+  id: string;
+  type: "Solicitação" | "Resultado interpretado" | "Upload avulso";
+  userId: string;
+  email: string;
+  name: string | null;
+  phone: string | null;
+  city: string | null;
+  status: string | null;
+  score: number | null;
+  risk: string | null;
+  laboratory: string | null;
+  fileUrl: string | null;
+  createdAt: string | null;
 }
 
 interface AdminOverview {
@@ -53,8 +75,12 @@ interface AdminOverview {
     loggedInLast7Days: number;
     assessments: number;
     checkins: number;
+    examRequests: number;
+    examResults: number;
+    examUploads: number;
   };
   users: AdminUserRow[];
+  exams: AdminExamRow[];
 }
 
 function HiddenAdminPage() {
@@ -129,7 +155,7 @@ function HiddenAdminPage() {
           </section>
         )}
 
-        <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
           <MetricCard
             icon={<UserRound className="h-5 w-5" />}
             label="Usuários"
@@ -160,6 +186,95 @@ function HiddenAdminPage() {
             label="Perfis"
             value={overview?.totals.profiles ?? 0}
           />
+          <MetricCard
+            icon={<FlaskConical className="h-5 w-5" />}
+            label="Exames lidos"
+            value={overview?.totals.examResults ?? 0}
+          />
+          <MetricCard
+            icon={<FileText className="h-5 w-5" />}
+            label="Solicitações"
+            value={overview?.totals.examRequests ?? 0}
+          />
+        </section>
+
+        <section className="mt-6 rounded-3xl bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold">Exames enviados e interpretados</h2>
+              <p className="text-sm text-[#6B7280]">
+                {loading ? "Carregando..." : `${overview?.exams.length ?? 0} atividades de exame`}
+              </p>
+            </div>
+            <span className="rounded-full bg-[#EFF6FF] px-3 py-1 text-xs font-bold text-[#2563EB]">
+              Leitura + upload + solicitação
+            </span>
+          </div>
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[980px] border-separate border-spacing-0 text-left text-sm">
+              <thead>
+                <tr className="text-xs uppercase tracking-[0.12em] text-[#6B7280]">
+                  <th className="border-b border-[#E5E7EB] py-3 pr-4">Pessoa</th>
+                  <th className="border-b border-[#E5E7EB] px-4 py-3">Tipo</th>
+                  <th className="border-b border-[#E5E7EB] px-4 py-3">Status</th>
+                  <th className="border-b border-[#E5E7EB] px-4 py-3">Score</th>
+                  <th className="border-b border-[#E5E7EB] px-4 py-3">Laboratório</th>
+                  <th className="border-b border-[#E5E7EB] px-4 py-3">Arquivo</th>
+                  <th className="border-b border-[#E5E7EB] py-3 pl-4">Data</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(overview?.exams ?? []).map((exam) => (
+                  <tr key={`${exam.type}-${exam.id}`} className="align-top">
+                    <td className="border-b border-[#F3F4F6] py-4 pr-4">
+                      <p className="font-bold text-[#111827]">{exam.name ?? "Sem nome"}</p>
+                      <p className="mt-1 text-xs text-[#6B7280]">{exam.email}</p>
+                      <p className="mt-1 text-xs text-[#9CA3AF]">
+                        {[exam.phone, exam.city].filter(Boolean).join(" · ") || "Sem contato"}
+                      </p>
+                    </td>
+                    <td className="border-b border-[#F3F4F6] px-4 py-4">
+                      <ExamTypePill type={exam.type} />
+                    </td>
+                    <td className="border-b border-[#F3F4F6] px-4 py-4">
+                      {formatExamStatus(exam.status)}
+                    </td>
+                    <td className="border-b border-[#F3F4F6] px-4 py-4">
+                      <p className="font-bold">{exam.score ?? "—"}</p>
+                      <p className="text-xs text-[#6B7280]">{formatRisk(exam.risk)}</p>
+                    </td>
+                    <td className="border-b border-[#F3F4F6] px-4 py-4">
+                      {exam.laboratory ?? "—"}
+                    </td>
+                    <td className="border-b border-[#F3F4F6] px-4 py-4">
+                      {exam.fileUrl ? (
+                        <a
+                          href={exam.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center rounded-full bg-[#EFF6FF] px-3 py-1 text-xs font-bold text-[#2563EB]"
+                        >
+                          Abrir <ExternalLink className="ml-1 h-3 w-3" />
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="border-b border-[#F3F4F6] py-4 pl-4">
+                      {formatDateTime(exam.createdAt)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {!loading && !(overview?.exams.length ?? 0) && (
+            <div className="py-12 text-center text-sm text-[#6B7280]">
+              Nenhum exame enviado ou interpretado ainda.
+            </div>
+          )}
         </section>
 
         <section className="mt-6 rounded-3xl bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
@@ -181,7 +296,7 @@ function HiddenAdminPage() {
           </div>
 
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[920px] border-separate border-spacing-0 text-left text-sm">
+            <table className="w-full min-w-[1020px] border-separate border-spacing-0 text-left text-sm">
               <thead>
                 <tr className="text-xs uppercase tracking-[0.12em] text-[#6B7280]">
                   <th className="border-b border-[#E5E7EB] py-3 pr-4">Pessoa</th>
@@ -189,6 +304,7 @@ function HiddenAdminPage() {
                   <th className="border-b border-[#E5E7EB] px-4 py-3">Respondeu</th>
                   <th className="border-b border-[#E5E7EB] px-4 py-3">Score</th>
                   <th className="border-b border-[#E5E7EB] px-4 py-3">Check-ins</th>
+                  <th className="border-b border-[#E5E7EB] px-4 py-3">Exames</th>
                   <th className="border-b border-[#E5E7EB] px-4 py-3">Contato</th>
                   <th className="border-b border-[#E5E7EB] py-3 pl-4">Cadastro</th>
                 </tr>
@@ -220,6 +336,12 @@ function HiddenAdminPage() {
                       </p>
                     </td>
                     <td className="border-b border-[#F3F4F6] px-4 py-4">{user.checkinsCount}</td>
+                    <td className="border-b border-[#F3F4F6] px-4 py-4">
+                      <p className="font-bold">
+                        {user.examResultsCount} lido(s) · {user.examRequestsCount} solic.
+                      </p>
+                      <p className="text-xs text-[#6B7280]">{formatDate(user.latestExamAt)}</p>
+                    </td>
                     <td className="border-b border-[#F3F4F6] px-4 py-4">
                       <p>{user.phone ?? "—"}</p>
                       <p className="text-xs text-[#6B7280]">{user.city ?? ""}</p>
@@ -268,6 +390,16 @@ function StatusPill({ active, children }: { active: boolean; children: ReactNode
   );
 }
 
+function ExamTypePill({ type }: { type: AdminExamRow["type"] }) {
+  const className =
+    type === "Resultado interpretado"
+      ? "bg-[#DCFCE7] text-[#166534]"
+      : type === "Solicitação"
+        ? "bg-[#EFF6FF] text-[#2563EB]"
+        : "bg-[#F3F4F6] text-[#374151]";
+  return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${className}`}>{type}</span>;
+}
+
 function formatProfileMeta(age: number | null, sex: string | null, city: string | null) {
   return [age ? `${age} anos` : null, sex, city].filter(Boolean).join(" · ") || "Perfil incompleto";
 }
@@ -278,6 +410,19 @@ function formatRisk(value: string | null) {
   if (value === "moderado") return "Moderado";
   if (value === "alto") return "Alto";
   return value;
+}
+
+function formatExamStatus(value: string | null) {
+  if (!value) return "—";
+  const labels: Record<string, string> = {
+    aguardando_autorizacao: "Aguardando autorização",
+    autorizado: "Autorizado",
+    recusado: "Recusado",
+    resultado_recebido: "Resultado recebido",
+    concluido: "Concluído",
+    interpretado: "Interpretado",
+  };
+  return labels[value] ?? value;
 }
 
 function formatDate(value: string | null) {
