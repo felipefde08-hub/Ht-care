@@ -2,21 +2,16 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import {
   ArrowLeft,
-  Bell,
-  CalendarCheck,
-  CalendarDays,
-  Download,
+  ChevronDown,
+  FileText,
   FlaskConical,
   HeartPulse,
+  MessageCircle,
+  MoreHorizontal,
   Share2,
-  TrendingDown,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { toast } from "sonner";
-import { Carelito } from "@/components/HeartMascot";
-import { Logo } from "@/components/Logo";
-import { MobileAppNav } from "@/components/MobileAppNav";
+import { CarelitoChat } from "@/components/CarelitoChat";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -25,6 +20,7 @@ import {
   type BiomarkerTone,
   type ExamBiomarkers,
 } from "@/lib/exam-interpretation";
+import { HTCARE_BIOMARKERS, type BiomarkerId } from "@/lib/htcare-knowledge";
 
 export const Route = createFileRoute("/exame-resultado/$id")({
   ssr: false,
@@ -33,7 +29,7 @@ export const Route = createFileRoute("/exame-resultado/$id")({
     if (error || !data.user) throw redirect({ to: "/auth" });
     return { user: data.user };
   },
-  head: () => ({ meta: [{ title: "Interpretação do exame — HTCare" }] }),
+  head: () => ({ meta: [{ title: "Resultado do exame — HTCare" }] }),
   component: ExamResultPage,
 });
 
@@ -69,9 +65,7 @@ interface ProfileRecord {
 
 interface DynamicQueryBuilder {
   eq: (column: string, value: string) => DynamicQueryBuilder;
-  order: (column: string, options?: { ascending?: boolean }) => DynamicQueryBuilder;
   maybeSingle: () => Promise<{ data: unknown; error: unknown }>;
-  then: PromiseLike<{ data: unknown; error: unknown }>["then"];
 }
 
 interface DynamicSupabaseTable {
@@ -86,59 +80,38 @@ function ExamResultPage() {
   const { user } = Route.useRouteContext();
   const { id } = Route.useParams();
   const [result, setResult] = useState<ExamResultRecord | null>(null);
-  const [allResults, setAllResults] = useState<ExamResultRecord[]>([]);
-  const [doctorNote, setDoctorNote] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileRecord | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openMarker, setOpenMarker] = useState<string | null>("apob");
+  const [carelitoOpenSignal, setCarelitoOpenSignal] = useState(0);
 
   useEffect(() => {
     async function load() {
       if (id === "demo") {
-        const demo = buildDemoExamResult(user.id);
-        setResult(demo.current);
-        setAllResults(demo.history);
+        setResult(buildDemoExamResult(user.id));
         setProfile({ nome: "Felipe", idade: 44, sexo: "masculino" });
-        setDoctorNote(
-          "Prévia demonstrativa: revisar ApoB e resistência à insulina com o paciente, orientar mudança de rotina por 90 dias e repetir exames para medir resposta.",
-        );
         setLoading(false);
         return;
       }
 
       const dynamicSupabase = supabase as unknown as DynamicSupabaseClient;
-      const [{ data: examData, error }, { data: profileData }, { data: historyData }] =
-        await Promise.all([
-          dynamicSupabase
-            .from("exam_results")
-            .select("*")
-            .eq("id", id)
-            .eq("user_id", user.id)
-            .maybeSingle(),
-          dynamicSupabase
-            .from("profiles")
-            .select("nome,idade,sexo")
-            .eq("id", user.id)
-            .maybeSingle(),
-          dynamicSupabase
-            .from("exam_results")
-            .select("*")
-            .eq("user_id", user.id)
-            .order("data_exame", { ascending: true }),
-        ]);
-      if (error) console.error(error);
-      const currentResult = isExamResult(examData) ? examData : null;
-      setResult(currentResult);
-      setAllResults(Array.isArray(historyData) ? historyData.filter(isExamResult) : []);
-      setProfile(isProfile(profileData) ? profileData : null);
+      const [{ data: examData, error }, { data: profileData }] = await Promise.all([
+        dynamicSupabase
+          .from("exam_results")
+          .select("*")
+          .eq("id", id)
+          .eq("user_id", user.id)
+          .maybeSingle(),
+        dynamicSupabase
+          .from("profiles")
+          .select("nome,idade,sexo")
+          .eq("id", user.id)
+          .maybeSingle(),
+      ]);
 
-      if (currentResult?.exam_request_id) {
-        const { data: requestData } = await dynamicSupabase
-          .from("exam_requests")
-          .select("nota_medico")
-          .eq("id", currentResult.exam_request_id)
-          .maybeSingle();
-        setDoctorNote(isDoctorNote(requestData) ? requestData.nota_medico : null);
-      }
+      if (error) console.error(error);
+      setResult(isExamResult(examData) ? examData : null);
+      setProfile(isProfile(profileData) ? profileData : null);
       setLoading(false);
     }
     void load();
@@ -151,425 +124,492 @@ function ExamResultPage() {
 
   const interpretation = useMemo(() => {
     if (!result) return null;
-    return buildExamInterpretation(
-      {
-        apob: result.apob,
-        ldl: result.ldl,
-        hdl: result.hdl,
-        triglicerideos: result.triglicerideos,
-        hba1c: result.hba1c,
-        glicemiaJejum: result.glicemia_jejum,
-        insulinaJejum: result.insulina_jejum,
-        homaIr: result.homa_ir,
-        pcrUs: result.pcr_us,
-      },
-      result.score_estimado,
-      firstName,
-    );
+    return buildExamInterpretation(resultToBiomarkers(result), result.score_estimado, firstName);
   }, [firstName, result]);
+
+  const markerRows = useMemo(() => {
+    if (!interpretation) return [];
+    return interpretation.cards.map((card) => buildMarkerRow(card));
+  }, [interpretation]);
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#fbfcfc] px-4 py-6 text-[#10201f]">
-        <Header />
-        <div className="mx-auto mt-10 max-w-3xl rounded-[2rem] bg-white p-6 shadow-soft">
-          Carregando interpretação...
-        </div>
-      </main>
+      <Shell>
+        <TopBar />
+        <Card className="mt-5">
+          <p className="text-sm font-semibold text-[#6B7280]">Carregando resultado...</p>
+        </Card>
+      </Shell>
     );
   }
 
   if (!result || !interpretation) {
     return (
-      <main className="min-h-screen bg-[#fbfcfc] px-4 py-6 text-[#10201f]">
-        <Header />
-        <div className="mx-auto mt-10 max-w-3xl rounded-[2rem] bg-white p-6 text-center shadow-soft">
-          <Carelito className="mx-auto h-24 w-24" expression="thoughtful" />
-          <h1 className="mt-4 font-sans text-2xl font-semibold">Resultado não encontrado</h1>
-          <p className="mt-2 text-sm leading-6 text-[#536b68]">
+      <Shell>
+        <TopBar />
+        <Card className="mt-5 text-center">
+          <img
+            src="/brand/carelito-main.png"
+            alt="Carelito"
+            className="mx-auto h-28 w-28 object-contain"
+          />
+          <h1 className="mt-4 text-2xl font-bold text-[#111827]">Resultado não encontrado</h1>
+          <p className="mt-2 text-sm leading-6 text-[#6B7280]">
             Não encontramos esse exame na sua conta.
           </p>
-          <Button asChild className="mt-5 rounded-full bg-[#10201f]">
+          <Button asChild className="mt-5 min-h-12 rounded-xl bg-[#2563EB]">
             <Link to="/meu-risco">Voltar para Meu Risco</Link>
           </Button>
-        </div>
-      </main>
+        </Card>
+      </Shell>
     );
   }
 
-  const difference =
-    result.score_estimado == null ? null : interpretation.score - Number(result.score_estimado);
-  const realBiomarkers = resultToBiomarkers(result);
-  const timeline = buildTimeline(allResults);
-  const ninetyDayPlan = buildNinetyDayPlan(interpretation.cards);
-  const nextExam = buildNextExamRecommendation(interpretation.cards, result.data_exame);
+  const counters = buildStatusCounters(markerRows);
 
   return (
-    <main className="min-h-screen bg-[#fbfcfc] px-4 pb-28 pt-4 text-[#10201f] print:bg-white print:px-0 print:pb-0">
-      <Header />
-      <section className="mx-auto mt-5 max-w-4xl space-y-4 print:mt-0 print:max-w-none">
-        <Card className="overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#78908d]">
-                Relatório de exame
-              </p>
-              <h1 className="mt-2 font-sans text-3xl font-semibold">Interpretação do Carelito</h1>
-            </div>
-            <Carelito className="h-20 w-20" variant="doctor" expression="confident" />
-          </div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <InfoPill
-              icon={<CalendarDays className="h-4 w-4" />}
-              label="Data do exame"
-              value={formatLongDate(result.data_exame)}
-            />
-            <InfoPill
-              icon={<FlaskConical className="h-4 w-4" />}
-              label="Laboratório"
-              value={result.laboratorio_nome ?? "Laboratório parceiro HTCare"}
-            />
-          </div>
-        </Card>
+    <Shell>
+      <TopBar />
 
-        <Card className="bg-[#10201f] text-white">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#9adbd1]">
-            Score atualizado com seus exames reais.
-          </p>
-          <div className="mt-5 flex items-center justify-between gap-5">
-            <div>
-              <p className="font-sans text-6xl font-semibold leading-none">
-                {interpretation.score}
-                <span className="text-2xl text-white/55">/100</span>
-              </p>
-              <span
-                className={`mt-4 inline-flex rounded-full px-3 py-1 text-sm font-bold ${scoreBadge(interpretation.category)}`}
-              >
-                {categoryLabel(interpretation.category)}
-              </span>
-            </div>
-            <ScoreGauge score={interpretation.score} />
-          </div>
-          {result.score_estimado != null && (
-            <p className="mt-5 rounded-2xl bg-white/8 p-4 text-sm leading-6 text-white/82">
-              Seu score estimado era <strong>{Number(result.score_estimado)}</strong>. Com seus
-              exames reais, seu score é <strong>{interpretation.score}</strong>
-              {difference != null && difference !== 0
-                ? ` (${difference > 0 ? "+" : ""}${difference} pontos).`
-                : "."}
-            </p>
-          )}
-        </Card>
+      <section className="mt-5 space-y-3">
+        <ExamCard result={result} />
+        <ScoreCard score={interpretation.score} category={interpretation.category} />
+        <StatusCounters counters={counters} />
+        <CarelitoSummary summary={result.resumo_carelito || interpretation.summary} />
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          {interpretation.cards.map((card) => (
-            <BiomarkerCard key={card.key} card={card} />
+        <section className="space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-[16px] font-semibold text-[#111827]">Marcadores do exame</h2>
+            <span className="text-xs font-medium text-[#6B7280]">
+              {markerRows.length} analisados
+            </span>
+          </div>
+
+          {markerRows.map((marker) => (
+            <MarkerRow
+              key={marker.id}
+              marker={marker}
+              open={openMarker === marker.id}
+              onToggle={() => setOpenMarker((current) => (current === marker.id ? null : marker.id))}
+            />
           ))}
-        </div>
+        </section>
 
-        <PopulationComparisonCard
-          biomarkers={realBiomarkers}
-          age={profile?.idade ?? null}
-          sex={profile?.sexo ?? null}
-        />
+        <CarelitoCta onClick={() => setCarelitoOpenSignal((current) => current + 1)} />
 
-        <ExamTimelineCard results={allResults} timeline={timeline} />
-
-        <Card className="border-[#2f8fc8]/20 bg-[#f2faf9]">
-          <div className="flex items-start gap-4">
-            <Carelito className="h-20 w-20 shrink-0" variant="doctor" expression="thoughtful" />
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#2f6760]">
-                Resumo do Carelito
-              </p>
-              <p className="mt-3 text-base leading-7 text-[#2b4542]">
-                {result.resumo_carelito || interpretation.summary}
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        <NinetyDayPlanCard recommendations={ninetyDayPlan} />
-
-        <DoctorNoteCard note={doctorNote} />
-
-        <NextExamCard recommendation={nextExam} resultId={result.id} />
-
-        <Card className="print:hidden">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Button asChild className="min-h-12 rounded-full bg-[#2563EB]">
-              <Link to="/protocolo-90-dias/$id" params={{ id: result.id }}>
-                Ver protocolo de 90 dias
-              </Link>
-            </Button>
-            <Button className="min-h-12 rounded-full bg-[#10201f]" onClick={() => window.print()}>
-              <Share2 className="mr-2 h-4 w-4" />
-              Gerar relatório completo em PDF
-            </Button>
-            <Button asChild variant="outline" className="min-h-12 rounded-full">
-              <Link to="/meu-risco">
-                <Download className="mr-2 h-4 w-4" />
-                Agendar próximo exame
-              </Link>
-            </Button>
-          </div>
-          {result.arquivo_url && (
-            <a
-              className="mt-4 inline-flex text-sm font-bold text-[#2f8fc8]"
-              href={result.arquivo_url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Ver arquivo original enviado
-            </a>
-          )}
-        </Card>
+        <p className="px-2 pb-4 text-center text-[11px] leading-5 text-[#6B7280]">
+          A HTCare é uma ferramenta de triagem e acompanhamento. Esta interpretação não substitui
+          consulta médica.
+        </p>
       </section>
-      <MobileAppNav />
+
+      <CarelitoChat
+        userId={user.id}
+        score={interpretation.score}
+        factors={interpretation.factors}
+        openSignal={carelitoOpenSignal}
+      />
+    </Shell>
+  );
+}
+
+function Shell({ children }: { children: ReactNode }) {
+  return (
+    <main className="min-h-screen bg-[#F9FAFB] px-4 pb-8 pt-4 text-[#111827]">
+      <div className="mx-auto max-w-3xl">{children}</div>
     </main>
   );
 }
 
-function BiomarkerCard({ card }: { card: BiomarkerInterpretation }) {
+function TopBar() {
+  return (
+    <header className="flex h-12 items-center justify-between">
+      <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full" asChild>
+        <Link to="/meu-risco" aria-label="Voltar">
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
+      </Button>
+      <h1 className="text-[17px] font-bold text-[#111827]">Resultado do exame</h1>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-11 w-11 rounded-full"
+        onClick={() => window.print()}
+        aria-label="Opções"
+      >
+        <MoreHorizontal className="h-5 w-5" />
+      </Button>
+    </header>
+  );
+}
+
+function ExamCard({ result }: { result: ExamResultRecord }) {
   return (
     <Card>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#78908d]">
-            {card.subtitle}
-          </p>
-          <h2 className="mt-2 font-sans text-2xl font-semibold">{card.title}</h2>
-        </div>
-        <span className={`rounded-full px-3 py-1 text-xs font-bold ${tonePill(card.tone)}`}>
-          {card.classification}
+      <div className="flex items-center gap-4">
+        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-[#EFF6FF] text-[#2563EB]">
+          <FileText className="h-7 w-7" />
         </span>
-      </div>
-      <div className="mt-5 flex items-end justify-between gap-4">
-        <p className="font-sans text-4xl font-semibold">{card.valueLabel}</p>
-        <span className={`h-3 w-16 rounded-full ${toneBar(card.tone)}`} />
-      </div>
-      <div className="mt-5 rounded-2xl bg-[#f7faf9] p-4">
-        <div className="flex items-start gap-3">
-          <Carelito className="h-12 w-12 shrink-0" variant="doctor" expression="confident" />
-          <p className="text-sm leading-6 text-[#536b68]">{card.explanation}</p>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-function PopulationComparisonCard({
-  biomarkers,
-  age,
-  sex,
-}: {
-  biomarkers: ExamBiomarkers;
-  age: number | null;
-  sex: string | null;
-}) {
-  const comparisons = buildPopulationComparisons(biomarkers, age, sex);
-  return (
-    <Card>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#78908d]">
-            Comparação com sua faixa etária
+        <div className="min-w-0 flex-1">
+          <p className="text-[16px] font-semibold text-[#111827]">Exame de sangue</p>
+          <p className="mt-1 text-sm text-[#6B7280]">Coleta em {formatLongDate(result.data_exame)}</p>
+          <p className="mt-1 truncate text-xs font-medium text-[#6B7280]">
+            {result.laboratorio_nome ?? "Laboratório não informado"}
           </p>
-          <h2 className="mt-2 font-sans text-2xl font-semibold">
-            Onde seus exames ficam no mundo real
-          </h2>
         </div>
-        <span className="rounded-full bg-[#e9f4fb] px-3 py-1 text-xs font-bold text-[#2f8fc8]">
-          VIGITEL/IBGE
-        </span>
-      </div>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        {comparisons.map((item) => (
-          <div key={item.label} className="rounded-[1.25rem] bg-[#f7faf9] p-4">
-            <p className="font-sans text-3xl font-semibold text-[#10201f]">{item.percentile}%</p>
-            <p className="mt-2 text-sm leading-6 text-[#536b68]">{item.text}</p>
-          </div>
-        ))}
-      </div>
-      <p className="mt-4 text-xs leading-5 text-[#78908d]">
-        Referência populacional estimada para contexto educativo. Não substitui interpretação médica
-        individual.
-      </p>
-    </Card>
-  );
-}
-
-function ExamTimelineCard({
-  results,
-  timeline,
-}: {
-  results: ExamResultRecord[];
-  timeline: TimelineSeries[];
-}) {
-  if (results.length < 2) {
-    return (
-      <Card>
-        <div className="flex items-start gap-3">
-          <TrendingDown className="mt-1 h-5 w-5 text-[#2f8fc8]" />
-          <div>
-            <h2 className="font-sans text-2xl font-semibold">Linha do tempo dos exames</h2>
-            <p className="mt-2 text-sm leading-6 text-[#536b68]">
-              Quando você tiver mais de um exame, vamos mostrar exatamente o que melhorou, piorou ou
-              ficou estável em cada biomarcador.
-            </p>
-          </div>
-        </div>
-      </Card>
-    );
-  }
-
-  return (
-    <Card>
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#78908d]">
-        Linha do tempo de exames anteriores
-      </p>
-      <h2 className="mt-2 font-sans text-2xl font-semibold">Seu corpo evoluindo com dado real</h2>
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        {timeline.map((series) => (
-          <div key={series.key} className="rounded-[1.25rem] bg-[#f7faf9] p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-sans text-lg font-semibold">{series.label}</p>
-                <p className="mt-1 text-sm text-[#536b68]">{series.insight}</p>
-              </div>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#2f6760]">
-                {series.points.length} exames
-              </span>
-            </div>
-            <div className="mt-4 h-36">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={series.points}>
-                  <XAxis dataKey="date" axisLine={false} tickLine={false} />
-                  <YAxis axisLine={false} tickLine={false} width={34} />
-                  <Tooltip />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#2f8fc8"
-                    strokeWidth={3}
-                    dot={{ r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function NinetyDayPlanCard({ recommendations }: { recommendations: PlanRecommendation[] }) {
-  return (
-    <Card>
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#78908d]">
-        O que fazer nos próximos 90 dias
-      </p>
-      <h2 className="mt-2 font-sans text-2xl font-semibold">Plano específico para seus exames</h2>
-      <div className="mt-5 grid gap-3">
-        {recommendations.map((item) => (
-          <div key={item.title} className="rounded-[1.25rem] bg-[#f7faf9] p-4">
-            <div className="flex items-start justify-between gap-3">
-              <h3 className="font-sans text-lg font-semibold">{item.title}</h3>
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#2f8fc8]">
-                90 dias
-              </span>
-            </div>
-            <p className="mt-2 text-sm leading-6 text-[#536b68]">{item.text}</p>
-            <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-[#78908d]">
-              {item.source}
-            </p>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function DoctorNoteCard({ note }: { note: string | null }) {
-  return (
-    <Card>
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#78908d]">
-        Nota do médico parceiro
-      </p>
-      <p className="mt-3 rounded-[1.25rem] bg-[#f7faf9] p-4 text-sm leading-6 text-[#536b68]">
-        {note?.trim() ||
-          "Ainda não há uma observação médica registrada para este exame. Quando o médico parceiro revisar o caso, a nota aparece aqui e entra no PDF completo."}
-      </p>
-    </Card>
-  );
-}
-
-function NextExamCard({
-  recommendation,
-  resultId,
-}: {
-  recommendation: NextExamRecommendation;
-  resultId: string;
-}) {
-  function saveReminder() {
-    window.localStorage.setItem(
-      `htcare:exam-reminder:${resultId}`,
-      JSON.stringify({ date: recommendation.date, createdAt: new Date().toISOString() }),
-    );
-    toast.success(`Lembrete salvo para ${formatLongDate(recommendation.date)}.`);
-  }
-
-  return (
-    <Card className="print:hidden">
-      <div className="flex items-start gap-4">
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#e8f5ef] text-[#2f6760]">
-          <CalendarCheck className="h-5 w-5" />
-        </span>
-        <div className="flex-1">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#78908d]">
-            Próximo exame recomendado
-          </p>
-          <h2 className="mt-2 font-sans text-2xl font-semibold">
-            {formatLongDate(recommendation.date)}
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[#536b68]">{recommendation.reason}</p>
-          <Button
-            variant="outline"
-            className="mt-4 min-h-12 rounded-full bg-white"
-            onClick={saveReminder}
+        {result.arquivo_url && (
+          <a
+            href={result.arquivo_url}
+            target="_blank"
+            rel="noreferrer"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#F3F4F6] text-[#6B7280]"
+            aria-label="Abrir arquivo original"
           >
-            <Bell className="mr-2 h-4 w-4" />
-            Lembrar-me
-          </Button>
+            <Share2 className="h-4 w-4" />
+          </a>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function ScoreCard({
+  score,
+  category,
+}: {
+  score: number;
+  category: "baixo" | "moderado" | "alto";
+}) {
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-5">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#6B7280]">
+            Score recalculado
+          </p>
+          <h2 className="mt-3 text-[42px] font-bold leading-none text-[#111827]">
+            {score}
+            <span className="text-xl text-[#6B7280]">/100</span>
+          </h2>
+          <span
+            className={`mt-4 inline-flex rounded-full px-3 py-1 text-xs font-bold ${riskBadgeClass(
+              category,
+            )}`}
+          >
+            {categoryLabel(category)}
+          </span>
+          <p className="mt-3 text-sm leading-5 text-[#6B7280]">
+            Seu risco atual é {categoryLabel(category).toLowerCase()}.
+          </p>
+        </div>
+        <ScoreRing score={score} category={category} />
+      </div>
+    </Card>
+  );
+}
+
+function ScoreRing({
+  score,
+  category,
+}: {
+  score: number;
+  category: "baixo" | "moderado" | "alto";
+}) {
+  const color = category === "baixo" ? "#16A34A" : category === "moderado" ? "#F59E0B" : "#DC2626";
+  return (
+    <div
+      className="grid h-32 w-32 shrink-0 place-items-center rounded-full p-3"
+      style={
+        {
+          background: `conic-gradient(${color} ${score}%, #E5E7EB ${score}% 100%)`,
+        } as CSSProperties
+      }
+    >
+      <div className="grid h-full w-full place-items-center rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(17,24,39,0.04)]">
+        <HeartPulse className="h-9 w-9" style={{ color }} />
+      </div>
+    </div>
+  );
+}
+
+function StatusCounters({ counters }: { counters: StatusCounter[] }) {
+  return (
+    <div className="grid grid-cols-4 gap-2">
+      {counters.map((counter) => (
+        <div key={counter.label} className={`rounded-2xl p-3 text-center ${counter.className}`}>
+          <p className="text-2xl font-bold leading-none">{counter.count}</p>
+          <p className="mt-2 text-[10px] font-semibold leading-3">{counter.label}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CarelitoSummary({ summary }: { summary: string }) {
+  return (
+    <Card className="overflow-visible">
+      <div className="flex items-start gap-3">
+        <img
+          src="/brand/carelito-main.png"
+          alt="Carelito"
+          className="h-20 w-20 shrink-0 object-contain"
+        />
+        <div className="relative flex-1 rounded-3xl bg-[#EFF6FF] p-4">
+          <span className="absolute left-[-8px] top-7 h-4 w-4 rotate-45 bg-[#EFF6FF]" />
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#2563EB]">
+            Análise do Carelito
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[#374151]">{trimSummary(summary)}</p>
         </div>
       </div>
     </Card>
   );
 }
 
-interface PopulationComparison {
+interface MarkerView {
+  id: string;
+  icon: ReactNode;
+  name: string;
+  valueLabel: string;
+  reference: string;
+  statusLabel: "Ideal" | "Atenção" | "Elevado" | "Muito elevado";
+  tone: BiomarkerTone;
+  progress: number;
+  explanation: string;
+  recommendation?: string;
+  source?: string;
+}
+
+function MarkerRow({
+  marker,
+  open,
+  onToggle,
+}: {
+  marker: MarkerView;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Card className="p-0">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center gap-3 p-4 text-left"
+      >
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#EFF6FF] text-[#2563EB]">
+          {marker.icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-start justify-between gap-3">
+            <span>
+              <span className="block text-[15px] font-semibold text-[#111827]">{marker.name}</span>
+              <span className="mt-1 block text-xs text-[#6B7280]">
+                {marker.valueLabel} · Ref. {marker.reference}
+              </span>
+            </span>
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${tonePill(marker.statusLabel)}`}>
+              {marker.statusLabel}
+            </span>
+          </span>
+          <span className="mt-3 block h-2 overflow-hidden rounded-full bg-gradient-to-r from-[#16A34A] via-[#F59E0B] to-[#DC2626]">
+            <span
+              className="block h-full w-1 rounded-full bg-[#111827] shadow-[0_0_0_3px_rgba(255,255,255,0.9)]"
+              style={{ marginLeft: `calc(${marker.progress}% - 2px)` }}
+            />
+          </span>
+        </span>
+        <ChevronDown
+          className={`h-5 w-5 shrink-0 text-[#9CA3AF] transition ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="border-t border-[#E5E7EB] px-4 pb-4 pt-3">
+          <p className="text-sm leading-6 text-[#374151]">{marker.explanation}</p>
+          {marker.recommendation && (
+            <p className="mt-3 rounded-2xl bg-[#F9FAFB] p-3 text-xs leading-5 text-[#6B7280]">
+              <strong className="text-[#111827]">Recomendação: </strong>
+              {marker.recommendation}
+            </p>
+          )}
+          {marker.source && (
+            <p className="mt-2 text-[11px] font-medium text-[#9CA3AF]">{marker.source}</p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function CarelitoCta({ onClick }: { onClick: () => void }) {
+  return (
+    <Card className="bg-[#F0FDF4]">
+      <div className="flex items-center gap-4">
+        <img
+          src="/brand/carelito-main.png"
+          alt="Carelito"
+          className="h-16 w-16 shrink-0 object-contain"
+        />
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[16px] font-semibold text-[#111827]">
+            Quer entender mais? Converse com o Carelito
+          </h2>
+          <p className="mt-1 text-sm leading-5 text-[#6B7280]">
+            Tire dúvidas sobre seus marcadores em linguagem simples.
+          </p>
+        </div>
+      </div>
+      <Button
+        type="button"
+        onClick={onClick}
+        className="mt-4 min-h-12 w-full rounded-xl bg-[#2563EB] text-white"
+      >
+        <MessageCircle className="mr-2 h-4 w-4" />
+        Abrir conversa
+      </Button>
+    </Card>
+  );
+}
+
+function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`rounded-2xl bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] ${className}`}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+interface StatusCounter {
   label: string;
-  percentile: number;
-  text: string;
+  count: number;
+  className: string;
 }
 
-interface TimelineSeries {
-  key: string;
-  label: string;
-  insight: string;
-  points: Array<{ date: string; value: number }>;
+function buildStatusCounters(markers: MarkerView[]): StatusCounter[] {
+  return [
+    {
+      label: "Ideal",
+      count: markers.filter((marker) => marker.statusLabel === "Ideal").length,
+      className: "bg-[#DCFCE7] text-[#166534]",
+    },
+    {
+      label: "Atenção",
+      count: markers.filter((marker) => marker.statusLabel === "Atenção").length,
+      className: "bg-[#FEF3C7] text-[#92400E]",
+    },
+    {
+      label: "Elevado",
+      count: markers.filter((marker) => marker.statusLabel === "Elevado").length,
+      className: "bg-[#FFEDD5] text-[#9A3412]",
+    },
+    {
+      label: "Muito elevado",
+      count: markers.filter((marker) => marker.statusLabel === "Muito elevado").length,
+      className: "bg-[#FEE2E2] text-[#991B1B]",
+    },
+  ];
 }
 
-interface PlanRecommendation {
-  title: string;
-  text: string;
-  source: string;
+function buildMarkerRow(card: BiomarkerInterpretation): MarkerView {
+  const id = String(card.key) as BiomarkerId;
+  const knowledge = HTCARE_BIOMARKERS[id];
+  const rawValue = parseValue(card.valueLabel);
+  return {
+    id,
+    icon: markerIcon(id),
+    name: card.title,
+    valueLabel: card.valueLabel,
+    reference: referenceLabel(id),
+    statusLabel: normalizeStatus(card),
+    tone: card.tone,
+    progress: valueProgress(id, rawValue),
+    explanation: card.explanation,
+    recommendation: card.recommendation ?? knowledge?.recomendacao_geral,
+    source: card.source ?? knowledge?.fonte,
+  };
 }
 
-interface NextExamRecommendation {
-  date: string;
-  reason: string;
+function markerIcon(id: BiomarkerId) {
+  if (id === "homaIr" || id === "hba1c" || id === "glicemiaJejum" || id === "insulinaJejum") {
+    return <FlaskConical className="h-5 w-5" />;
+  }
+  if (id === "pcrUs") return <HeartPulse className="h-5 w-5" />;
+  return <FileText className="h-5 w-5" />;
+}
+
+function normalizeStatus(card: BiomarkerInterpretation): MarkerView["statusLabel"] {
+  if (card.valueLabel === "—") return "Atenção";
+  if (card.tone === "good") return "Ideal";
+  if (card.tone === "attention") return "Atenção";
+  if (card.title === "ApoB" || card.title === "LDL" || card.title === "Triglicerídeos") {
+    return "Muito elevado";
+  }
+  return "Elevado";
+}
+
+function referenceLabel(id: BiomarkerId) {
+  const range = HTCARE_BIOMARKERS[id]?.faixas.ideal;
+  const unit = HTCARE_BIOMARKERS[id]?.unidade ?? "";
+  const suffix = unit ? ` ${unit}` : "";
+  if (!range) return "individual";
+  if (range.min != null && range.max != null) return `${range.min}-${range.max}${suffix}`;
+  if (range.max != null) return `< ${range.max}${suffix}`;
+  if (range.min != null) return `> ${range.min}${suffix}`;
+  return "individual";
+}
+
+function valueProgress(id: BiomarkerId, value: number | null) {
+  if (value == null) return 50;
+  const scale: Partial<Record<BiomarkerId, { min: number; max: number; reverse?: boolean }>> = {
+    apob: { min: 50, max: 160 },
+    ldl: { min: 50, max: 190 },
+    hdl: { min: 30, max: 80, reverse: true },
+    triglicerideos: { min: 70, max: 250 },
+    hba1c: { min: 4.8, max: 7.2 },
+    glicemiaJejum: { min: 70, max: 150 },
+    insulinaJejum: { min: 3, max: 22 },
+    homaIr: { min: 0.6, max: 4 },
+    pcrUs: { min: 0.2, max: 5 },
+  };
+  const item = scale[id] ?? { min: 0, max: 100 };
+  const ratio = (value - item.min) / (item.max - item.min);
+  const normalized = item.reverse ? 1 - ratio : ratio;
+  return Math.max(3, Math.min(97, Math.round(normalized * 100)));
+}
+
+function parseValue(valueLabel: string) {
+  if (valueLabel === "—") return null;
+  const value = Number(valueLabel.replace(",", ".").match(/-?\d+(\.\d+)?/)?.[0]);
+  return Number.isFinite(value) ? value : null;
+}
+
+function riskBadgeClass(category: "baixo" | "moderado" | "alto") {
+  if (category === "baixo") return "bg-[#DCFCE7] text-[#166534]";
+  if (category === "moderado") return "bg-[#FEF3C7] text-[#92400E]";
+  return "bg-[#FEE2E2] text-[#991B1B]";
+}
+
+function categoryLabel(category: "baixo" | "moderado" | "alto") {
+  if (category === "baixo") return "Baixo risco";
+  if (category === "moderado") return "Risco moderado";
+  return "Alto risco";
+}
+
+function tonePill(status: MarkerView["statusLabel"]) {
+  if (status === "Ideal") return "bg-[#DCFCE7] text-[#166534]";
+  if (status === "Atenção") return "bg-[#FEF3C7] text-[#92400E]";
+  if (status === "Elevado") return "bg-[#FFEDD5] text-[#9A3412]";
+  return "bg-[#FEE2E2] text-[#991B1B]";
+}
+
+function trimSummary(summary: string) {
+  const sentences = summary.match(/[^.!?]+[.!?]+/g);
+  if (!sentences) return summary;
+  return sentences.slice(0, 3).join(" ").trim();
 }
 
 function resultToBiomarkers(result: ExamResultRecord): ExamBiomarkers {
@@ -586,328 +626,30 @@ function resultToBiomarkers(result: ExamResultRecord): ExamBiomarkers {
   };
 }
 
-function buildDemoExamResult(userId: string): {
-  current: ExamResultRecord;
-  history: ExamResultRecord[];
-} {
-  const base = {
+function buildDemoExamResult(userId: string): ExamResultRecord {
+  return {
+    id: "demo-atual",
     user_id: userId,
     exam_request_id: null,
     laboratorio_nome: "Laboratório parceiro HTCare",
+    data_exame: new Date().toISOString().slice(0, 10),
     arquivo_url: null,
-    categoria_risco: "moderado" as const,
+    apob: 112,
+    ldl: 136,
+    hdl: 48,
+    triglicerideos: 144,
+    hba1c: 5.7,
+    glicemia_jejum: 101,
+    insulina_jejum: 9.8,
+    homa_ir: 2.45,
+    pcr_us: 1.6,
+    score_estimado: 70,
+    score_calculado: 64,
+    categoria_risco: "moderado",
     interpretacao_gerada: {},
     resumo_carelito: null,
     created_at: new Date().toISOString(),
   };
-  const history: ExamResultRecord[] = [
-    {
-      ...base,
-      id: "demo-marco",
-      data_exame: "2026-03-24",
-      apob: 128,
-      ldl: 154,
-      hdl: 42,
-      triglicerideos: 188,
-      hba1c: 5.9,
-      glicemia_jejum: 108,
-      insulina_jejum: 13,
-      homa_ir: 3.47,
-      pcr_us: 2.8,
-      score_estimado: 70,
-      score_calculado: 58,
-    },
-    {
-      ...base,
-      id: "demo-atual",
-      data_exame: new Date().toISOString().slice(0, 10),
-      apob: 112,
-      ldl: 136,
-      hdl: 48,
-      triglicerideos: 144,
-      hba1c: 5.7,
-      glicemia_jejum: 101,
-      insulina_jejum: 9.8,
-      homa_ir: 2.45,
-      pcr_us: 1.6,
-      score_estimado: 70,
-      score_calculado: 64,
-    },
-  ];
-  return { current: history[1], history };
-}
-
-function buildPopulationComparisons(
-  biomarkers: ExamBiomarkers,
-  age: number | null,
-  sex: string | null,
-): PopulationComparison[] {
-  const ageBand = age
-    ? `${Math.floor(age / 10) * 10}-${Math.floor(age / 10) * 10 + 9} anos`
-    : "sua faixa etária";
-  const sexLabel = sex?.toLowerCase().includes("fem")
-    ? "mulheres"
-    : sex?.toLowerCase().includes("masc")
-      ? "homens"
-      : "pessoas";
-  const candidates = [
-    {
-      label: "ApoB",
-      value: biomarkers.apob,
-      percentile: percentileLowerIsBetter(biomarkers.apob, 70, 150),
-    },
-    {
-      label: "HOMA-IR",
-      value: biomarkers.homaIr,
-      percentile: percentileLowerIsBetter(biomarkers.homaIr, 1, 4),
-    },
-    {
-      label: "PCR-us",
-      value: biomarkers.pcrUs,
-      percentile: percentileLowerIsBetter(biomarkers.pcrUs, 0.4, 4),
-    },
-    {
-      label: "HDL",
-      value: biomarkers.hdl,
-      percentile: percentileHigherIsBetter(biomarkers.hdl, 35, 70),
-    },
-  ].filter(
-    (item): item is { label: string; value: number; percentile: number } => item.value != null,
-  );
-
-  return candidates.slice(0, 4).map((item) => ({
-    label: item.label,
-    percentile: item.percentile,
-    text: `Seu ${item.label} está melhor que ${item.percentile}% das ${sexLabel} de ${ageBand} no Brasil, em uma comparação populacional estimada.`,
-  }));
-}
-
-function percentileLowerIsBetter(value: number | null | undefined, ideal: number, high: number) {
-  if (value == null) return 50;
-  const ratio = (high - value) / (high - ideal);
-  return clampPercent(10 + ratio * 80);
-}
-
-function percentileHigherIsBetter(value: number | null | undefined, low: number, ideal: number) {
-  if (value == null) return 50;
-  const ratio = (value - low) / (ideal - low);
-  return clampPercent(10 + ratio * 80);
-}
-
-function clampPercent(value: number) {
-  return Math.max(5, Math.min(95, Math.round(value)));
-}
-
-function buildTimeline(results: ExamResultRecord[]): TimelineSeries[] {
-  const definitions: Array<{
-    key: keyof ExamResultRecord;
-    label: string;
-    lowerIsBetter: boolean;
-  }> = [
-    { key: "apob", label: "ApoB", lowerIsBetter: true },
-    { key: "homa_ir", label: "HOMA-IR", lowerIsBetter: true },
-    { key: "pcr_us", label: "PCR-us", lowerIsBetter: true },
-    { key: "ldl", label: "LDL", lowerIsBetter: true },
-    { key: "hdl", label: "HDL", lowerIsBetter: false },
-    { key: "triglicerideos", label: "Triglicerídeos", lowerIsBetter: true },
-    { key: "hba1c", label: "HbA1c", lowerIsBetter: true },
-  ];
-
-  return definitions
-    .map((definition) => {
-      const points = results
-        .map((result) => {
-          const raw = result[definition.key];
-          return typeof raw === "number"
-            ? { date: formatShortDate(result.data_exame), value: raw }
-            : null;
-        })
-        .filter((point): point is { date: string; value: number } => Boolean(point));
-      return {
-        key: String(definition.key),
-        label: definition.label,
-        points,
-        insight: buildTimelineInsight(definition.label, points, definition.lowerIsBetter),
-      };
-    })
-    .filter((series) => series.points.length >= 2)
-    .slice(0, 4);
-}
-
-function buildTimelineInsight(
-  label: string,
-  points: Array<{ date: string; value: number }>,
-  lowerIsBetter: boolean,
-) {
-  if (points.length < 2) return "Aguardando novo exame para comparar.";
-  const first = points[0];
-  const last = points.at(-1);
-  if (!last || !first.value) return "Acompanhando evolução.";
-  const delta = last.value - first.value;
-  const percent = Math.abs(Math.round((delta / first.value) * 100));
-  const improved = lowerIsBetter ? delta < 0 : delta > 0;
-  const direction = delta < 0 ? "caiu" : delta > 0 ? "subiu" : "ficou estável";
-  const suffix = improved ? "melhora" : delta === 0 ? "estabilidade" : "atenção";
-  return `Seu ${label} em ${first.date} era ${first.value}. Hoje está ${last.value}. ${direction} ${percent}% no período, sinal de ${suffix}.`;
-}
-
-function buildNinetyDayPlan(cards: BiomarkerInterpretation[]): PlanRecommendation[] {
-  const flagged = cards.filter((card) => card.tone !== "good" && !card.valueLabel.includes("—"));
-  const recommendations = flagged.map((card) => recommendationForCard(card)).filter(Boolean);
-  if (recommendations.length) return recommendations.slice(0, 4);
-  return [
-    {
-      title: "Manter o que está funcionando",
-      text: "Seus biomarcadores principais estão dentro do esperado. O foco agora é manter rotina de pressão, sono, atividade física e repetir o exame para confirmar estabilidade.",
-      source: "Baseado em prevenção cardiovascular e acompanhamento longitudinal.",
-    },
-  ];
-}
-
-function recommendationForCard(card: BiomarkerInterpretation): PlanRecommendation {
-  if (card.title === "ApoB" || card.title === "LDL") {
-    return {
-      title: "Reduzir carga de colesterol aterogênico",
-      text: "Reduza gordura saturada e ultraprocessados. Trocar manteiga por azeite e aumentar fibras costuma gerar diferença mensurável em 60 a 90 dias.",
-      source: "Baseado em diretrizes da Sociedade Brasileira de Cardiologia.",
-    };
-  }
-  if (card.title === "HOMA-IR" || card.title === "HbA1c") {
-    return {
-      title: "Melhorar sensibilidade à insulina",
-      text: "Caminhar 30 minutos após o almoço e reduzir açúcar líquido ajuda a baixar resistência à insulina ainda na fase inicial.",
-      source: "Baseado em diretrizes cardiometabólicas e prevenção de diabetes.",
-    };
-  }
-  if (card.title === "PCR-us") {
-    return {
-      title: "Reduzir inflamação crônica",
-      text: "Inflamação alta costuma responder bem à redução de açúcar processado, melhora do sono, atividade física regular e maior ingestão de alimentos ricos em ômega-3.",
-      source: "Baseado em prevenção cardiovascular e manejo de fatores inflamatórios.",
-    };
-  }
-  if (card.title === "Triglicerídeos") {
-    return {
-      title: "Baixar triglicerídeos",
-      text: "Diminua álcool, doces e carboidratos refinados por 90 dias. Esse marcador costuma responder rápido quando açúcar e álcool entram no controle.",
-      source: "Baseado em diretrizes da Sociedade Brasileira de Cardiologia.",
-    };
-  }
-  return {
-    title: `Acompanhar ${card.title}`,
-    text: "Repita o marcador no próximo exame e converse com seu médico sobre metas individuais para seu perfil.",
-    source: "Baseado em acompanhamento clínico individualizado.",
-  };
-}
-
-function buildNextExamRecommendation(
-  cards: BiomarkerInterpretation[],
-  examDate: string,
-): NextExamRecommendation {
-  const hasOutOfRange = cards.some(
-    (card) => card.tone !== "good" && !card.valueLabel.includes("—"),
-  );
-  const nextDate = addMonths(examDate, hasOutOfRange ? 3 : 6);
-  return {
-    date: nextDate,
-    reason: hasOutOfRange
-      ? "Como há biomarcadores fora do ideal, recomendamos repetir em 3 meses para medir resposta ao plano."
-      : "Como os biomarcadores principais estão dentro do esperado, repetir em 6 meses ajuda a confirmar estabilidade.",
-  };
-}
-
-function addMonths(value: string, months: number) {
-  const date = new Date(`${value}T12:00:00`);
-  date.setMonth(date.getMonth() + months);
-  return date.toISOString().slice(0, 10);
-}
-
-function formatShortDate(value: string) {
-  return new Date(`${value}T12:00:00`).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-  });
-}
-
-function isDoctorNote(data: unknown): data is { nota_medico: string | null } {
-  return Boolean(data && typeof data === "object" && "nota_medico" in data);
-}
-
-function Header() {
-  return (
-    <div className="mx-auto flex max-w-4xl items-center justify-between print:hidden">
-      <Button variant="ghost" size="icon" className="rounded-full" asChild>
-        <Link to="/meu-risco">
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-      </Button>
-      <Logo />
-      <div className="h-10 w-10" />
-    </div>
-  );
-}
-
-function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`rounded-[2rem] border border-[#10201f]/8 bg-white p-5 shadow-soft print:break-inside-avoid print:rounded-xl print:shadow-none ${className}`}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-function InfoPill({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl bg-[#f7faf9] p-4">
-      <span className="grid h-10 w-10 place-items-center rounded-full bg-[#e9f4fb] text-[#2f8fc8]">
-        {icon}
-      </span>
-      <div>
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#78908d]">{label}</p>
-        <p className="mt-1 font-semibold">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function ScoreGauge({ score }: { score: number }) {
-  return (
-    <div
-      className="grid h-28 w-28 shrink-0 place-items-center rounded-full bg-[conic-gradient(#49c7ae_var(--score),rgba(255,255,255,.18)_var(--score)_100%)] p-2"
-      style={{ "--score": `${score}%` } as CSSProperties}
-    >
-      <div className="grid h-full w-full place-items-center rounded-full bg-[#10201f]">
-        <HeartPulse className="h-8 w-8 text-[#9adbd1]" />
-      </div>
-    </div>
-  );
-}
-
-function scoreBadge(category: "baixo" | "moderado" | "alto") {
-  if (category === "baixo") return "bg-[#dff8eb] text-[#1f7a53]";
-  if (category === "moderado") return "bg-[#fff0ca] text-[#9a5b12]";
-  return "bg-[#ffe2df] text-[#b4322d]";
-}
-
-function categoryLabel(category: "baixo" | "moderado" | "alto") {
-  if (category === "baixo") return "Risco baixo";
-  if (category === "moderado") return "Risco moderado";
-  return "Risco alto";
-}
-
-function tonePill(tone: BiomarkerTone) {
-  if (tone === "good") return "bg-[#e8f5ef] text-[#2f6760]";
-  if (tone === "attention") return "bg-[#fff7dc] text-[#9a5b12]";
-  return "bg-[#ffe2df] text-[#b4322d]";
-}
-
-function toneBar(tone: BiomarkerTone) {
-  if (tone === "good") return "bg-[#49c7ae]";
-  if (tone === "attention") return "bg-[#d89a1d]";
-  return "bg-[#c4413a]";
 }
 
 function formatLongDate(value: string) {
