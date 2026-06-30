@@ -5,7 +5,7 @@ import {
   type BiomarkerId,
   type BiomarkerTone,
 } from "@/lib/htcare-knowledge";
-import { buildRiskResult, RISK_WEIGHTS, type RiskLevel } from "@/lib/risk-score";
+import { buildRiskResult, SCORE_BASELINE, type RiskLevel } from "@/lib/risk-score";
 
 export type { BiomarkerTone };
 
@@ -64,7 +64,7 @@ export function buildExamInterpretation(
 ): ExamInterpretationResult {
   const homaIr = input.homaIr ?? calculateHomaIr(input.glicemiaJejum, input.insulinaJejum);
   const biomarkers = { ...input, homaIr };
-  let score = estimatedScore ?? 100;
+  let score = SCORE_BASELINE;
   const factors: string[] = [];
 
   function penalize(points: number, factor: string) {
@@ -72,43 +72,42 @@ export function buildExamInterpretation(
     if (!factors.includes(factor)) factors.push(factor);
   }
 
+  if (estimatedScore != null) {
+    if (estimatedScore < 50) penalize(8, "perfil clínico inicial de alto risco");
+    else if (estimatedScore < 65) penalize(4, "perfil clínico inicial em atenção");
+    else if (estimatedScore >= 85) score += 4;
+  }
+
   if (biomarkers.apob != null) {
-    if (biomarkers.apob >= 130) penalize(Math.abs(RISK_WEIGHTS.apob_high), "ApoB elevado");
-    else if (biomarkers.apob >= 110)
-      penalize(Math.abs(RISK_WEIGHTS.apob_borderline), "ApoB em faixa de atenção");
+    if (biomarkers.apob >= 130) penalize(18, "ApoB elevado");
+    else if (biomarkers.apob >= 110) penalize(5, "ApoB em faixa de atenção");
   }
   if (biomarkers.ldl != null) {
-    if (biomarkers.ldl >= 160) penalize(Math.abs(RISK_WEIGHTS.ldl_high), "LDL alto");
-    else if (biomarkers.ldl >= 100)
-      penalize(Math.abs(RISK_WEIGHTS.ldl_borderline), "LDL em faixa de atenção");
+    if (biomarkers.ldl >= 160) penalize(11, "LDL alto");
+    else if (biomarkers.ldl >= 100) penalize(3, "LDL em faixa de atenção");
   }
   if (biomarkers.hdl != null) {
-    if (biomarkers.hdl < 40) penalize(Math.abs(RISK_WEIGHTS.hdl_low), "HDL baixo");
+    if (biomarkers.hdl < 40) penalize(8, "HDL baixo");
   }
   if (biomarkers.triglicerideos != null) {
-    if (biomarkers.triglicerideos >= 200)
-      penalize(Math.abs(RISK_WEIGHTS.trig_high), "triglicerídeos elevados");
+    if (biomarkers.triglicerideos >= 200) penalize(8, "triglicerídeos elevados");
+    else if (biomarkers.triglicerideos >= 150) penalize(4, "triglicerídeos em atenção");
   }
   if (biomarkers.hba1c != null) {
-    if (biomarkers.hba1c >= 6.5)
-      penalize(Math.abs(RISK_WEIGHTS.hbA1c_diabetes), "HbA1c em faixa de diabetes");
-    else if (biomarkers.hba1c >= 5.7)
-      penalize(Math.abs(RISK_WEIGHTS.hbA1c_prediabetes), "HbA1c em faixa de pré-diabetes");
+    if (biomarkers.hba1c >= 6.5) penalize(20, "HbA1c em faixa de diabetes");
+    else if (biomarkers.hba1c >= 5.7) penalize(6, "HbA1c em faixa de pré-diabetes");
   }
   if (biomarkers.glicemiaJejum != null) {
-    if (biomarkers.glicemiaJejum >= 126) penalize(10, "glicemia de jejum elevada");
-    else if (biomarkers.glicemiaJejum >= 100) penalize(5, "glicemia de jejum alterada");
+    if (biomarkers.glicemiaJejum >= 126) penalize(8, "glicemia de jejum elevada");
+    else if (biomarkers.glicemiaJejum >= 100) penalize(2, "glicemia de jejum alterada");
   }
   if (homaIr != null) {
-    if (homaIr > 2.5)
-      penalize(Math.abs(RISK_WEIGHTS.homa_ir_high), "resistência à insulina elevada");
-    else if (homaIr >= 1.5)
-      penalize(Math.abs(RISK_WEIGHTS.homa_ir_borderline), "resistência à insulina em atenção");
+    if (homaIr > 2.5) penalize(14, "resistência à insulina elevada");
+    else if (homaIr >= 1.5) penalize(5, "resistência à insulina em atenção");
   }
   if (biomarkers.pcrUs != null) {
-    if (biomarkers.pcrUs > 3) penalize(Math.abs(RISK_WEIGHTS.pcr_us_high), "inflamação elevada");
-    else if (biomarkers.pcrUs >= 1)
-      penalize(Math.abs(RISK_WEIGHTS.pcr_us_moderate), "inflamação em faixa intermediária");
+    if (biomarkers.pcrUs > 3) penalize(10, "inflamação elevada");
+    else if (biomarkers.pcrUs >= 1) penalize(3, "inflamação em faixa intermediária");
   }
 
   const riskResult = buildRiskResult(score, factors);

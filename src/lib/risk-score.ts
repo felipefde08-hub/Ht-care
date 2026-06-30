@@ -90,6 +90,19 @@ export const RISK_WEIGHTS = {
   severe_factor_cluster: -10,
 } as const;
 
+export const SCORE_BASELINE = 88;
+
+const PROTECTIVE_BONUSES = {
+  younger_than_40: 4,
+  optimal_pressure: 6,
+  normal_bmi: 4,
+  never_smoked: 3,
+  no_diabetes: 3,
+  ideal_cholesterol: 4,
+  intense_activity: 5,
+  ideal_sleep: 2,
+} as const;
+
 function clampScore(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
 }
@@ -133,6 +146,7 @@ export function buildRiskResult(score: number, factors: string[]): RiskResult {
 
 export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
   const factors: string[] = [];
+  const age = toNumber(input.age);
   const systolic = toNumber(input.systolic);
   const diastolic = toNumber(input.diastolic ?? 0);
   const totalCholesterol = toNumber(input.totalCholesterol);
@@ -144,11 +158,18 @@ export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
   let hasCurrentSmoker = false;
   let hasStage2Hypertension = false;
   let hasObesity = false;
+  let protectivePoints = 0;
 
   function add(points: number, factor: string) {
     riskPoints += points;
     if (!factors.includes(factor)) factors.push(factor);
   }
+
+  function protect(points: number) {
+    protectivePoints += points;
+  }
+
+  if (age > 0 && age < 40) protect(PROTECTIVE_BONUSES.younger_than_40);
 
   if (input.smokes === "sim") {
     hasCurrentSmoker = true;
@@ -158,6 +179,7 @@ export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
     add(Math.abs(RISK_WEIGHTS.smoker_ex_recent), "ex-tabagismo recente");
   if (input.smokes === "ex_fumante_mais_5")
     add(Math.abs(RISK_WEIGHTS.smoker_ex_remote), "histórico de tabagismo");
+  if (input.smokes === "nao") protect(PROTECTIVE_BONUSES.never_smoked);
   if (input.diabetes === "sim" || input.diabetes === "diabetes_tipo_2")
     add(Math.abs(RISK_WEIGHTS.diabetes_type2), "diabetes tipo 2 diagnosticado");
   if (input.diabetes === "diabetes_tipo_1")
@@ -166,6 +188,7 @@ export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
     add(Math.abs(RISK_WEIGHTS.prediabetes), "pré-diabetes diagnosticado");
   if (input.diabetes === "nao_sei")
     add(Math.abs(RISK_WEIGHTS.diabetes_unknown), "status de diabetes desconhecido");
+  if (input.diabetes === "nao") protect(PROTECTIVE_BONUSES.no_diabetes);
 
   if (input.knowsBloodPressure === "sim") {
     if (systolic >= 160 || diastolic >= 100) {
@@ -174,6 +197,7 @@ export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
     } else if (systolic >= 140 || diastolic >= 90)
       add(Math.abs(RISK_WEIGHTS.hypertension_stage1), "hipertensão estágio 1");
     else if (systolic >= 120 || diastolic >= 80) add(8, "pressão arterial elevada");
+    else if (systolic > 0 && diastolic > 0) protect(PROTECTIVE_BONUSES.optimal_pressure);
   } else {
     add(Math.abs(RISK_WEIGHTS.blood_pressure_unknown), "pressão arterial não informada");
   }
@@ -186,6 +210,7 @@ export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
       hasObesity = true;
       add(Math.abs(RISK_WEIGHTS.bmi_obese1), "IMC em faixa de obesidade grau 1");
     } else if (bmi >= 25) add(Math.abs(RISK_WEIGHTS.bmi_overweight), "IMC em faixa de sobrepeso");
+    else if (bmi >= 18.5) protect(PROTECTIVE_BONUSES.normal_bmi);
   }
 
   if (input.knowsCholesterol === "sim") {
@@ -193,6 +218,8 @@ export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
       add(12, "colesterol alto");
     } else if (totalCholesterol >= 200 || ldl >= 130 || (hdl > 0 && hdl < 40)) {
       add(6, "colesterol levemente alterado");
+    } else if (totalCholesterol > 0 || ldl > 0 || hdl > 0) {
+      protect(PROTECTIVE_BONUSES.ideal_cholesterol);
     }
   } else {
     add(Math.abs(RISK_WEIGHTS.cholesterol_unknown), "colesterol não informado");
@@ -209,6 +236,7 @@ export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
     add(Math.abs(RISK_WEIGHTS.light_activity), "atividade física 1-2x por semana");
   if (input.activityLevel === "moderado")
     add(Math.abs(RISK_WEIGHTS.moderate_activity_gap), "atividade física abaixo do ideal");
+  if (input.activityLevel === "intenso") protect(PROTECTIVE_BONUSES.intense_activity);
 
   if (input.previousCardiacDiagnosis === "sim")
     add(Math.abs(RISK_WEIGHTS.previous_cardiac_diagnosis), "diagnóstico cardíaco anterior");
@@ -230,6 +258,7 @@ export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
     add(Math.abs(RISK_WEIGHTS.sleep_short), "sono abaixo do recomendado");
   if (input.sleepHours === "mais_8")
     add(Math.abs(RISK_WEIGHTS.sleep_long), "sono acima de 8 horas");
+  if (input.sleepHours === "7_8") protect(PROTECTIVE_BONUSES.ideal_sleep);
 
   if (input.alcoholUse === "diariamente")
     add(Math.abs(RISK_WEIGHTS.alcohol_daily), "consumo diário de álcool");
@@ -250,7 +279,7 @@ export function calculateInitialRiskScore(input: InitialRiskInput): RiskResult {
     add(Math.abs(RISK_WEIGHTS.severe_factor_cluster), "combinação de fatores graves simultâneos");
   }
 
-  return buildRiskResult(100 - riskPoints, factors);
+  return buildRiskResult(SCORE_BASELINE + protectivePoints - riskPoints, factors);
 }
 
 export function updateRiskScoreFromCheckIn(baseScore: number, input: CheckInRiskInput): RiskResult {
