@@ -98,12 +98,9 @@ interface ExamRequestRow {
   id: string;
   user_id: string;
   status: string | null;
-  nome?: string | null;
   cidade?: string | null;
   telefone_whatsapp?: string | null;
-  score_atual?: number | null;
   resultado_url?: string | null;
-  requisicao_url?: string | null;
   laboratorio_nome?: string | null;
   created_at: string | null;
 }
@@ -115,14 +112,6 @@ interface ExamResultRow {
   arquivo_url: string | null;
   score_calculado: number | null;
   categoria_risco: string | null;
-  created_at: string | null;
-}
-
-interface ExamUploadRow {
-  id: string;
-  user_id: string;
-  name: string | null;
-  file_url: string | null;
   created_at: string | null;
 }
 
@@ -146,7 +135,6 @@ export const getAdminOverview = createServerFn({ method: "GET" })
       checkinsResult,
       examRequestsResult,
       examResultsResult,
-      examUploadsResult,
     ] = await Promise.all([
       supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
       supabaseAdmin.from("profiles").select("id,email,nome,telefone,cidade,idade,sexo,created_at"),
@@ -160,7 +148,7 @@ export const getAdminOverview = createServerFn({ method: "GET" })
       supabaseAdmin
         .from("exam_requests")
         .select(
-          "id,user_id,status,nome,cidade,telefone_whatsapp,score_atual,resultado_url,requisicao_url,laboratorio_nome,created_at",
+          "id,user_id,status,cidade,telefone_whatsapp,resultado_url,laboratorio_nome,created_at",
         )
         .order("created_at", { ascending: false }),
       supabaseAdmin
@@ -169,9 +157,6 @@ export const getAdminOverview = createServerFn({ method: "GET" })
           "id,user_id,laboratorio_nome,arquivo_url,score_calculado,categoria_risco,created_at",
         )
         .order("created_at", { ascending: false }),
-      supabaseAdmin.from("exams").select("id,user_id,name,file_url,created_at").order("created_at", {
-        ascending: false,
-      }),
     ]);
 
     if (usersError) throw new Error(usersError.message);
@@ -180,7 +165,6 @@ export const getAdminOverview = createServerFn({ method: "GET" })
     if (checkinsResult.error) throw new Error(checkinsResult.error.message);
     if (examRequestsResult.error) throw new Error(examRequestsResult.error.message);
     if (examResultsResult.error) throw new Error(examResultsResult.error.message);
-    if (examUploadsResult.error) throw new Error(examUploadsResult.error.message);
 
     const authUsers = (usersPage?.users ?? []) as AuthUser[];
     const profiles = (profilesResult.data ?? []) as ProfileRow[];
@@ -188,14 +172,12 @@ export const getAdminOverview = createServerFn({ method: "GET" })
     const checkins = (checkinsResult.data ?? []) as CheckinRow[];
     const examRequests = (examRequestsResult.data ?? []) as ExamRequestRow[];
     const examResults = (examResultsResult.data ?? []) as ExamResultRow[];
-    const examUploads = (examUploadsResult.data ?? []) as ExamUploadRow[];
 
     const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
     const assessmentsByUser = groupByUser(assessments);
     const checkinsByUser = groupByUser(checkins);
     const examRequestsByUser = groupByUser(examRequests);
     const examResultsByUser = groupByUser(examResults);
-    const examUploadsByUser = groupByUser(examUploads);
     const allIds = new Set([
       ...authUsers.map((user) => user.id),
       ...profiles.map((profile) => profile.id),
@@ -209,12 +191,10 @@ export const getAdminOverview = createServerFn({ method: "GET" })
         const userCheckins = checkinsByUser.get(id) ?? [];
         const userExamRequests = examRequestsByUser.get(id) ?? [];
         const userExamResults = examResultsByUser.get(id) ?? [];
-        const userExamUploads = examUploadsByUser.get(id) ?? [];
         const latestAssessment = userAssessments[0];
         const latestExamAt = [
           userExamRequests[0]?.created_at,
           userExamResults[0]?.created_at,
-          userExamUploads[0]?.created_at,
         ]
           .filter(Boolean)
           .sort((a, b) => +new Date(String(b)) - +new Date(String(a)))[0] as string | undefined;
@@ -275,28 +255,13 @@ export const getAdminOverview = createServerFn({ method: "GET" })
           userId: request.user_id,
           user: userDirectory.get(request.user_id),
           status: request.status,
-          score: request.score_atual ?? null,
-          risk: null,
-          laboratory: request.laboratorio_nome ?? null,
-          fileUrl: request.resultado_url ?? request.requisicao_url ?? null,
-          createdAt: request.created_at,
-          fallbackName: request.nome ?? null,
-          fallbackPhone: request.telefone_whatsapp ?? null,
-          fallbackCity: request.cidade ?? null,
-        }),
-      ),
-      ...examUploads.map((upload) =>
-        buildExamAdminRow({
-          id: upload.id,
-          type: "Upload avulso",
-          userId: upload.user_id,
-          user: userDirectory.get(upload.user_id),
-          status: upload.name ?? "arquivo enviado",
           score: null,
           risk: null,
-          laboratory: null,
-          fileUrl: upload.file_url,
-          createdAt: upload.created_at,
+          laboratory: request.laboratorio_nome ?? null,
+          fileUrl: request.resultado_url ?? null,
+          createdAt: request.created_at,
+          fallbackPhone: request.telefone_whatsapp ?? null,
+          fallbackCity: request.cidade ?? null,
         }),
       ),
     ].sort((a, b) => +new Date(b.createdAt ?? 0) - +new Date(a.createdAt ?? 0));
@@ -316,7 +281,7 @@ export const getAdminOverview = createServerFn({ method: "GET" })
         checkins: checkins.length,
         examRequests: examRequests.length,
         examResults: examResults.length,
-        examUploads: examUploads.length,
+        examUploads: 0,
       },
       users,
       exams,
