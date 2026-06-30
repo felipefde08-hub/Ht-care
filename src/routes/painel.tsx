@@ -21,6 +21,7 @@ import {
   Moon,
   Pill,
   Scale,
+  Search,
   Syringe,
   Target,
   X,
@@ -341,6 +342,8 @@ function PanelPage() {
               to="/meu-risco"
             />
           </section>
+
+          <FeaturedExamReaderCard />
 
           <QuickAccessBar actions={quickActions} />
 
@@ -806,12 +809,6 @@ function buildQuickActions({
 
   return [
     {
-      icon: <FlaskConical className="h-[26px] w-[26px]" />,
-      label: "Ler Exame",
-      to: "/ler-exame",
-      badge: hasExamPending || undefined,
-    },
-    {
       icon: <HeartPulse className="h-[26px] w-[26px]" />,
       label: "Minha Saúde",
       to: "/perfil/$section",
@@ -839,13 +836,38 @@ function buildQuickActions({
       to: "/perfil/$section",
       params: { section: "medicamentos" },
     },
-    {
-      icon: <ClipboardList className="h-[26px] w-[26px]" />,
-      label: "Protocolo",
-      to: "/protocolo-90-dias/$id",
-      params: { id: "demo" },
-    },
   ];
+}
+
+function FeaturedExamReaderCard() {
+  return (
+    <section className="mt-6">
+      <Link
+        to="/ler-exame"
+        className="group block rounded-[1.85rem] bg-[#2563EB] p-5 text-left text-white shadow-[0_22px_60px_-34px_rgba(37,99,235,0.95)] transition active:scale-[0.985]"
+      >
+        <div className="flex items-start gap-4">
+          <span className="relative grid h-16 w-16 shrink-0 place-items-center rounded-3xl bg-white/16 text-white ring-1 ring-white/20">
+            <FileText className="h-8 w-8" />
+            <span className="absolute -right-1 -top-1 grid h-7 w-7 place-items-center rounded-full bg-white text-[#2563EB] shadow-[0_8px_18px_-10px_rgba(17,24,39,0.45)]">
+              <Search className="h-4 w-4" />
+            </span>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-sans text-xl font-bold leading-tight">
+              Leia qualquer exame em segundos
+            </span>
+            <span className="mt-2 block text-sm font-medium leading-5 text-white/82">
+              Fotografe ou envie um PDF — o Carelito explica cada resultado em linguagem simples.
+            </span>
+            <span className="mt-4 inline-flex min-h-11 items-center rounded-2xl bg-white px-4 text-sm font-bold text-[#2563EB] transition group-active:scale-95">
+              Ler exame agora <ArrowRight className="ml-2 h-4 w-4" />
+            </span>
+          </span>
+        </div>
+      </Link>
+    </section>
+  );
 }
 
 function QuickAccessBar({ actions }: { actions: QuickAccessAction[] }) {
